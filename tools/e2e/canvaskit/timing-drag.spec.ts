@@ -55,7 +55,7 @@ test('a registered-card drop transfers keyboard focus for immediate Undo and Red
 })
 
 test('range drag shows the grabbed offset, collision and cancellation without committing until release', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })

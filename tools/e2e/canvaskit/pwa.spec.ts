@@ -19,6 +19,7 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
   try {
     expect(runtime).toBeTruthy()
     await page.goto(server.url)
+    await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
     await page.evaluate(async () => { await navigator.serviceWorker.ready })
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true)
@@ -49,6 +50,8 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
     // aborts reload internally before the worker can receive a navigation.
     await server.close()
     await page.reload()
+    await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('.assetBrowser, .cspLayerTree')).toHaveCount(0)
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
     await expect(page.getByRole('button', { name: 'MEMOを編集', exact: true })).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
@@ -63,5 +66,6 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
     await info.attach('offline-fonts', { body: JSON.stringify(offlineFonts), contentType: 'application/json' })
     await page.screenshot({ path: info.outputPath('pages-offline.png') })
     expect(new URL(page.url()).pathname).toBe('/xsheet-remap/')
+    expect(new URL(page.url()).search).toBe('')
   } finally { await server.close() }
 })

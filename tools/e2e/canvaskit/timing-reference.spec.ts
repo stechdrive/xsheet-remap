@@ -17,7 +17,7 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   const context = createSheetRenderModelContext(project, template)
   const circleRect = inputTextRenderItemsForPage(context, context.pages[0]).find(item => item.paperTrack === 'D')!.rect
   const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template }))
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'symbols.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(archive) })
   const svg = page.locator('.sheetSvg').first()

@@ -17,7 +17,7 @@ async function recoveredName(page: Page): Promise<string | null> {
 test('Remap and Corrector open an independent template-only editor at the deployment subpath', async ({ page, context }) => {
   for (const kind of ['remap', 'sheet-corrector']) {
     if (kind === 'sheet-corrector') await page.setViewportSize({ width: 900, height: 720 })
-    await page.goto(`./?app=${kind}`)
+    await page.goto(kind === 'remap' ? './' : `./?app=${kind}`)
     if (kind === 'remap') {
       await page.locator('summary[aria-label="画面切替"]').click()
       await expect(page.getByRole('button', { name: 'プロジェクトを開く…', exact: true })).toBeVisible()

@@ -26,7 +26,7 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
     label: '声 A', text: '日本語の確認12「ー」。', source: 'manual' }]
   const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: standardA3SheetTemplate }))
   writeFileSync(info.outputPath('editable-text.xsr'), archive)
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'editable-text.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(archive) })
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

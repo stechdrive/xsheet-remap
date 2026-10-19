@@ -15,7 +15,7 @@ test('CLIP palette colors and media import retain timing and link SOUND with one
   const require = createRequire(import.meta.url)
   const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
   const { clip } = createMediaFixture(SQL), bytes = Buffer.from(clip.bytes()); clip.close()
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
@@ -70,7 +70,7 @@ async function cell(page: Page, frame: number) {
 }
 
 test('two-pane layer workspace imports, previews, reuses cels, filters without changing exposure and exports static materials', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await expect(page.locator('#sheet-left-pane')).toHaveCount(0)
@@ -163,7 +163,7 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
 })
 
 test('right layer palette properties, insertion feedback and history agree', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   const pane = page.locator('.clipLayerPanel')

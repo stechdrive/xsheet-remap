@@ -7,7 +7,7 @@ import { decodeProjectFileBytes } from '../../../packages/adapters/src/projectAr
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
 
 test('explicit work modes retain timing, source-owned tree drops, OS destination choices and saved materials', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.clipLayerPanel')).toHaveCount(0)

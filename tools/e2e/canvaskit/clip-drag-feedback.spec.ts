@@ -9,7 +9,7 @@ const cell = cellRectForHit(standardA3SheetTemplate, timingHitForFrame(standardA
 const event = (page: Page) => page.locator('[data-timeline-event-role="cell"][data-timeline-event-track="A"][data-timeline-event-frame="7"]')
 
 test('layer tooltips match the app and layer ghosts leave enlarged cells and insertion lines readable', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await page.locator('[data-clip-layer-id="slot:slot_A"]').scrollIntoViewIfNeeded()

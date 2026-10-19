@@ -25,7 +25,7 @@ const memo: TimelineInkMemo = { kind: 'timeline', memoId: 'vertical-memo', order
   strokes: [], texts: [{ textId: 'vertical-memo-text', text: 'ー', x: 1, y: 1 }], appearance }
 
 async function openProject(page: Page, bytes: Uint8Array) {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({
     name: 'vertical-text.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(bytes),

@@ -26,7 +26,7 @@ function documentFor(template: SheetTemplate, count: number) {
   return document
 }
 async function openProject(page: Page, document: ReturnType<typeof documentFor>) {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'shared-cuts.xsr',
     mimeType: 'application/octet-stream', buffer: Buffer.from(await encodeProjectArchive(document)) })

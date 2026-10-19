@@ -110,11 +110,11 @@ A3標準やデジタル標準を土台に調整するほか、実際の紙タイ
 
 ### ブラウザ版
 
-[GitHub Pagesのxsheet-remap](https://stechdrive.github.io/xsheet-remap/)をブラウザから開いて使用できます。
+[GitHub Pagesのxsheet-remap](https://stechdrive.github.io/xsheet-remap/)を開くと、Remapの「シート編集」が起動します。「CLIP組み立て」へ切り替えると、右側のレイヤーツリーで素材やCLIPを扱えます。従来の`?app=remap`付きURLからも同じRemapを開けます。
 
 デジタルタイムシート、表示切り替え、手書きメモ、セリフ音声の録音・編集と発話区間の自動認識、AE用データのコピー、PNG・JPG・PSD出力、.xsrの読込と保存を利用できます。
 
-CLIP作成はブラウザ版でも利用できます。素材画像はブラウザへ読み込んでください。文字認識、起動中のAfter Effectsへの直接送信など、Windows固有の機能にはデスクトップ版が必要です。
+CLIPの読み込み・保存・再出力はブラウザ版でも利用できます。素材画像はブラウザへ読み込んでください。起動中のAfter Effectsへの直接送信など、Windows固有の機能にはデスクトップ版が必要です。
 
 ### Windows版
 

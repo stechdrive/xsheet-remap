@@ -12,7 +12,7 @@ test('nested CLIP processes share columns, switch independent timing, show diffe
   const SQL = await initSqlJs({ wasmBinary: new Uint8Array(readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
   const bytes = await createProcessClipFixture(SQL), source = await readClip(SQL, bytes, 'process.clip')
   const folders = clipImportFolders(source.nodes), original = folders.find(folder => folder.path.includes('作画'))!, correction = folders.find(folder => folder.path.includes('確認'))!
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))

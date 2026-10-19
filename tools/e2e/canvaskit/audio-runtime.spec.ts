@@ -6,7 +6,7 @@ test('bundled VAD worker runs the real model and resets recurrent state between 
   const assets = path.resolve(import.meta.dirname, '../../../apps/web/dist-pages/assets')
   const workers = readdirSync(assets).filter(name => /^dialogueAudioVadWorker-[\w-]+\.js$/.test(name))
   expect(workers).toHaveLength(1)
-  await page.goto('./?app=remap')
+  await page.goto('./')
   const results = await page.evaluate(async name => {
     const baseUrl = new URL('./', location.href).href
     const worker = new Worker(new URL(`assets/${name}`, baseUrl), { type: 'module' })

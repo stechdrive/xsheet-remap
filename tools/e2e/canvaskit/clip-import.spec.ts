@@ -35,7 +35,7 @@ test('CLIP worker imports chosen folders as shared cuts, resets history, and pre
   container.update('TimeLine', firstTimeline.MainId, { StartFrame: 30, EndFrame: 54 })
   const source = container.bytes()
   container.close()
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
   await page.getByLabel('CLIPを読み込む…', { exact: true }).setInputFiles({ name: 'shared.clip', mimeType: 'application/octet-stream', buffer: Buffer.from(source) })

@@ -43,7 +43,7 @@ async function resolveApplication() {
     return <TemplateEditorApp />
   }
   const { EditorApp, RemapApp } = await import('@xsheet-remap/ui')
-  return appKind === 'remap' ? <RemapApp /> : <EditorApp />
+  return appKind === 'editor' ? <EditorApp /> : <RemapApp />
 }
 
 createRoot(root).render(

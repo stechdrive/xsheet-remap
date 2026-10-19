@@ -17,7 +17,7 @@ test('imported overflow flag moves together with its column, survives undo and s
   const project = activeCutProjectFromDocument(openClipDocument(source, 'data:,', { timelineIds: [source.timelines[0].id], role: 'cell', columns }))
   const track = overlayPaperTracks(project, standardA3SheetTemplate)[0]
   const segment = overlayBandSegments(standardA3SheetTemplate, project, 'cell')[0], slot = segment.slots[3]
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))

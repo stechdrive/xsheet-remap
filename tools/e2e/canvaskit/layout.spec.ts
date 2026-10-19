@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures'
+import { activateControl } from './input'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
 test('template panes and controls fit at desktop and narrow widths; help appears only on demand', async ({ page }) => {
@@ -30,9 +31,38 @@ test('template panes and controls fit at desktop and narrow widths; help appears
   await expect(page.getByRole('tooltip')).toHaveCount(0)
 })
 
-test('sheet pane toggles leave one full-height viewport when closed', async ({ page }) => {
+test('default Remap keeps a full-height sheet and toggles its current right layer pane', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 900 })
   await page.goto('./')
+  const workspace = page.locator('.sheetWorkspace')
+  const viewport = page.locator('.sheetViewportFrame')
+  await expect(workspace).toBeVisible()
+  await expect(workspace.locator('.panelResizeToggle')).toHaveCount(0)
+  const sheetWidth = (await viewport.boundingBox())!.width
+  await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
+  await expect(page.locator('#sheet-left-pane')).toHaveCount(0)
+  await expect(page.locator('#sheet-right-pane .clipLayerPanel')).toBeVisible()
+  const toggle = workspace.locator('.panelResizeToggle')
+  await expect(toggle).toHaveCount(1)
+  expect((await viewport.boundingBox())!.width).toBeLessThan(sheetWidth)
+  for (const expanded of [false, true, false]) {
+    await activateControl(page, toggle)
+    await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+    const size = await workspace.evaluate(element => ({
+      outer: element.getBoundingClientRect().height,
+      inner: element.querySelector('.sheetViewportFrame')!.getBoundingClientRect().height,
+    }))
+    expect(size.inner).toBeGreaterThan(size.outer * 0.95)
+  }
+  await activateControl(page, page.getByRole('button', { name: 'シート編集', exact: true }))
+  await expect(workspace.locator('.panelResizeToggle')).toHaveCount(0)
+  expect((await viewport.boundingBox())!.width).toBe(sheetWidth)
+  expect(await page.evaluate(() => document.getElementById('root')!.getBoundingClientRect().height)).toBe(900)
+})
+
+test('legacy Editor pane toggles leave one full-height viewport when closed', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 })
+  await page.goto('./?app=editor')
   const workspace = page.locator('.sheetWorkspace')
   await expect(workspace).toBeVisible()
   const toggles = workspace.locator('.panelResizeToggle')

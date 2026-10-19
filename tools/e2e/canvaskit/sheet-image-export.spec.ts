@@ -31,7 +31,7 @@ for (const source of ['digital', 'paper', 'extra-lanes'] as const) {
       }
     }
     const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template }))
-    await page.goto('./?app=remap')
+    await page.goto('./')
     await activateControl(page, page.getByLabel('画面切替', { exact: true }))
     await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'expanded-digital.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(archive) })
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

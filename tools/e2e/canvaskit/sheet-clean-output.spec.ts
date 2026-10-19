@@ -56,7 +56,7 @@ for (const preset of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
     ]
     const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template }))
     writeFileSync(info.outputPath('clean-sheet.xsr'), archive)
-    await page.goto('./?app=remap')
+    await page.goto('./')
     await activateControl(page, page.getByLabel('画面切替', { exact: true }))
     await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'clean-sheet.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(archive) })
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

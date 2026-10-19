@@ -173,7 +173,7 @@ for (const template of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
 }
 
 async function openProject(page: Page, bytes: Uint8Array) {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'memos.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(bytes) })
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })

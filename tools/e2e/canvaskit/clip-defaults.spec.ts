@@ -2,7 +2,7 @@ import { expect, test } from './fixtures'
 import { activateControl } from './input'
 
 test('default process colors, A targets and added column order survive Undo and Redo', async ({ page }, info) => {
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   const processes = [

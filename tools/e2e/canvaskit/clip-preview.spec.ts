@@ -13,7 +13,7 @@ test('CLIP base choice stays beside Import and saved folder disclosure leads to 
   const { clip, vectorId } = await createPreviewFixture(SQL)
   const folder = clip.rows('Layer').find(row => row.LayerFirstChildIndex === vectorId)!
   const folderId = normalizedUuid(folder.LayerUuid), bytes = Buffer.from(clip.bytes()); clip.close()
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
@@ -74,7 +74,7 @@ async function openSavedPreview(page: Page, kind: 'vector' | '3d', option?: 'mis
   }
   const folder = clip.rows('Layer').find(row => row.LayerFirstChildIndex === vectorId)!
   const folderId = normalizedUuid(folder.LayerUuid), bytes = Buffer.from(clip.bytes()); clip.close()
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
@@ -179,7 +179,7 @@ test('large CLIP trees scroll independently while base selection and import stay
     canvas: { width: 32, height: 24, dpi: 150, basisWidth: 24, basisHeight: 16, offsetX: 0, offsetY: 0 }, fit: 'crop', images: {},
   })
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 540 })
-  await page.goto('./?app=remap')
+  await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '読み込み ›', exact: true }))
   await page.getByLabel('CLIPを読み込む…', { exact: true }).setInputFiles({ name: 'long-tree.clip', mimeType: 'application/octet-stream', buffer: Buffer.from(bytes) })

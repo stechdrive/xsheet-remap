@@ -28,6 +28,15 @@ export interface ClipTimeline {
   fps: number
   duration: number
   tracks: { folderId: string; frames: ExportTrackFrame[]; labels?: ClipTrackLabel[]; preserve?: boolean }[]
+  audio?: ClipAudioTimeline
+}
+/** Explicitly managed audio only. Unlisted native layers/timelines are preserved. */
+export interface ClipAudioTimeline {
+  replacedLayerIds: number[]
+  assets: { id: string; name: string; dataUrl: string; durationFrames: number; sourceItemId?: string }[]
+  tracks: { id: string; name: string; sourceLayerId?: number; muted: boolean; clips: {
+    id: string; assetId: string; startFrame: number; sourceOffsetFrames: number; durationFrames: number; muted?: boolean
+  }[] }[]
 }
 export interface ClipRegistrationPlan {
   document?: import('./clip-document').ClipDocumentState

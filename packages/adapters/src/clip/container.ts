@@ -60,6 +60,7 @@ export class ClipContainer {
     return result
   }
   row(table: string, id: SqlValue): Row {
+    check(id !== undefined, `${table}: 参照IDが指定されていません。`)
     check(/^[A-Za-z_][A-Za-z_0-9]*$/.test(table), 'テーブル名が不正です。')
     const statement = this.db.prepare(`SELECT * FROM "${table}" WHERE MainId=?`)
     try { statement.bind([id]); check(statement.step(), `${table}の参照先がありません。`); return statement.getAsObject() } finally { statement.free() }
@@ -73,6 +74,7 @@ export class ClipContainer {
     const next = (column: string) => Number(this.db.exec(`SELECT COALESCE(MAX("${column}"),0)+1 FROM "${table}"`)[0].values[0][0])
     const row = Object.fromEntries(Object.entries({ ...template, ...changes, MainId: next('MainId'), _PW_ID: next('_PW_ID') }).filter(([key]) => columns.includes(key)))
     const keys = Object.keys(row)
+    check(keys.every(key => row[key] !== undefined), `${table}: 値が指定されていない列があります: ${keys.filter(key => row[key] === undefined).join(', ')}`)
     this.db.run(`INSERT INTO "${table}" (${keys.map(key => `"${key}"`).join(',')}) VALUES (${keys.map(() => '?').join(',')})`, keys.map(key => row[key]))
     this.db.run('UPDATE ElemScheme SET MaxIndex=? WHERE TableName=?', [row.MainId, table])
     return row

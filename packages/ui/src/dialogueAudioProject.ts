@@ -1,7 +1,7 @@
 import type { CutProject } from '@xsheet-remap/core'
 
 export const DIALOGUE_AUDIO_EXTENSION = 'xsheet-remap.dialogue-audio'
-export const DIALOGUE_AUDIO_SCHEMA_VERSION = 2
+export const DIALOGUE_AUDIO_SCHEMA_VERSION = 3
 
 export type DialogueAudioVadPreset = 'quiet' | 'normal' | 'noisy'
 export type DialogueAudioVadMode = 'off' | 'candidates' | 'auto-region'
@@ -34,6 +34,7 @@ export interface DialogueAudioAsset {
   durationFrames: number
   waveform: number[]
   sourceName?: string
+  sourceItemId?: string
 }
 
 export interface DialogueAudioClip {
@@ -44,6 +45,13 @@ export interface DialogueAudioClip {
   timelineStartFrame: number
   sourceOffsetFrames: number
   durationFrames: number
+  muted?: boolean
+}
+
+export interface DialogueClipSource {
+  fileHash: string
+  layerId: number
+  timelineId: string
 }
 
 export interface DialogueAudioTrackState {
@@ -54,6 +62,10 @@ export interface DialogueAudioTrackState {
   dialogueRegions: DialogueRegion[]
   vadMode: DialogueAudioVadMode
   muted: boolean
+  name?: string
+  solo?: boolean
+  locked?: boolean
+  clipSource?: DialogueClipSource
 }
 
 export interface DialogueRegionAudioAnchor {
@@ -99,6 +111,7 @@ export interface DialogueSoundBinding {
   tailPaddingFrames: number
   status: 'linked' | 'review' | 'orphaned'
   reviewReason?: string
+  rangeMode?: 'follow-audio' | 'fixed'
 }
 
 export interface DialogueAudioCutState {
@@ -111,22 +124,20 @@ export interface DialogueAudioCutState {
   assets: DialogueAudioAsset[]
   tracks: DialogueAudioTrackState[]
   soundBindings: DialogueSoundBinding[]
+  /** Retained after track deletion so export clears the original placement, too. */
+  managedClipSources?: DialogueClipSource[]
 }
 
-const TRACK_COLORS = ['#d7855f', '#5f9aaa', '#8a82b5']
+const TRACK_COLORS = ['#d7855f', '#5f9aaa', '#8a82b5', '#7ca477', '#b591bd', '#b5a15b']
+
+export function createDialogueAudioTrack(trackId: string, index: number, name = `音声 ${index + 1}`): DialogueAudioTrackState {
+  return { trackId, name, color: TRACK_COLORS[index % TRACK_COLORS.length], clips: [], speechCandidates: [], dialogueRegions: [], vadMode: 'candidates', muted: false, solo: false, locked: false }
+}
 
 export function createDefaultDialogueAudioCutState(frameOrigin: number, cutDurationFrames = 1): DialogueAudioCutState {
   void frameOrigin
   void cutDurationFrames
-  const tracks = TRACK_COLORS.map((color, index): DialogueAudioTrackState => ({
-    trackId: `dialogue-${index + 1}`,
-    color,
-    clips: [],
-    speechCandidates: [],
-    dialogueRegions: [],
-    vadMode: 'candidates',
-    muted: false,
-  }))
+  const tracks = Array.from({ length: 3 }, (_, index) => createDialogueAudioTrack(`dialogue-${index + 1}`, index))
   return {
     timelineDurationFrames: 1,
     activeTrackId: tracks[0].trackId,
@@ -146,8 +157,25 @@ export function dialogueAudioCutStateFromProject(
 ): DialogueAudioCutState {
   const fallback = createDefaultDialogueAudioCutState(frameOrigin, cutDurationFrames)
   const extension = project.extensions?.[DIALOGUE_AUDIO_EXTENSION]
-  if (!extension || extension.schemaVersion !== DIALOGUE_AUDIO_SCHEMA_VERSION) return fallback
-  return normalizeCutState(extension.data, fallback, frameOrigin)
+  if (!extension || ![2, DIALOGUE_AUDIO_SCHEMA_VERSION].includes(extension.schemaVersion)) return fallback
+  const state = normalizeCutState(extension.data, fallback, frameOrigin)
+  // Version 2 imports encoded provenance in asset IDs. Recover it before any export
+  // so an existing CSP layer is updated rather than duplicated alongside its copy.
+  if (extension.schemaVersion === 2 && project.clipDocument?.source) {
+    const fileHash = project.clipDocument.source.fileHash
+    const sources: DialogueClipSource[] = []
+    const tracks = state.tracks.map(track => {
+      const matches = track.clips.flatMap(clip => {
+        const match = /^clip-audio:([^:]+):(\d+):([^:]+):/.exec(clip.assetId)
+        return match && fileHash.startsWith(match[1]) ? [{ fileHash, layerId: Number(match[2]), timelineId: match[3] }] : []
+      })
+      for (const source of matches) if (!sources.some(item => item.layerId === source.layerId && item.timelineId === source.timelineId)) sources.push(source)
+      const first = matches[0]
+      return first && matches.every(item => item.layerId === first.layerId && item.timelineId === first.timelineId) ? { ...track, clipSource: first } : track
+    })
+    return { ...state, tracks, managedClipSources: sources, assets: state.assets.map(asset => ({ ...asset, sourceItemId: asset.sourceItemId ?? (/^clip-audio:[^:]+:\d+:[^:]+:([a-f0-9]{32})$/.exec(asset.assetId)?.[1]) })) }
+  }
+  return state
 }
 
 export function updateDialogueAudioCutStateInProject(
@@ -184,7 +212,14 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState, fram
   const assets = Array.isArray(value.assets) ? value.assets.flatMap(normalizeAsset) : []
   const assetIds = new Set(assets.map(asset => asset.assetId))
   const rawTracks = value.tracks
-  const tracks = fallback.tracks.map((defaultTrack, index) => normalizeTrackState(rawTracks[index], defaultTrack, assetIds))
+  const usedIds = new Set<string>()
+  const tracks = rawTracks.map((value, index) => {
+    let id = isRecord(value) ? normalizedId(value.trackId) : ''
+    if (!id || usedIds.has(id)) { id = `dialogue-${index + 1}`; while (usedIds.has(id)) id += '-2' }
+    usedIds.add(id)
+    return normalizeTrackState(value, createDialogueAudioTrack(id, index), assetIds)
+  })
+  if (!tracks.length) tracks.push(createDialogueAudioTrack('dialogue-1', 0))
   const soundBindings = Array.isArray(value.soundBindings)
     ? value.soundBindings.flatMap(item => normalizeSoundBinding(item, tracks))
     : []
@@ -204,6 +239,7 @@ function normalizeCutState(value: unknown, fallback: DialogueAudioCutState, fram
     assets,
     tracks,
     soundBindings,
+    managedClipSources: Array.isArray(value.managedClipSources) ? value.managedClipSources.flatMap(item => normalizeClipSource(item) ?? []) : [],
   }
 }
 
@@ -238,6 +274,7 @@ function normalizeAsset(value: unknown): DialogueAudioAsset[] {
     durationFrames: Math.max(0, integer(value.durationFrames, 0)),
     waveform: normalizeWaveform(value.waveform),
     sourceName: typeof value.sourceName === 'string' ? value.sourceName.slice(0, 160) : undefined,
+    sourceItemId: typeof value.sourceItemId === 'string' && /^[a-f0-9]{32}$/.test(value.sourceItemId) ? value.sourceItemId : undefined,
   }]
 }
 
@@ -259,6 +296,10 @@ function normalizeTrackState(value: unknown, fallback: DialogueAudioTrackState, 
     dialogueRegions: dialogueRegions.sort((left, right) => left.frameStart - right.frameStart || left.regionId.localeCompare(right.regionId)),
     vadMode: normalizeVadMode(value.vadMode, fallback.vadMode),
     muted: value.muted === true,
+    name: typeof value.name === 'string' && value.name.trim() ? value.name.trim().slice(0, 160) : fallback.name,
+    solo: value.solo === true,
+    locked: value.locked === true,
+    clipSource: normalizeClipSource(value.clipSource),
   }
 }
 
@@ -275,6 +316,7 @@ function normalizeClip(value: unknown, assetIds: Set<string>): DialogueAudioClip
     timelineStartFrame: integer(value.timelineStartFrame, 1),
     sourceOffsetFrames: Math.max(0, integer(value.sourceOffsetFrames, 0)),
     durationFrames,
+    ...(value.muted === true ? { muted: true } : {}),
   }]
 }
 
@@ -378,6 +420,7 @@ function normalizeSoundBinding(value: unknown, tracks: DialogueAudioTrackState[]
     cueId,
     revisionId,
     members,
+    rangeMode: value.rangeMode === 'fixed' ? 'fixed' : 'follow-audio',
     headPaddingFrames: integer(value.headPaddingFrames, 0),
     tailPaddingFrames: integer(value.tailPaddingFrames, 0),
     status,
@@ -387,6 +430,12 @@ function normalizeSoundBinding(value: unknown, tracks: DialogueAudioTrackState[]
 
 function normalizeWaveform(value: unknown): number[] {
   return Array.isArray(value) ? value.slice(0, 4096).map(sample => clampNumber(sample, 0, 1, 0)) : []
+}
+
+function normalizeClipSource(value: unknown): DialogueClipSource | undefined {
+  if (!isRecord(value) || typeof value.fileHash !== 'string' || typeof value.timelineId !== 'string'
+    || typeof value.layerId !== 'number' || !Number.isSafeInteger(value.layerId) || value.layerId < 1) return undefined
+  return { fileHash: value.fileHash, layerId: value.layerId, timelineId: value.timelineId }
 }
 
 function normalizedId(value: unknown): string {

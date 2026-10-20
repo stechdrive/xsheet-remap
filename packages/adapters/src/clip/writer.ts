@@ -8,6 +8,7 @@ import { createLayer, refreshCaches, writeMipmap } from './layers'
 import { placePixels, png, type Pixels } from './raster'
 import { ensureTrackLabelStorage, writeTrackLabels } from './track-labels'
 import { writeClipDocument } from './document-writer'
+import { writeAudioTimeline } from './audio-writer'
 export interface ClipWriteOptions {
   plan: ClipRegistrationPlan
   canvas: ClipCanvasSettings
@@ -174,6 +175,11 @@ export async function writeClip(SQL: SqlJsStatic, seedBytes: Uint8Array, options
     }
     clip.update('AnimationCutBank', bank.MainId, { Enable: 1, CurrentIndex: currentIndex })
     clip.update('Canvas', clip.rows('Canvas')[0].MainId, { CanvasCurrentLayer: managed.MainId })
+    for (const timeline of plan.timelines) if (timeline.audio) {
+      const uuid = await identity(plan.projectId, `timeline:${timeline.id}`)
+      const row = clip.rows('TimeLine').find(row => row.TimeLineUuid instanceof Uint8Array && row.TimeLineUuid.every((byte, i) => uuid[i] === byte))!
+      await writeAudioTimeline(clip, seed, row, timeline.audio, plan.projectId)
+    }
     refreshCaches(clip, settings.width, settings.height)
     // CSP regenerates folder composites on opening. Avoid retaining a misleading
     // preview of the previous cut; publish an empty preview at the correct size.

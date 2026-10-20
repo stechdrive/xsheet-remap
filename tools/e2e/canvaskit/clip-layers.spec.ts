@@ -6,6 +6,7 @@ import { activateControl } from './input'
 import { cellRectForHit, timingHitForFrame, standardA3SheetTemplate } from '../../../packages/core/src/index'
 import { readClip } from '../../../packages/adapters/src/clip/reader'
 import { createMediaFixture } from '../../../packages/adapters/src/clip/fixtures/media-fixture'
+import { readClipAudio } from '../../../packages/adapters/src/clip/audio'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
 const image = (name: string) => ({ name, mimeType: 'image/png', buffer: png })
@@ -40,6 +41,7 @@ test('CLIP palette colors and media import retain timing and link SOUND with one
   const opacity = page.getByRole('slider', { name: 'レイヤーの不透明度スライダー', exact: true })
   await expect(opacity).toBeDisabled()
   await expect(row(page, 'probe-audio').locator('.clipLayerEye')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await page.getByLabel('SOUNDに区間を表示', { exact: true }).check()
   await activateControl(page, page.getByRole('button', { name: 'セリフ音声へ取り込む', exact: true }))
   if (process.platform === 'win32' && browserName === 'webkit') {
     // The Windows Playwright WebKit build omits Web Audio. Verify the unavailable path without a mock decoder.
@@ -57,6 +59,24 @@ test('CLIP palette colors and media import retain timing and link SOUND with one
   await expect(page.locator('.soundCue').first()).toHaveAttribute('aria-label', 'probe-audio 1-72')
   await activateControl(page, page.getByRole('button', { name: 'セリフ音声へ取り込む', exact: true }))
   await expect(page.locator('.clipAudioImport')).toContainText('取り込み済み')
+  await activateControl(page,page.getByRole('button',{name:'音声タイムラインを開く',exact:true}))
+  const audio=page.getByRole('region',{name:'セリフ音声タイムライン'})
+  await activateControl(page,audio.getByRole('button',{name:'音声クリップ probe-audio',exact:true}))
+  await audio.getByLabel('クリップ開始',{exact:true}).fill('13')
+  await audio.getByLabel('クリップ開始',{exact:true}).press('Enter')
+  await activateControl(page,page.getByLabel('画面切替',{exact:true}))
+  await activateControl(page,page.getByRole('button',{name:'書き出し ›',exact:true}))
+  await activateControl(page,page.getByRole('button',{name:'CLIPを作成…',exact:true}))
+  const exportDialog=page.getByRole('dialog',{name:'CLIPを作成',exact:true}), download=page.waitForEvent('download')
+  await activateControl(page,exportDialog.getByRole('button',{name:'CLIPを作成して保存…',exact:true}))
+  const saved=info.outputPath('audio-edited.clip');await (await download).saveAs(saved)
+  const savedBytes=new Uint8Array(readFileSync(saved)),written=await readClip(SQL,savedBytes,'audio-edited.clip')
+  const nativeAudio=written.layers!.filter(layer=>layer.kind==='audio')
+  expect(nativeAudio).toHaveLength(1)
+  const result=readClipAudio(SQL,savedBytes,nativeAudio[0].sourceLayerId!,written.timelines[0].id)
+  expect(result.clips).toHaveLength(1)
+  expect(result.clips[0]).toMatchObject({startFrame:12,sourceOffsetFrames:0,durationFrames:72})
+  expect(result.assets[0].bytes).toEqual(readClipAudio(SQL,bytes,nativeAudio[0].sourceLayerId!,written.timelines[0].id).assets[0].bytes)
   const geometry = await page.locator('.clipLayerPanel').evaluate(element => ({ overflow: element.scrollWidth > element.clientWidth, treeHeight: element.querySelector('.clipLayerTree')!.clientHeight }))
   expect(geometry.overflow).toBe(false); expect(geometry.treeHeight).toBeGreaterThan(100)
   await page.screenshot({ path: info.outputPath('clip-media-sound.png') })

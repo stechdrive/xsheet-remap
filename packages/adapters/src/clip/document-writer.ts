@@ -12,6 +12,7 @@ import { clipSourceBytes } from './document-data'
 import type { ClipWriteOptions, ClipWriteResult } from './writer'
 import { optionalRows } from './layer-metadata'
 import { ensureAnimationFolderStorage, ensureAnimationStorage } from './animation-storage'
+import { writeAudioTimeline } from './audio-writer'
 
 const uuidText = (value: Row[string]) => value instanceof Uint8Array ? Array.from(value, byte => byte.toString(16).padStart(2, '0')).join('') : String(value).replaceAll('-', '').toLowerCase()
 const uuidBytes = (value: Row[string]) => Uint8Array.from(uuidText(value).match(/../g)!, hex => parseInt(hex, 16))
@@ -99,7 +100,7 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
     let bank = optionalRows(clip, 'AnimationCutBank')[0]
     const timelines: { row: Row; definition?: ClipTimeline }[] = optionalRows(clip, 'TimeLine').map(row => ({ row, definition: options.plan.timelines.find(timeline => timeline.sourceTimelineId === uuidText(row.TimeLineUuid)) }))
     for (const definition of options.plan.timelines.filter(timeline => !timeline.sourceTimelineId)) {
-      if (originalBytes && !definition.tracks.some(track => track.frames.length)) continue
+      if (originalBytes && !definition.tracks.some(track => track.frames.length) && !definition.audio?.tracks.some(track => track.clips.length)) continue
       ensureAnimationStorage(clip, seed)
       if (!bank) {
         bank = clip.insert('AnimationCutBank', seed.rows('AnimationCutBank')[0], { FirstTimeLine: 0, CurrentIndex: 0, Enable: 1 })
@@ -189,6 +190,10 @@ export async function writeClipDocument(SQL: SqlJsStatic, seedBytes: Uint8Array,
       if (definition && (Number(timeline.FrameRate) !== fps || Number(timeline.EndFrame) !== end)) {
         clip.update('TimeLine', timeline.MainId, { FrameRate: fps, EndFrame: end, BiggestEndFrame: Math.max(end, Number(timeline.BiggestEndFrame)) }); changed = true
       }
+    }
+    for (const { row, definition } of timelines) if (definition?.audio) {
+      await writeAudioTimeline(clip, seed, clip.row('TimeLine', row.MainId), definition.audio, options.plan.projectId)
+      changed = true
     }
     if (!changed && originalBytes) return { bytes: originalBytes, canvas, layers: originals.length, timelines: timelines.length }
     if (bank && timelines.length) clip.update('AnimationCutBank', bank.MainId, { Enable: 1 })

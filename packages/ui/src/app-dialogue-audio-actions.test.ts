@@ -30,6 +30,22 @@ import { synchronizeDialogueBindingsAfterAudioEdit } from './dialogueAudioBindin
 import { moveDialogueAudioClip, transformDialogueRegionInterval } from './dialogueAudioEditing'
 
 describe('app dialogue audio actions', () => {
+  it('links one clip to multiple independent SOUND windows and several tracks to one window', () => {
+    let project=projectWithCueAndAudio(8,44)
+    let state=dialogueAudioCutStateFromProject(project,1)
+    state.tracks[1].clips=[{...state.tracks[0].clips[0],clipId:'second',placementId:'second',timelineStartFrame:60}]
+    project=updateDialogueAudioCutStateInProject(project,state,1)
+    const first=project.timedRangeCues[0], actions=actionsFor(project)
+    const clips=[{trackId:'dialogue-1',clipId:state.tracks[0].clips[0].clipId},{trackId:'dialogue-2',clipId:'second'}]
+    project=actions.applyCandidateLink(project,{trackId:'dialogue-1',candidateIds:[],revisionId:'revision-1',clips},first.cueId,'keep-offset')
+    const second=createTimedRangeCue(project,{role:'sound',laneId:'sound_lane_2',frameStart:12,frameEnd:18,label:'別の指示'})
+    project=actions.applyCandidateLink(second.project,{trackId:'dialogue-1',candidateIds:[],revisionId:'revision-1',clips:clips.slice(0,1)},second.cue.cueId,'keep-offset')
+    state=dialogueAudioCutStateFromProject(project,1)
+    expect(state.soundBindings).toHaveLength(2)
+    expect(state.soundBindings[0].members).toHaveLength(2)
+    expect(state.soundBindings[1].members).toHaveLength(1)
+    expect(project.timedRangeCues.map(cue=>[cue.frameStart,cue.frameEnd])).toEqual([[8,44],[12,18]])
+  })
   it('auto-creates dialogue regions without guessing a timesheet lane', () => {
     const actions = actionsFor(createDefaultProject())
     const state = sourceAudioState()

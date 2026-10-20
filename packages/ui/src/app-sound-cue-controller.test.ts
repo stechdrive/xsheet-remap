@@ -45,7 +45,7 @@ describe('sound cue controller audio integration', () => {
       expect.objectContaining({ timedRangeCues: [expect.objectContaining({ frameStart: 12, frameEnd: 24 })] }),
       { trackId: 'dialogue-1', candidateIds: ['candidate-1'], revisionId: 'revision-1' },
       current.timedRangeCues[0].cueId,
-      'move-cue-to-audio',
+      'keep-offset',
     )
     expect(commitProject).toHaveBeenCalledTimes(1)
   })

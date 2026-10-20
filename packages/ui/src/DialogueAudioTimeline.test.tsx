@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe('DialogueAudioTimeline', () => {
-  it('shows three fixed tracks without the retired SOUND loop control', () => {
+  it('starts with three tracks and shows the independent SOUND recording band', () => {
     render(<DialogueAudioTimeline
       cutState={createDefaultDialogueAudioCutState(1)}
       fps={24}
@@ -59,7 +59,7 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getByRole('img', { name: 'タイムシート終端 5+24 / 144F' })).toBeTruthy()
     expect(screen.queryByRole('img', { name: /最終音声位置/ })).toBeNull()
     expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
-    expect(screen.queryByText('A')).toBeNull()
+    expect(screen.getByRole('button', { name: 'SOUND A 25–48F' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'セリフ音声タイムライン' }).dataset).toMatchObject({
       frameOrigin: '1',
       cutDurationFrames: '144',
@@ -361,7 +361,7 @@ describe('DialogueAudioTimeline', () => {
     expect(onCutStateChange.mock.calls[0][0].recordHistory).toBe(false)
   })
 
-  it('uses a compact name-free track rail with icon mute and contextual VAD settings', () => {
+  it('provides track names, solo and mute alongside contextual VAD settings', () => {
     const onCutStateChange = vi.fn()
     render(<DialogueAudioTimeline
       cutState={createDefaultDialogueAudioCutState(1)}
@@ -386,7 +386,8 @@ describe('DialogueAudioTimeline', () => {
     expect(trackTarget.textContent).toBe('')
     expect(trackTarget.querySelector('.dialogueAudioTrackColorBar')).toBeTruthy()
     expect(screen.queryByText('未リンクSOUND / トラック別ラベル')).toBeNull()
-    expect(screen.queryByRole('button', { name: /ソロ/ })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /ソロ/ })).toHaveLength(3)
+    expect(screen.getByLabelText('音声トラック1の名前')).toBeTruthy()
 
     const muteButton = screen.getByRole('button', { name: '音声トラック1をミュート' })
     expect(muteButton.textContent).toBe('')
@@ -707,7 +708,7 @@ describe('DialogueAudioTimeline', () => {
 
     expect(onPlayheadChange).toHaveBeenLastCalledWith(37)
     expect(document.querySelector('.dialogueAudioSelection')).toBeNull()
-    expect((screen.getByRole('button', { name: '音響指示へ割付…' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'SOUNDへ割付…' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('marquee-selects every timeline object intersecting the dragged rectangle', () => {
@@ -889,7 +890,7 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
     expect(document.querySelector('.dialogueAudioTrackCueLayer')).toBeNull()
     expect(document.querySelector('.dialogueAudioCueLane')).toBeNull()
-    expect(screen.queryByText('音声なし')).toBeNull()
+    expect(screen.getByRole('button', { name: 'SOUND 音声なし 20–25F' })).toBeTruthy()
     const region = screen.getByLabelText('セリフ区間 3–8F 主人公へ割付済み')
     expect(region.classList.contains('dialogueSpeechSegment')).toBe(true)
     expect(region.textContent).toBe('主人公')
@@ -1037,7 +1038,7 @@ describe('DialogueAudioTimeline', () => {
     openAudioTimeline()
     fireEvent.click(screen.getByLabelText('セリフ区間候補 12–20F'))
     fireEvent.click(screen.getByLabelText('セリフ区間候補 24–35F'), { ctrlKey: true })
-    fireEvent.click(screen.getByRole('button', { name: '音響指示へ割付…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SOUNDへ割付…' }))
     expect(onSoundCandidateEdit).toHaveBeenCalledWith('dialogue-1', ['vad-1', 'vad-2'], 12, 35)
   })
 
@@ -1188,7 +1189,7 @@ describe('DialogueAudioTimeline', () => {
     })
 
     fireEvent.pointerDown(clip, { button: 0, pointerId: 9, clientX: 0 })
-    fireEvent.pointerMove(clip, { pointerId: 9, clientX: 900 })
+    fireEvent.pointerMove(clip, { buttons: 1, pointerId: 9, clientX: 900 })
     fireEvent.pointerUp(clip, { pointerId: 9, clientX: 900 })
 
     await waitFor(() => {
@@ -1275,7 +1276,7 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.queryByLabelText('セリフ区間候補 3–6F')).toBeNull()
     expect(screen.getByLabelText('セリフ区間 3–6F 主人公へ割付済み')).toBeTruthy()
     fireEvent.pointerDown(clip, { button: 0, pointerId: 21, clientX: 0 })
-    fireEvent.pointerMove(clip, { pointerId: 21, clientX: 150 })
+    fireEvent.pointerMove(clip, { buttons: 1, pointerId: 21, clientX: 150 })
 
     expect(onCutStateChange).not.toHaveBeenCalled()
     expect(screen.getByLabelText('セリフ区間 13–16F 主人公へ割付済み')).toBeTruthy()
@@ -1364,13 +1365,13 @@ describe('DialogueAudioTimeline', () => {
 
     expect(clipA.classList.contains('isSelected')).toBe(true)
     expect(clipB.classList.contains('isSelected')).toBe(true)
-    expect(clipA.style.top).toBe('1px')
-    expect(clipB.style.top).toBe('14px')
+    expect(clipA.style.top).toBe('4px')
+    expect(clipB.style.top).toBe('20px')
     expect(screen.getByText(/2クリップ/)).toBeTruthy()
 
     onCutStateChange.mockClear()
     fireEvent.pointerDown(clipA, { button: 0, pointerId: 13, clientX: 0 })
-    fireEvent.pointerMove(clipA, { pointerId: 13, clientX: 150 })
+    fireEvent.pointerMove(clipA, { buttons: 1, pointerId: 13, clientX: 150 })
     fireEvent.pointerUp(clipA, { pointerId: 13, clientX: 150 })
 
     await waitFor(() => {

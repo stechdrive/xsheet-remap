@@ -4,6 +4,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf' }
+export function pagesTestPort(value = process.env.XSHEET_BROWSER_PORT) {
+  if (value === undefined) return 5178
+  if (!/^\d+$/.test(value) || Number(value) < 1024 || Number(value) > 65535) throw new Error('XSHEET_BROWSER_PORT must be an integer from 1024 to 65535')
+  return Number(value)
+}
 export async function startPagesServer({ root = path.resolve('apps/web/dist-pages'), port = 0, host = '127.0.0.1', worker = undefined } = {}) {
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'pages-artifact.json'), 'utf8'))
   const allowed = new Set(['pages-artifact.json', ...manifest.files.map(file => file.path)])
@@ -26,7 +31,7 @@ export async function startPagesServer({ root = path.resolve('apps/web/dist-page
     close: () => new Promise(resolve => { server.close(resolve); server.closeAllConnections() }) }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = await startPagesServer({ port: 5178 })
+  const server = await startPagesServer({ port: pagesTestPort() })
   console.log(`[pages-test-server] ${server.url}`)
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await server.close(); process.exit(0) })
 }

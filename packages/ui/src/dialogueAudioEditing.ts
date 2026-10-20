@@ -14,6 +14,7 @@ export function transformDialogueRegionInterval(
   regionId: string,
   frameStartInput: number,
   frameEndInput: number,
+  frameOrigin = 1,
 ): DialogueAudioCutState {
   const track = state.tracks.find(item => item.trackId === trackId)
   const region = track?.dialogueRegions.find(item => item.regionId === regionId)
@@ -23,7 +24,7 @@ export function transformDialogueRegionInterval(
   if (frameStart === region.frameStart && frameEnd === region.frameEnd) return state
   const startDelta = frameStart - region.frameStart
   const endDelta = frameEnd - region.frameEnd
-  if (startDelta === endDelta) return moveDialogueRegionAudioToFrame(state, trackId, regionId, frameStart)
+  if (startDelta === endDelta) return moveDialogueRegionAudioToFrame(state, trackId, regionId, frameStart, frameOrigin)
   const transformed: DialogueRegion = {
     ...region,
     frameStart,
@@ -45,6 +46,7 @@ export function moveDialogueRegionAudioToFrame(
   trackId: string,
   regionId: string,
   targetFrameStartInput: number,
+  frameOrigin = 1,
 ): DialogueAudioCutState {
   const track = state.tracks.find(item => item.trackId === trackId)
   const region = track?.dialogueRegions.find(item => item.regionId === regionId)
@@ -52,54 +54,39 @@ export function moveDialogueRegionAudioToFrame(
   const targetFrameStart = Math.round(targetFrameStartInput)
   const delta = targetFrameStart - region.frameStart
   if (delta === 0) return state
-  const anchors = region.anchors
-  const usedClipIds = new Set(track.clips.map(clip => clip.clipId))
-  const clips = track.clips.flatMap(clip => {
-    const clipSourceStart = clip.sourceOffsetFrames
-    const clipSourceEnd = clip.sourceOffsetFrames + clip.durationFrames - 1
-    const relevant = anchors.filter(anchor =>
-      anchor.placementId === clip.placementId
-      && anchor.assetId === clip.assetId
-      && anchor.sourceFrameStart <= clipSourceEnd
-      && anchor.sourceFrameEnd >= clipSourceStart)
-    if (relevant.length === 0) return [clip]
-    const boundaries = new Set([clipSourceStart, clipSourceEnd + 1])
-    relevant.forEach(anchor => {
-      boundaries.add(Math.max(clipSourceStart, anchor.sourceFrameStart))
-      boundaries.add(Math.min(clipSourceEnd, anchor.sourceFrameEnd) + 1)
+  const moved = moveDialogueAnchors(state, region.anchors, delta, frameOrigin)
+  return { ...moved, tracks: moved.tracks.map(item => item.trackId === trackId ? {
+    ...item, dialogueRegions: item.dialogueRegions.map(candidate => candidate.regionId === regionId ? { ...candidate, frameStart: candidate.frameStart + delta, frameEnd: candidate.frameEnd + delta } : candidate),
+  } : item) }
+}
+
+/** Moves the union of source intervals once, even when several labels refer to it. */
+export function moveDialogueAnchors(state: DialogueAudioCutState, anchors: DialogueRegion['anchors'], delta: number, frameOrigin = 1): DialogueAudioCutState {
+  if (delta === 0) return state
+  const used = new Set(state.tracks.flatMap(track => track.clips.map(clip => clip.clipId)))
+  const tracks = state.tracks.map(track => {
+    let changed = false
+    const clips = track.clips.flatMap(clip => {
+      const start = clip.sourceOffsetFrames, end = start + clip.durationFrames
+      const relevant = anchors.filter(anchor => anchor.placementId === clip.placementId && anchor.assetId === clip.assetId && anchor.sourceFrameStart < end && anchor.sourceFrameEnd >= start)
+      if (!relevant.length) return [clip]
+      if (track.locked) throw new Error('リンク先の音声トラックをロック解除してください。')
+      changed = true
+      const boundaries = [...new Set([start, end, ...relevant.flatMap(anchor => [Math.max(start, anchor.sourceFrameStart), Math.min(end, anchor.sourceFrameEnd + 1)])])].sort((a,b) => a-b)
+      return boundaries.slice(0,-1).map((sourceOffsetFrames,index) => {
+        const sourceEnd = boundaries[index+1]
+        const selected = relevant.some(anchor => anchor.sourceFrameStart <= sourceOffsetFrames && anchor.sourceFrameEnd + 1 >= sourceEnd)
+        const timelineStartFrame = clip.timelineStartFrame + sourceOffsetFrames - start + (selected ? delta : 0)
+        if (selected && timelineStartFrame < frameOrigin) throw new Error('音声をタイムラインの開始より前には移動できません。')
+        const clipId = boundaries.length === 2 ? clip.clipId : nextUniqueId(clip.clipId + '-region',used)
+        used.add(clipId)
+        return { ...clip, clipId, sourceOffsetFrames, durationFrames: sourceEnd-sourceOffsetFrames, timelineStartFrame }
+      })
     })
-    const sortedBoundaries = [...boundaries].sort((left, right) => left - right)
-    return sortedBoundaries.slice(0, -1).map((sourceOffsetFrames, index) => {
-      const sourceEnd = sortedBoundaries[index + 1] - 1
-      const selected = relevant.some(anchor => anchor.sourceFrameStart <= sourceOffsetFrames && anchor.sourceFrameEnd >= sourceEnd)
-      const clipId = sortedBoundaries.length === 2
-        ? clip.clipId
-        : nextUniqueId(`${clip.clipId}-region`, usedClipIds)
-      usedClipIds.add(clipId)
-      return {
-        ...clip,
-        clipId,
-        timelineStartFrame: clip.timelineStartFrame + sourceOffsetFrames - clip.sourceOffsetFrames + (selected ? delta : 0),
-        sourceOffsetFrames,
-        durationFrames: sourceEnd - sourceOffsetFrames + 1,
-      }
-    })
+    const movedCandidates = new Set(anchors.flatMap(anchor => anchor.candidateIds))
+    return changed ? { ...track, clips: orderedClips(clips), speechCandidates: track.speechCandidates.map(candidate => movedCandidates.has(candidate.candidateId) ? { ...candidate, frameStart: candidate.frameStart + delta, frameEnd: candidate.frameEnd + delta } : candidate) } : track
   })
-  const movedCandidateIds = new Set(region.candidateIds)
-  const nextTrack: DialogueAudioTrackState = {
-    ...track,
-    clips: orderedClips(clips),
-    speechCandidates: track.speechCandidates.map(candidate => movedCandidateIds.has(candidate.candidateId)
-      ? { ...candidate, frameStart: candidate.frameStart + delta, frameEnd: candidate.frameEnd + delta }
-      : candidate),
-    dialogueRegions: track.dialogueRegions.map(item => item.regionId === regionId
-      ? { ...item, frameStart: item.frameStart + delta, frameEnd: item.frameEnd + delta }
-      : item),
-  }
-  return {
-    ...state,
-    tracks: state.tracks.map(item => item.trackId === trackId ? nextTrack : item),
-  }
+  return { ...state, tracks }
 }
 
 export interface DialogueAudioRange {

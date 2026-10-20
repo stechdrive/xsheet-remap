@@ -147,6 +147,7 @@ export interface SoundCueDialogState {
     candidateIds: string[]
     revisionId: string
     cueId?: string
+    clips?: { trackId: string; clipId: string }[]
   }
 }
 

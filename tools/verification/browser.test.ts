@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { browserFilters, assertSameCases, browserCases, validateBrowserResults } from './browser.mjs'
 import { parseOptions } from './options.mjs'
 import { reusableEvidence } from './evidence.mjs'
+import { pagesTestPort } from '../e2e/canvaskit/pages-server.mjs'
 
 describe('browser selection and isolated execution', () => {
+  it('allows an isolated candidate port and rejects invalid server endpoints', () => {
+    expect(pagesTestPort('5187')).toBe(5187)
+    for (const port of ['', '0', '80', '65536', '5187.5', 'localhost', '5187/path']) expect(() => pagesTestPort(port)).toThrow('XSHEET_BROWSER_PORT')
+  })
   it('accepts explicit filters but refuses unknown, duplicate and ambiguous arguments', () => {
     expect(parseOptions(['browser', '--project=webkit-touch', '--workers', '2', '--grep=save|open', '--file=pwa.spec.ts', '--suite=functional', '--list']))
       .toMatchObject({ project: 'webkit-touch', workers: 2, grep: 'save|open', files: ['pwa.spec.ts'], suite: 'functional', list: true })

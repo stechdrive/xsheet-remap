@@ -30,7 +30,7 @@ export function dialogueAudioTrackExportPlans(project: CutProject): DialogueAudi
   const state = dialogueAudioCutStateFromProject(project, frameOrigin, durationFrames)
   return state.tracks.flatMap((track, trackIndex) => {
     const clips = track.clips.filter(clip => (
-      clip.timelineStartFrame < frameEnd
+      !clip.muted && clip.timelineStartFrame < frameEnd
       && clip.timelineStartFrame + clip.durationFrames > frameOrigin
     ))
     return clips.length > 0 ? [{
@@ -51,12 +51,14 @@ export function renderDialogueAudioTrackPcm(
 ): PcmAudio {
   const safeFps = Math.max(1, plan.fps)
   const safeSampleRate = Math.max(1, Math.round(sampleRate))
-  const output = new Float32Array(Math.max(0, Math.round(plan.durationFrames * safeSampleRate / safeFps)))
+  const channelCount = Math.max(1, ...plan.clips.map(clip => decodedAssets.get(clip.assetId)?.channels?.length ?? 1))
+  const channels = Array.from({ length: channelCount }, () => new Float32Array(Math.max(0, Math.round(plan.durationFrames * safeSampleRate / safeFps))))
+  const output = channels[0]
   const cutFrameEnd = plan.frameOrigin + plan.durationFrames
 
   for (const clip of plan.clips) {
     const source = decodedAssets.get(clip.assetId)
-    if (!source || source.samples.length === 0) continue
+    if (!source || source.samples.length === 0 || clip.muted) continue
     const clipFrameEnd = clip.timelineStartFrame + clip.durationFrames
     const overlapStart = Math.max(plan.frameOrigin, clip.timelineStartFrame)
     const overlapEnd = Math.min(cutFrameEnd, clipFrameEnd)
@@ -72,14 +74,19 @@ export function renderDialogueAudioTrackPcm(
       const low = Math.floor(sourcePosition)
       const high = Math.min(source.samples.length - 1, low + 1)
       const mix = sourcePosition - low
-      output[outputIndex] += source.samples[low] * (1 - mix) + source.samples[high] * mix
+      for (let channel = 0; channel < channelCount; channel++) {
+        const samples = source.channels?.[channel] ?? source.samples
+        channels[channel][outputIndex] += samples[low] * (1 - mix) + samples[high] * mix
+      }
     }
   }
 
-  for (let index = 0; index < output.length; index += 1) {
-    output[index] = Math.max(-1, Math.min(1, output[index]))
+  for (const samples of channels) for (let index = 0; index < samples.length; index += 1) {
+    samples[index] = Math.max(-1, Math.min(1, samples[index]))
   }
-  return { samples: output, sampleRate: safeSampleRate }
+  if (channelCount === 1) return { samples: output, sampleRate: safeSampleRate }
+  const mono = Float32Array.from(output, (_, index) => channels.reduce((sum, samples) => sum + samples[index], 0) / channelCount)
+  return { samples: mono, channels, sampleRate: safeSampleRate }
 }
 
 export async function createDialogueAudioTrackExports(

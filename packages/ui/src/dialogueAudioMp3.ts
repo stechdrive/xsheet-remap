@@ -36,10 +36,13 @@ export async function encodeDialogueAudioMp3(audio: PcmAudio): Promise<Uint8Arra
   output.addAudioTrack(source)
   await output.start()
 
+  const channels = audio.channels ?? [audio.samples]
+  const planar = new Float32Array(audio.samples.length * channels.length)
+  channels.forEach((samples, index) => planar.set(samples, index * audio.samples.length))
   const sample = new AudioSample({
-    data: audio.samples,
+    data: planar,
     format: 'f32-planar',
-    numberOfChannels: 1,
+    numberOfChannels: channels.length,
     sampleRate: audio.sampleRate,
     timestamp: 0,
   })

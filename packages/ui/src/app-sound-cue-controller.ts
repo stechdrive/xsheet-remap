@@ -96,6 +96,7 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
 
   function submitDialog(input: SoundCueDialogSubmit) {
     const sourceProject = options.getProject()
+    try {
     if (input.existingCueId && options.dialog?.audioCandidate) {
       const cue = sourceProject.timedRangeCues.find(item => item.cueId === input.existingCueId && item.role === 'sound')
       if (!cue) return
@@ -131,13 +132,14 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
         text: input.text,
       })
       const next = options.dialog?.audioCandidate
-        ? options.applyAudioCandidateLink?.(created.project, options.dialog.audioCandidate, created.cue.cueId, 'move-cue-to-audio') ?? created.project
+        ? options.applyAudioCandidateLink?.(created.project, options.dialog.audioCandidate, created.cue.cueId, 'keep-offset') ?? created.project
         : created.project
       options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
     }
     options.setLabelHistory(current => recordSoundLabelHistory(current, input.label))
     options.setDialog(null)
+    } catch (error) { options.onPlacementConflict?.(error instanceof Error ? error.message : String(error)) }
   }
 
   function transform(

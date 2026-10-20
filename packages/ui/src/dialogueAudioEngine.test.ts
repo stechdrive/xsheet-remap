@@ -6,9 +6,24 @@ import {
   normalizeDetectedDialogueSpeech,
   overwritePcmAtFrame,
   slicePcmForDialogueScrub,
+  pcmToWavBlob,
+  audioBufferFromPcm,
 } from './dialogueAudioEngine'
 
 describe('dialogue audio engine', () => {
+  it('retains distinct stereo channels through playback buffers, reverse scrub and WAV export', async () => {
+    const left = Float32Array.from([.5, .25, 0, -.5]), right = Float32Array.from([-.25, 0, .5, .25])
+    const audio = { samples: Float32Array.from(left, (value,index) => (value+right[index])/2), channels: [left,right], sampleRate: 4 }
+    const copied: Float32Array[] = []
+    const context = { createBuffer: (channels: number) => { expect(channels).toBe(2); return { getChannelData: (index: number) => { copied[index]=new Float32Array(4); return copied[index] } } } } as unknown as AudioContext
+    audioBufferFromPcm(context,audio)
+    expect(copied).toEqual([left,right])
+    expect(slicePcmForDialogueScrub(audio, 1, 2, 4, true).channels?.map(channel=>[...channel])).toEqual([[0,.25],[.5,0]])
+    const view = new DataView(await pcmToWavBlob(audio).arrayBuffer())
+    expect(view.getUint16(22,true)).toBe(2)
+    expect(view.getInt16(44,true)).toBe(16384)
+    expect(view.getInt16(46,true)).toBe(-8192)
+  })
   it('detects separated speech while preserving the silence between lines', () => {
     const sampleRate = 1000
     const samples = new Float32Array(sampleRate * 3)

@@ -19,9 +19,10 @@ const MAX_FILES = 1000
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
-// React 19.3 and Mediabunny 1.61 add ~84 KiB; OCR UI removal offsets part of it.
-// The inspected shell is ~4,424,000 bytes. Keep ~32 KiB headroom and all offline tools.
-const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 256 * 1024
+// The inspected shell with CAMERA interval editing and the audio updates is
+// ~4,474,400 bytes. Allow 64 KiB above the previous budget (~46 KiB headroom),
+// retaining the same runtime/file limits and all offline tools.
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 320 * 1024
 const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
 const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([

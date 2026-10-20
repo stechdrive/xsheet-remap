@@ -12,6 +12,25 @@ const options = { trackId: 'dialogue-2', muted: false, revisionId: 'sheet-main',
 const audio = (project: ReturnType<typeof createDefaultProject>) => dialogueAudioCutStateFromProject(project, project.logicalSheet.frameOrigin, project.logicalSheet.durationFrames)
 
 describe('CLIP audio to dialogue audio and SOUND', () => {
+  it('imports 32 layers into named tracks atomically, deduplicates original media and retains provenance', () => {
+    const original = createDefaultProject()
+    let project = original
+    for (let index=0; index<32; index++) {
+      const data = prepared(), id=`layer-${index}`
+      data.importId=id; data.name=`声 ${index+1}`; data.source={fileHash:'a'.repeat(64),layerId:index+1,timelineId:'timeline'}
+      data.assets=[{...data.assets[0],assetId:id,sourceItemId:'b'.repeat(32)}]
+      data.clips=[{...data.clips[0],clipId:id,placementId:id,assetId:id}]
+      project=placeClipAudio(project,data,{trackId:'new',muted:false,sound:false})
+    }
+    const state=audio(project)
+    expect(state.tracks.filter(track=>track.clips.length)).toHaveLength(32)
+    expect(state.assets).toHaveLength(1)
+    expect(state.managedClipSources).toHaveLength(32)
+    expect(state.tracks.at(-1)?.name).toBe('声 32')
+    const history=commitHistory(createProjectHistory(original),project)
+    expect(undoHistory(history).present).toEqual(original)
+    expect(audio(redoHistory(undoHistory(history)).present).tracks).toHaveLength(35)
+  })
   it('copies placement and source trim, links SOUND, and undoes/redoes the entire import once', () => {
     const project = createDefaultProject(), next = placeClipAudio(project, prepared(), options), state = audio(next)
     expect(state.tracks[1].clips[0]).toMatchObject(prepared().clips[0])

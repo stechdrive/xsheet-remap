@@ -8,6 +8,8 @@ export interface DialogueAudioAnalysis {
 export interface PcmAudio {
   samples: Float32Array
   sampleRate: number
+  /** Original channels for playback/export; samples is the mono analysis signal. */
+  channels?: Float32Array[]
 }
 
 export interface DialogueSpeechNormalization {
@@ -181,12 +183,13 @@ export function pcmFromAudioBuffer(buffer: AudioBuffer): PcmAudio {
     const samples = buffer.getChannelData(channel)
     for (let index = 0; index < samples.length; index += 1) output[index] += samples[index] / buffer.numberOfChannels
   }
-  return { samples: output, sampleRate: buffer.sampleRate }
+  return { samples: output, sampleRate: buffer.sampleRate, channels: Array.from({ length: buffer.numberOfChannels }, (_, channel) => buffer.getChannelData(channel)) }
 }
 
 export function audioBufferFromPcm(context: BaseAudioContext, audio: PcmAudio): AudioBuffer {
-  const buffer = context.createBuffer(1, audio.samples.length, audio.sampleRate)
-  buffer.getChannelData(0).set(audio.samples)
+  const channels = audio.channels ?? [audio.samples]
+  const buffer = context.createBuffer(channels.length, audio.samples.length, audio.sampleRate)
+  channels.forEach((samples, channel) => buffer.getChannelData(channel).set(samples))
   return buffer
 }
 
@@ -210,11 +213,12 @@ export function slicePcmForDialogueScrub(
   const sampleEnd = Math.max(sampleStart, Math.min(audio.samples.length, requestedEnd))
   const samples = audio.samples.slice(sampleStart, sampleEnd)
   if (reverse) samples.reverse()
-  return { samples, sampleRate: audio.sampleRate }
+  return { samples, sampleRate: audio.sampleRate, channels: audio.channels?.map(channel => { const sliced = channel.slice(sampleStart, sampleEnd); if (reverse) sliced.reverse(); return sliced }) }
 }
 
 export function pcmToWavBlob(audio: PcmAudio): Blob {
-  const dataBytes = audio.samples.length * 2
+  const channels = audio.channels ?? [audio.samples]
+  const dataBytes = audio.samples.length * 2 * channels.length
   const buffer = new ArrayBuffer(44 + dataBytes)
   const view = new DataView(buffer)
   writeAscii(view, 0, 'RIFF')
@@ -223,14 +227,14 @@ export function pcmToWavBlob(audio: PcmAudio): Blob {
   writeAscii(view, 12, 'fmt ')
   view.setUint32(16, 16, true)
   view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
+  view.setUint16(22, channels.length, true)
   view.setUint32(24, audio.sampleRate, true)
-  view.setUint32(28, audio.sampleRate * 2, true)
-  view.setUint16(32, 2, true)
+  view.setUint32(28, audio.sampleRate * 2 * channels.length, true)
+  view.setUint16(32, 2 * channels.length, true)
   view.setUint16(34, 16, true)
   writeAscii(view, 36, 'data')
   view.setUint32(40, dataBytes, true)
-  audio.samples.forEach((sample, index) => view.setInt16(44 + index * 2, Math.round(Math.max(-1, Math.min(1, sample)) * 0x7fff), true))
+  channels.forEach((samples, channel) => samples.forEach((sample, index) => view.setInt16(44 + (index * channels.length + channel) * 2, Math.round(Math.max(-1, Math.min(1, sample)) * 0x7fff), true)))
   return new Blob([buffer], { type: 'audio/wav' })
 }
 

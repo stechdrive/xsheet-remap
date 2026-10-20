@@ -32,6 +32,8 @@ describe('CLIP audio import UI ownership', () => {
   })
   it('uses the selected timeline and destination, and commits audio and SOUND together', async () => {
     const input = props(); render(<ClipAudioImport {...input} />)
+    expect((screen.getByLabelText('SOUNDに区間を表示') as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(screen.getByLabelText('SOUNDに区間を表示'))
     fireEvent.change(screen.getByLabelText('音声の取り込み先'), { target: { value: 'dialogue-3' } })
     fireEvent.click(screen.getByRole('button', { name: 'セリフ音声へ取り込む' }))
     await waitFor(() => expect(input.onChange).toHaveBeenCalledTimes(1))

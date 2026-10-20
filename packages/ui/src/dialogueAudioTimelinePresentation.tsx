@@ -26,7 +26,7 @@ import { planDialogueAudioRulerTicks } from './dialogueAudioTimelineModel'
 import { TooltipTarget } from './Tooltip'
 import type { SoundCueNavigationRequest } from './workspaceInteractionPolicy'
 
-export type DialogueAudioTimelineTool = 'select' | 'range'
+export type DialogueAudioTimelineTool = 'select' | 'range' | 'razor'
 
 export interface DialogueAudioTimelineProps {
   cutState: DialogueAudioCutState
@@ -60,7 +60,7 @@ export interface DialogueAudioTimelineProps {
     updates: { laneId: string; frameStart: number; frameEnd: number },
     intent?: DialogueSoundCueChangeIntent,
   ) => void
-  onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) => void
+  onSoundCandidateEdit: (trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string, clips?: { trackId: string; clipId: string }[]) => void
   onAutoCreateDialogueRegions: (state: DialogueAudioCutState, trackId: string, candidateIds: string[]) => DialogueAudioCutState
 }
 

@@ -5,7 +5,7 @@ import { check, view } from './binary'
 import { ClipContainer } from './container'
 import { normalizedUuid, optionalRows } from './layer-metadata'
 
-export interface ClipAudioTiming { objectId: string; startFrame: number; sourceOffsetFrames: number; durationFrames: number }
+export interface ClipAudioTiming { objectId: string; startFrame: number; sourceOffsetFrames: number; durationFrames: number; muted?: boolean }
 export interface ClipAudioReadResult {
   fps: number
   clips: (ClipAudioTiming & { assetId: string })[]
@@ -44,7 +44,7 @@ export function readAudioTiming(bytes: Uint8Array, size: number, fps: number, st
     check(!playerCurve || child(playerCurve, 'Frame')?.values.length === tags.length, '音声素材のカーブが破損しています。')
     check(!playerCurve || child(playerCurve, 'Interp')?.values.every(value => value === 'Constant'), '音声素材の切り替え形式に対応していません。')
     const volume = anim!.children.find(item => item.name === 'Param' && item.attrs.Name === 'AudioVolume')
-    check(volume && Number(volume.values[0]) === 100 && !anim!.children.some(item => item.name === 'FCurve' && item.attrs.Type === 'AudioVolume'), '音量変更・フェードのある音声は、元のCLIPで保持します。現在の音声取り込みには対応していません。')
+    check(volume && [0, 100].includes(Number(volume.values[0])) && !anim!.children.some(item => item.name === 'FCurve' && item.attrs.Type === 'AudioVolume'), '音量変更・フェードのある音声は、元のCLIPで保持します。現在の音声取り込みには対応していません。')
     const time = child(node, 'TimeClip'), motion = child(node, 'MotionClip'), info = child(node, 'TimeInfo')
     check(time && motion && info, '音声クリップの時間情報がありません。')
     const timeRate = number(time, 'Rate'), motionRate = number(motion, 'Rate'), curveRate = number(info, 'Rate')
@@ -67,7 +67,7 @@ export function readAudioTiming(bytes: Uint8Array, size: number, fps: number, st
     const offset = values[0] + (motionStart - frames[0] / curveRate) / rate
     const sourceOffsetFrames = frame(offset * fps), durationFrames = frame((timeEnd - timeStart) * fps)
     check(sourceOffsetFrames >= 0 && durationFrames > 0, '音声の素材範囲が不正です。')
-    clips.push({ objectId: ids[0], startFrame: frame(timeStart * fps) - startFrame, sourceOffsetFrames, durationFrames })
+    clips.push({ objectId: ids[0], startFrame: frame(timeStart * fps) - startFrame, sourceOffsetFrames, durationFrames, ...(Number(volume.values[0]) === 0 ? { muted: true } : {}) })
   })
   return clips.sort((a, b) => a.startFrame - b.startFrame)
 }

@@ -22,7 +22,8 @@ import {
   synchronizeDialogueBindingsAfterAudioEdit,
   type DialogueSoundCueChangeIntent,
 } from './dialogueAudioBinding'
-import { moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
+import { moveDialogueAnchors, moveDialogueRegionAudioToFrame, transformDialogueRegionInterval } from './dialogueAudioEditing'
+import { regionsForDialogueClips } from './dialogueAudioCommands'
 import {
   resolveAvailableSoundCueLane,
   SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE,
@@ -73,10 +74,31 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       nextProject.logicalSheet.frameOrigin,
       nextProject.logicalSheet.durationFrames,
     )
-    const created = createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
-    if (!created) return project
+    const clipRegions = candidate.clips?.length ? regionsForDialogueClips(state, candidate.clips) : null
+    const firstRef = clipRegions?.refs[0]
+    const created = clipRegions && firstRef ? { state: clipRegions.state, region: clipRegions.state.tracks.find(track => track.trackId === firstRef.trackId)!.dialogueRegions.find(region => region.regionId === firstRef.regionId)! }
+      : createDialogueRegionFromCandidates(state, candidate.trackId, candidate.candidateIds)
+    if (!created) throw new Error('リンクする音声が変更されました。クリップを選び直してください。')
+    if (clipRegions) {
+      const regions = clipRegions.refs.map(ref => clipRegions.state.tracks.find(track => track.trackId === ref.trackId)!.dialogueRegions.find(region => region.regionId === ref.regionId)!)
+      const frameStart = Math.min(...regions.map(region => region.frameStart)), frameEnd = Math.max(...regions.map(region => region.frameEnd))
+      let positioned = created.state
+      if (alignment === 'move-audio-to-cue') {
+        const delta = cue.frameStart - frameStart
+        // Move the union once; shared source anchors must not move a clip twice.
+        const anchors = regions.flatMap(region => region.anchors)
+        positioned = moveDialogueAnchors(positioned, anchors, delta, nextProject.logicalSheet.frameOrigin)
+      } else if (alignment === 'move-cue-to-audio') {
+        const lane = resolveAvailableSoundCueLane(nextProject, cue.laneId, frameStart, frameEnd, cue.cueId)
+        if (!lane) { options.onPlacementConflict?.(SOUND_CUE_PLACEMENT_CONFLICT_MESSAGE); return project }
+        nextProject = updateTimedRangeCue(nextProject, cue.cueId, { laneId: lane.laneId, frameStart, frameEnd })
+        cue = nextProject.timedRangeCues.find(item => item.cueId === cueId)!
+      }
+      const assigned = bindDialogueRegionsToCue(positioned, clipRegions.refs, cue, candidate.revisionId, nextProject.timedRangeCues)
+      return updateDialogueAudioCutStateInProject(nextProject, assigned, nextProject.logicalSheet.frameOrigin, nextProject.logicalSheet.durationFrames)
+    }
     let positioned = alignment === 'move-audio-to-cue'
-      ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart)
+      ? moveDialogueRegionAudioToFrame(created.state, candidate.trackId, created.region.regionId, cue.frameStart, nextProject.logicalSheet.frameOrigin)
       : created.state
     if (alignment === 'move-audio-to-cue') {
       const movedRegion = positioned.tracks
@@ -89,6 +111,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
           movedRegion.regionId,
           cue.frameStart,
           cue.frameEnd,
+          nextProject.logicalSheet.frameOrigin,
         )
       }
     } else if (alignment === 'move-cue-to-audio') {
@@ -144,7 +167,9 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       previousProject.logicalSheet.frameOrigin,
       previousProject.logicalSheet.durationFrames,
     )
-    const nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId, intent)
+    let nextState: DialogueAudioCutState
+    try { nextState = applySoundCueChangesToDialogueAudio(sourceState, previousCues, nextCues, options.revisionId, intent, previousProject.logicalSheet.frameOrigin) }
+    catch (error) { options.onPlacementConflict?.(error instanceof Error ? error.message : String(error)); return previousProject }
     return updateDialogueAudioCutStateInProject(
       placedProject,
       nextState,
@@ -159,7 +184,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
     return result.project
   }
 
-  function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string) {
+  function openSoundCueEditorForAudioCandidate(trackId: string, candidateIds: string[], frameStart: number, frameEnd: number, cueId?: string, clips?: { trackId: string; clipId: string }[]) {
     const lane = timelineLanesForLayout(options.projectRef.current).sound?.[0]
     if (!lane) return
     options.setSoundCueDialog({
@@ -167,7 +192,7 @@ export function createAppDialogueAudioActions(options: AppDialogueAudioActionsOp
       laneId: lane.laneId,
       frameStart: clamp(frameStart, options.frameMin, options.frameMax),
       frameEnd: clamp(frameEnd, options.frameMin, options.frameMax),
-      audioCandidate: { trackId, candidateIds, revisionId: options.revisionId, ...(cueId ? { cueId } : {}) },
+      audioCandidate: { trackId, candidateIds, revisionId: options.revisionId, ...(cueId ? { cueId } : {}), ...(clips ? { clips } : {}) },
     })
   }
 

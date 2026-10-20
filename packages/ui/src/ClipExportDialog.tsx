@@ -3,6 +3,7 @@ import { buildClipRegistrationPlan, clipImagePlacement, validateClipCanvas, type
 import { generateClipFile, inspectClipFile, saveBinaryFile, type ClipImagePixels } from '@xsheet-remap/adapters'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
 import { loadClipImages } from './clipExportImages'
+import { withDialogueAudioPlan } from './clipAudioExportPlan'
 const defaults: ClipCanvasSettings = { width: 1754, height: 1240, dpi: 150, basisWidth: 1536, basisHeight: 864, offsetX: 0, offsetY: 0 }
 const presetKey = 'xsheet:clip-canvas-preset:v1'
 function rememberedCanvas(): ClipCanvasSettings {
@@ -22,7 +23,7 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved, onCa
   const dialog = useModalDialogKeyboardBoundary<HTMLDivElement>(close)
   useEffect(() => () => operation.current?.abort(), [])
   const planned = useMemo(() => {
-    try { return { plan: buildClipRegistrationPlan(document, role, cutIds), error: '' } } catch (error) { return { plan: null, error: error instanceof Error ? error.message : String(error) } }
+    try { return { plan: withDialogueAudioPlan(document, buildClipRegistrationPlan(document, role, cutIds)), error: '' } } catch (error) { return { plan: null, error: error instanceof Error ? error.message : String(error) } }
   }, [document, role, cutIds])
   const layerWorkspace = Boolean(document.clipDocument)
   const hasAssignedImages = layerWorkspace ? Boolean(document.clipDocument?.nodes.some(node => node.sourceLayerId === undefined && (node.assetId || node.imageDataUrl))) : Boolean(planned.plan?.folders.some(folder => folder.cels.some(cel => cel.assetId)))

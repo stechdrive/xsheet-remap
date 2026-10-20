@@ -44,11 +44,12 @@ export class DialogueAudioCache {
 
   private trim() {
     let bytes = 0
-    for (const entry of this.entries.values()) bytes += entry.audio?.samples.byteLength ?? 0
+    const size = (audio?: PcmAudio) => audio ? [...new Set([audio.samples, ...(audio.channels ?? [])])].reduce((total, samples) => total + samples.byteLength, 0) : 0
+    for (const entry of this.entries.values()) bytes += size(entry.audio)
     for (const [id, entry] of this.entries) {
       if (bytes <= this.maxBytes) break
       if (!entry.audio) continue
-      bytes -= entry.audio.samples.byteLength
+      bytes -= size(entry.audio)
       this.entries.delete(id)
     }
   }

@@ -3,6 +3,9 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { browserProjects } from '../../verification/plan.mjs'
 import { browserFilters } from '../../verification/browser.mjs'
+import { pagesTestPort } from './pages-server.mjs'
+
+const candidateUrl = `http://127.0.0.1:${pagesTestPort()}/xsheet-remap/`
 
 const localBrowsers = path.resolve(import.meta.dirname, '../../../.cache/playwright')
 if (process.platform === 'win32' && !process.env.PLAYWRIGHT_BROWSERS_PATH && existsSync(localBrowsers)) process.env.PLAYWRIGHT_BROWSERS_PATH = localBrowsers
@@ -19,9 +22,9 @@ export default defineConfig({
   webServer: {
     // Serve the inspected Pages candidate; no second build or mid-test reload.
     command: 'node tools/e2e/canvaskit/pages-server.mjs',
-    cwd: '../../..', url: 'http://127.0.0.1:5178/xsheet-remap/', reuseExistingServer: false, timeout: 15_000,
+    cwd: '../../..', url: candidateUrl, reuseExistingServer: false, timeout: 15_000,
   },
-  use: { baseURL: 'http://127.0.0.1:5178/xsheet-remap/', viewport: { width: 1440, height: 1000 },
+  use: { baseURL: candidateUrl, viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block', actionTimeout: 10_000, navigationTimeout: 30_000,
     screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   projects: browserProjects.map(name => ({

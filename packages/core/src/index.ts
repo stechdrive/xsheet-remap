@@ -556,3 +556,4 @@ export {
   resizeCameraInstruction, scaleCameraInstruction,
 } from './camera-instruction-editing'
 export type { CameraInstructionRange, CameraInstructionInterval, CameraIntervalDivision } from './camera-instruction-editing'
+export * from './paper-transcription'

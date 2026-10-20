@@ -25,6 +25,7 @@ import { ClipCorrespondenceDialog } from './ClipCorrespondenceDialog'
 import { ClipImageDropDialog } from './ClipImageDropDialog'
 import { SoundCueDialog } from './SoundCueDialog'
 import { CameraCueDialog } from './CameraCueDialog'
+import { PaperTranscriptionDialog } from './PaperTranscriptionDialog'
 import { XdtsImportDialog } from './XdtsImportDialog'
 import { DialogueAudioTimeline } from './DialogueAudioTimeline'
 import { dialogueAudioCutStateFromProject } from './dialogueAudioProject'
@@ -52,7 +53,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     activePage, activePageImage, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
@@ -86,6 +87,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
   const [templateHistoryControls, setTemplateHistoryControls] = useState<TemplateHistoryControls | null>(null)
   const correctedSheetImageExportInFlight = useRef(false)
   const [clipCorrespondenceOpen, setClipCorrespondenceOpen] = useState(false)
+  const [paperTranscriptionStarted, setPaperTranscriptionStarted] = useState(false)
+  const [paperTranscriptionOpen, setPaperTranscriptionOpen] = useState(false)
+  const paperTranscriptionScope = `${projectDocumentSnapshot.activeCutId}:${activeSheetRevision.revisionId}`
   const [correctedSheetImageExportSaving, setCorrectedSheetImageExportSaving] = useState<CorrectedSheetImageExportFormat | null>(null)
   const dialogueAudioExportInFlight = useRef(false)
   const [dialogueAudioExportSaving, setDialogueAudioExportSaving] = useState<DialogueAudioTrackExportFormat | null>(null)
@@ -261,6 +265,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSaveAeJsx={() => openTimingExportDialog('ae-jsx')}
             onSendAfterEffects={canSendToAfterEffects ? () => openTimingExportDialog('ae-send') : undefined}
             onCreateClip={() => openTimingExportDialog('clip')}
+            onOpenPaperTranscription={panel === 'sheet' ? () => { setPaperTranscriptionStarted(true); setPaperTranscriptionOpen(true) } : undefined}
           />
           <span className="topBrand">
             <strong>{appProfile.appName}</strong>
@@ -588,6 +593,20 @@ export function AppShellView({ controller }: { controller: AppController }) {
           onChange={updateXdtsImportDialog}
           onCancel={() => setXdtsImportDialog(null)}
           onConfirm={confirmXdtsImport}
+        />
+      )}
+
+      {paperTranscriptionStarted && activePage && (
+        <PaperTranscriptionDialog
+          key={`${project.projectId}:${paperTranscriptionScope}:${project.logicalSheet.processTimings?.activeProcessId ?? 'base'}`}
+          open={paperTranscriptionOpen}
+          project={project}
+          template={template}
+          scopeKey={paperTranscriptionScope}
+          runtimeImageUrls={runtimeSourceImageUrls}
+          initialRange={{ from: activePage.frameStart, to: activePage.frameEnd }}
+          onClose={() => setPaperTranscriptionOpen(false)}
+          onApply={handleApplyPaperTranscription}
         />
       )}
 

@@ -19,10 +19,10 @@ const MAX_FILES = 1000
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
 const MAX_TOTAL_BYTES = 56 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
-// The inspected shell with CAMERA interval editing and the audio updates is
-// ~4,474,400 bytes. Allow 64 KiB above the previous budget (~46 KiB headroom),
-// retaining the same runtime/file limits and all offline tools.
-const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 320 * 1024
+// The inspected shell including paper transcription is 4,523,900 bytes
+// (~48.3 KiB added to the CAMERA/audio shell). Allow 64 KiB above the previous
+// budget, retaining the same runtime/file limits and all offline tools.
+const MAX_APP_PRECACHE_BYTES = 4 * 1024 * 1024 + 384 * 1024
 const MAX_RUNTIME_WASM_BYTES = 25 * 1024 * 1024
 const MAX_RUNTIME_WASM_FILES = 3
 const allowedExtensions = new Set([

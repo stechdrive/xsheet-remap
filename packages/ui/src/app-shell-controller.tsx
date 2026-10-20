@@ -1,4 +1,5 @@
 import { useBrowserFileOwnership } from './useBrowserFileOwnership'
+import { planPaperTranscriptionImport, type PaperTranscriptionImportOptions, type PaperTranscriptionRequest, type PaperTranscriptionResult } from '@xsheet-remap/core'
 import { isCompositionKey } from './compositionKeyboard'
 import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
 import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type SheetLabelNormalizationPlan } from '@xsheet-remap/core'
@@ -400,6 +401,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function replaceProject(nextProject: CutProject) { projectRef.current = nextProject; setHistory(current => current.present === nextProject ? current : { ...current, present: nextProject }) }
+
+  function handleApplyPaperTranscription(request: PaperTranscriptionRequest, result: PaperTranscriptionResult, options: PaperTranscriptionImportOptions) {
+    if (protectedRevisionRef.current) throw new Error('このシートは編集保護中です。シート履歴のメニューから保護を解除してください。')
+    const source = commitTimingDraft(false)
+    const scopeKey = `${projectDocumentSnapshot.activeCutId}:${activeSheetRevision.revisionId}`
+    const plan = planPaperTranscriptionImport(source, template, scopeKey, request, result, options)
+    if (plan.changed) commitProject(plan.project)
+  }
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
@@ -2398,7 +2407,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     activePage, activePageImage, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
     selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
-    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence,
+    setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,

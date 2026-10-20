@@ -1,0 +1,48 @@
+.paperAiBackdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: #10221d80; padding: 16px; }
+.paperAiDialog { display: flex; flex-direction: column; width: min(1120px, 100%); max-height: calc(100dvh - 32px); background: #f8faf6; color: #1c2e27; border: 1px solid #768d80; border-radius: 10px; box-shadow: 0 16px 64px #10221d50; min-height: 0; }
+.paperAiDialog > header { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 16px; border-bottom: 1px solid #c4cec6; }
+.paperAiDialog > header > div { display: flex; flex-direction: column; gap: 7px; }
+.paperAiDialog > header strong { font-size: 18px; }
+.paperAiTabs { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #c4cec6; }
+.paperAiTabs [aria-selected="true"] { background: #315d4b; color: white; border-color: #315d4b; }
+.paperAiBody { padding: 16px; overflow: auto; min-height: 0; overscroll-behavior: contain; }
+.paperAiDialog > footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 16px; border-top: 1px solid #c4cec6; }
+.paperAiDialog label { font-size: 13px; }
+.paperAiDialog textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 80px; margin-top: 6px; font-family: ui-monospace, monospace; line-height: 1.5; }
+.paperAiDialog p { font-size: 13px; line-height: 1.6; }
+.paperAiDialog fieldset { border: 1px solid #bdc9bf; border-radius: 5px; padding: 12px; }
+.paperAiDialog select { max-width: 100%; min-width: 0; }
+.paperAiChoices, .paperAiRange, .paperAiActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 10px 0; }
+.paperAiChoices label { display: inline-flex; align-items: center; gap: 4px; }
+.paperAiRange label { display: flex; flex-direction: column; gap: 5px; }
+.paperAiRange input { width: 130px; }
+.paperAiActions button, .paperAiActions .fileButton { min-height: 34px; }
+.paperAiError { color: #8c2923; background: #fff0e8; border-left: 3px solid #b9533b; padding: 10px; overflow-wrap: anywhere; }
+.paperAiError pre { white-space: pre-wrap; margin: 0 0 8px; font: inherit; }
+.paperAiReviewLayout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr); gap: 18px; margin-top: 18px; }
+.paperAiReview > label { display: block; margin-bottom: 10px; }
+.paperAiReview select[aria-label="確認する対象"] { display: block; width: 100%; margin-top: 6px; }
+.paperAiTable { overflow: auto; max-height: 340px; border: 1px solid #c4cec6; }
+.paperAiTable table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.paperAiTable th { text-align: left; background: #e5ede5; position: sticky; top: 0; z-index: 1; }
+.paperAiTable td, .paperAiTable th { padding: 8px; border-bottom: 1px solid #d8dfd6; vertical-align: top; }
+.paperAiTable td:nth-child(3) { overflow-wrap: anywhere; max-width: 240px; }
+.paperAiTable small { display: block; margin-top: 4px; line-height: 1.45; font-size: 11px; }
+.paperAiTable button { white-space: nowrap; }
+.paperAiUncertain { background: #fff2cf; }
+.paperAiRunEditor { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.paperAiRunEditor label { display: flex; flex-direction: column; gap: 4px; }
+.paperAiRunEditor input { width: 120px; }
+.paperAiRunEditor p { flex-basis: 100%; margin: 0; }
+.paperAiPreview { min-width: 0; border-left: 1px solid #ccd6cc; padding-left: 16px; }
+.paperAiPreview svg { display: block; width: 100%; height: 480px; margin-top: 10px; background: #e4e9e3; border: 1px solid #b2bdb2; }
+.paperAiPreview .paperAiReference { max-height: 500px; overflow: auto; }
+.paperAiReference img { display: block; width: 100%; height: auto; }
+@media (max-width: 760px) {
+  .paperAiBackdrop { padding: 6px; }
+  .paperAiDialog { max-height: calc(100dvh - 12px); }
+  .paperAiBody { padding: 12px; }
+  .paperAiReviewLayout { grid-template-columns: minmax(0, 1fr); }
+  .paperAiPreview { border-left: 0; border-top: 1px solid #ccd6cc; padding: 12px 0 0; }
+  .paperAiPreview svg { height: 380px; }
+}

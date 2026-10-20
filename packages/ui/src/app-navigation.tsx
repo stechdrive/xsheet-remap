@@ -527,6 +527,7 @@ export function AppNavigationMenu({
   onSaveAeJsx,
   onSendAfterEffects,
   onCreateClip,
+  onOpenPaperTranscription,
 }: {
   appName: string
   appVersion: string
@@ -551,6 +552,7 @@ export function AppNavigationMenu({
   onSaveAeJsx: () => void
   onSendAfterEffects?: () => void
   onCreateClip: () => void
+  onOpenPaperTranscription?: () => void
 }) {
   const [activeSubmenu, setActiveSubmenu] = useState<AppNavigationSubmenu | null>(null)
 
@@ -709,6 +711,7 @@ export function AppNavigationMenu({
             <button type="button" className="appNavMenuItem" onClick={onSaveTemplate}>シートテンプレート（JSON）を書き出す…</button>
           </Tooltip>
       </AppNavigationFlyout>
+      {onOpenPaperTranscription && <button type="button" className="appNavMenuItem" onClick={onOpenPaperTranscription} onFocus={() => setActiveSubmenu(null)} onPointerEnter={() => setActiveSubmenu(null)}>紙シートのAI読み取り…</button>}
       <button type="button" className="appNavMenuItem" onClick={requestTemplateEditor} onFocus={() => setActiveSubmenu(null)} onPointerEnter={() => setActiveSubmenu(null)}>テンプレートを作成・編集…</button>
       <div className="appNavSectionLabel" onPointerEnter={() => setActiveSubmenu(null)}>ワークスペース</div>
       {panels.map(item => (

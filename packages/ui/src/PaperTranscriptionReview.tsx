@@ -54,7 +54,7 @@ export function PaperTranscriptionReview({ request, result, activeTarget, onTarg
       <tbody>{entry.runs.slice(offset, offset + 80).map((run, row) => <tr key={offset + row} className={['uncertain', 'unread'].includes(run.kind) ? 'paperAiUncertain' : ''}>
         <td>{run.from === run.to ? run.from : `${run.from}–${run.to}`}</td>
         <td>{paperTranscriptionKindLabels[run.kind]}</td>
-        <td><strong>{run.value ?? run.raw}</strong>{run.note && <small>{run.note}</small>}{run.frameCandidates?.length ? <small>位置候補: {run.frameCandidates.join(', ')} F</small> : null}{run.valueCandidates?.length ? <small>文字候補: {run.valueCandidates.join(' / ')}</small> : null}</td>
+        <td><strong>{run.value ?? run.raw}</strong>{run.value && run.raw && run.raw !== run.value && <small>原表記: {run.raw}</small>}{run.note && <small>{run.note}</small>}{run.frameCandidates?.length ? <small>位置候補: {run.frameCandidates.join(', ')} F</small> : null}{run.valueCandidates?.length ? <small>文字候補: {run.valueCandidates.join(' / ')}</small> : null}</td>
         <td><button type="button" onClick={() => { onFocusRun(run); setEdit({ index: offset + row, kind: run.kind, value: run.value ?? run.valueCandidates?.[0] ?? '', frame: run.frameCandidates?.[0] ?? run.from }); setError('') }}>確認・修正</button></td>
       </tr>)}</tbody>
     </table></div>

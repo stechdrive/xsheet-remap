@@ -41,20 +41,19 @@ export async function verifyCameraDialogScalability(
   await driver.mouseDrag(scaleStart, scaleEnd)
   await driver.keyPress('Enter')
   await driver.waitForSelector('[role="dialog"][aria-label="撮影指示"]')
-  await driver.clickButtonByText('＋ 中間ラベル')
-  await driver.setReactFieldValue('[aria-label="CAMERA中間ラベル1までの区間長"]', '25')
+  await driver.clickButtonByText('操作')
+  await driver.setReactFieldValue('[aria-label="区間操作の値"]', '12')
+  await driver.clickButtonByText('適用')
+  await driver.setReactFieldValue('[aria-label="CAMERA区間1の尺"]', '20')
   await driver.evaluatePage<void>(`(() => {
-    const input = document.querySelector('[aria-label="CAMERA中間ラベル1までの区間長"]');
+    const input = document.querySelector('[aria-label="CAMERA区間1の尺"]');
     input?.focus();
     input?.blur();
   })()`)
   await driver.waitForPageCondition(
-    () => document.querySelector<HTMLInputElement>('[aria-label="CAMERA中間ラベル1までの区間長"]')?.value === '1+1',
-    'compact intermediate duration normalized to 1+1',
+    () => document.querySelector<HTMLInputElement>('[aria-label="CAMERA区間1の尺"]')?.value === '0+20',
+    'compact interval duration normalized to 0+20',
   )
-  for (let index = 1; index < 7; index += 1) {
-    await driver.clickButtonByText('＋ 中間ラベル')
-  }
   await driver.waitForPageCondition(
     () => document.querySelectorAll('[role="dialog"][aria-label="撮影指示"] .cameraSegmentKindOptions').length === 8,
     'eight visible CAMERA interval selectors',
@@ -67,8 +66,8 @@ export async function verifyCameraDialogScalability(
       if (!dialog || !body || !footer) throw new Error('CAMERA dialog layout is unavailable');
       const bodyFits = body.scrollHeight <= body.clientHeight + 1;
       const segmentLefts = Array.from(dialog.querySelectorAll('.cameraSegmentKindOptions')).map(item => Math.round(item.getBoundingClientRect().left));
-      const durationLefts = Array.from(dialog.querySelectorAll('.cameraIntermediatePointRow .compactDurationFrameControl')).map(item => Math.round(item.getBoundingClientRect().left));
-      const deleteLefts = Array.from(dialog.querySelectorAll('.cameraIntermediatePointRow > .dialogIconButton')).map(item => Math.round(item.getBoundingClientRect().left));
+      const durationLefts = Array.from(dialog.querySelectorAll('.cameraIntervalRow .compactDurationFrameControl')).map(item => Math.round(item.getBoundingClientRect().left));
+      const deleteLefts = Array.from(dialog.querySelectorAll('.cameraIntervalActions')).map(item => Math.round(item.getBoundingClientRect().left));
       dialog.style.maxHeight = '360px';
       const constrainedScrolls = body.scrollHeight > body.clientHeight + 1 && getComputedStyle(body).overflowY === 'auto';
       const dialogBox = dialog.getBoundingClientRect();

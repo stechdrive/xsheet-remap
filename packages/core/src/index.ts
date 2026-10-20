@@ -550,3 +550,9 @@ export {
   type CspLayerTreeTrack,
 } from './csp-layer-tree'
 export { buildSheetLabelNormalizationPlan, applySheetLabelNormalizationPlan, nextAssetSheetLabel, ensureAssetSheetLabel, updateSheetKeyDisplayLabel, type SheetLabelNormalizationOptions, type SheetLabelNormalizationPlan } from './sheet-label-normalization'
+export {
+  cameraInstructionIntervals, cameraIntervalDivisionLengths, changeCameraIntervalDuration,
+  divideCameraInstruction, moveCameraInstructionBoundary, removeCameraInstructionBoundary,
+  resizeCameraInstruction, scaleCameraInstruction,
+} from './camera-instruction-editing'
+export type { CameraInstructionRange, CameraInstructionInterval, CameraIntervalDivision } from './camera-instruction-editing'

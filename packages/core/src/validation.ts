@@ -109,9 +109,10 @@ export function validateProject(project: CutProject, profile?: ExportProfile): V
             || !Number.isInteger(point.frameOffset)
             || point.frameOffset !== expectedOffset
             || point.frameOffset < 0
+            || (point.role === 'intermediate' && point.frameOffset < 1)
             || point.frameOffset >= duration
         })
-        if (invalidPoint || startPoints.length > 1 || endPoints.length > 1 || points.length > duration) {
+        if (invalidPoint || startPoints.length > 1 || endPoints.length > 1) {
           issues.push(issue('error', 'cue.camera.points.invalid', `camera cue ${cue.cueId} has invalid instruction points`, 'cue', cue.cueId))
         }
         const allowedSegmentTargets = new Set([

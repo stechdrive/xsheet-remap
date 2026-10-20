@@ -801,9 +801,10 @@ function verticalLayout(
   overflow: boolean,
 ): CameraCueLabelLayout {
   const step = font.sizePx * 1.12
-  const metrics = sharedTextMeasurementProvider.measure(values[0] ?? '', font)
-  const contentHeight = Math.max(font.sizePx, (values.length - 1) * step + metrics.ascentPx + metrics.descentPx)
-  const top = rect.y * pageSize.heightPx + Math.max(metrics.ascentPx, (rect.h * pageSize.heightPx - contentHeight) / 2 + metrics.ascentPx)
+  // Vertical forms use an em square, regardless of the horizontal ink bounds
+  // of the first character (particularly punctuation and the long vowel mark).
+  const contentHeight = Math.max(font.sizePx, (values.length - 1) * step + font.sizePx)
+  const top = rect.y * pageSize.heightPx + Math.max(0, (rect.h * pageSize.heightPx - contentHeight) / 2) + font.sizePx * 0.88
   return {
     cueId,
     rect,

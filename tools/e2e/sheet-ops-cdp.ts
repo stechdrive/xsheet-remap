@@ -644,27 +644,30 @@ async function verifyCameraCueInputHandoff(): Promise<void> {
     return dialog.querySelector('header strong')?.textContent?.trim() === '撮影指示'
       && radios.length === 5
       && !dialog.querySelector('.cameraShapePicker')
-      && Boolean(dialog.querySelector('[role="radiogroup"][aria-label="開始から次の点までの図形"]'))
-      && !dialog.querySelector('select')
+      && Boolean(dialog.querySelector('[role="radiogroup"][aria-label="区間1の図形"]'))
+      && Boolean(dialog.querySelector('.cameraIntervalRow .compactDurationFrameControl'))
       && !dialog.querySelector('[aria-label="CAMERA開始フレーム"]')
       && instruction?.required === false
       && addButton?.disabled === false
-      && Boolean(dialog.querySelector('[aria-label="長さ コマ"]'))
+      && Boolean(dialog.querySelector('[aria-label="全体の長さ コマ"]'))
       && Boolean(dialog.querySelector('[aria-label="CAMERA開始ラベル"]'))
       && Boolean(dialog.querySelector('[aria-label="CAMERA終了ラベル"]'))
       && ['OL', 'TU', 'TB', 'SL', 'DTU', 'DTB', 'PAN', 'FI', 'FO', 'WI', 'WO', 'Follow', '画ブレ'].every(value => builtIns.includes(value))
   }, 'compact CAMERA dialog with five visible outgoing-segment choices')
-  await waitForPageCondition(() => document.querySelectorAll('[role="radiogroup"][aria-label="開始から次の点までの図形"] [role="radio"]').length === 5, 'five visible segment kinds')
-  if (!await evaluatePage<boolean>(`document.querySelector('[role="radio"][aria-label="開始から次の点までをオーバーラップ"] path')?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'`)) throw new Error('OL segment icon is not a closed filled shape')
-  await mouseClick(await centerOfSelector('[role="radio"][aria-label="開始から次の点までを波線の区間指示"]'))
+  await waitForPageCondition(() => document.querySelectorAll('[role="radiogroup"][aria-label="区間1の図形"] [role="radio"]').length === 5, 'five visible segment kinds')
+  if (!await evaluatePage<boolean>(`document.querySelector('[role="radio"][aria-label="区間1をオーバーラップ"] path')?.getAttribute('d') === 'M7 3H29L18 12Z M7 21H29L18 12Z'`)) throw new Error('OL segment icon is not a closed filled shape')
+  await mouseClick(await centerOfSelector('[role="radio"][aria-label="区間1を波線の区間指示"]'))
   await setReactFieldValue('[aria-label="CAMERA指示"]', 'E2E MIX')
   await setReactFieldValue('[aria-label="CAMERA開始ラベル"]', 'A')
   await setReactFieldValue('[aria-label="CAMERA終了ラベル"]', 'B')
-  await clickButtonByText('＋ 中間ラベル')
-  await setReactFieldValue('[aria-label="CAMERA中間ラベル1"]', 'MID')
-  await mouseClick(await centerOfSelector('[role="radio"][aria-label="中間ラベル1から次の点までをオーバーラップ"]'))
-  await waitForSelector('[aria-label="中間ラベル1から次の点までの交差フレーム"]')
-  await setReactFieldValue('[aria-label="中間ラベル1から次の点までの交差フレーム"]', '18')
+  await clickButtonByText('操作')
+  await setReactFieldValue('[aria-label="区間操作の値"]', '11')
+  await setReactFieldValue('[aria-label="区間操作"]', 'at')
+  await clickButtonByText('適用')
+  await setReactFieldValue('[aria-label="CAMERA境界ラベル1"]', 'MID')
+  await mouseClick(await centerOfSelector('[role="radio"][aria-label="区間2をオーバーラップ"]'))
+  await waitForSelector('[aria-label="区間2の交差フレーム"]')
+  await setReactFieldValue('[aria-label="区間2の交差フレーム"]', '18')
   await clickButtonByText('追加')
   await waitForCameraCueAt('camera_lane_1', 1, 24, 'E2E MIX')
   await waitForPageCondition(() => {
@@ -1162,10 +1165,11 @@ async function setReactFieldValue(selector: string, value: string): Promise<void
   await evaluatePage<void>(`
     (() => {
       const field = document.querySelector(${JSON.stringify(selector)});
-      if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLTextAreaElement)) {
+      if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLTextAreaElement) && !(field instanceof HTMLSelectElement)) {
         throw new Error('editable field not found: ${selector}');
       }
-      const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const prototype = field instanceof HTMLSelectElement ? HTMLSelectElement.prototype
+        : field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
       if (!setter) throw new Error('native value setter not found: ${selector}');
       setter.call(field, ${JSON.stringify(value)});

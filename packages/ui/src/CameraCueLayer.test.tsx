@@ -165,6 +165,25 @@ describe('CameraCueLayer', () => {
     expect(label?.querySelector('[clip-path]')).toBeTruthy()
   })
 
+  it('uses font vertical forms for long marks, punctuation and brackets only in vertical labels', () => {
+    const cue = cameraCue('vertical', 'camera_lane_1', 1, 72, 'range')
+    cue.label = '「コーヒー。」'
+    const props = { cues: [cue], template: standardA3SheetTemplate, page: createSheetPages(standardA3SheetTemplate, 144, 1)[0]!,
+      paperTracks: createDefaultProject().logicalSheet.paperTracks.map(track => track.paperTrack),
+      pageSize: { widthPx: 1754, heightPx: 2481 }, surface: { widthPx: 1000, heightPx: 1000 }, selectedCueId: null,
+      onPointerDown: vi.fn(), onPointerMove: vi.fn(), onPointerUp: vi.fn(), onPointerCancel: vi.fn(),
+      onDoubleClick: vi.fn(), onPointerEnter: vi.fn(), onPointerLeave: vi.fn() }
+    const { container, rerender } = render(<svg><CameraCueLayer {...props} /></svg>)
+    expect(container.querySelector('.cameraCueLabel')?.getAttribute('data-writing-mode')).toBe('vertical')
+    expect(container.querySelectorAll('.cameraCueLabel [data-vertical-glyph="ー"] path')).toHaveLength(2)
+    for (const character of ['「', '。', '」']) expect(container.querySelector(`[data-vertical-glyph="${character}"] path`)).toBeTruthy()
+    cue.camera = { ...cue.camera!, labelPlacement: { mode: 'manual', frameOffset: 5, xRatio: 0, widthRatio: 1, heightFrames: 6 } }
+    rerender(<svg><CameraCueLayer {...props} cues={[{ ...cue }]} /></svg>)
+    expect(container.querySelector('.cameraCueLabel')?.getAttribute('data-writing-mode')).toBe('horizontal')
+    expect(container.querySelectorAll('.cameraCueLabel [data-vertical-glyph]')).toHaveLength(0)
+    expect(container.querySelector('.cameraCueLabelText')?.textContent).toBe(cue.label)
+  })
+
   it('renders mixed interval kinds in one cue and distinguishes an active transform', () => {
     const cue: TimedRangeCue = {
       cueId: 'cue_mixed', role: 'camera', laneId: 'camera_lane_1', frameStart: 1, frameEnd: 24,

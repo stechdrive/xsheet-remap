@@ -1027,11 +1027,13 @@ function renderCameraCueLayer(context: SheetExportLayerContext): ImageData {
       if (first) {
         setCueTextStyle(ctx, label.fontSizePx, 850, paint.textColor)
         drawSheetExportText(context.textOutput, ctx, {
-          text: label.glyphs.map(g => g.value).join('\n'), x: first.xPx, y: offsetY + first.yPx,
+          text: label.glyphs.map(g => g.value).join(label.orientation === 'vertical' ? '' : '\n'), x: first.xPx, y: offsetY + first.yPx,
           size: label.fontSizePx, weight: 850, offsetY, stroke: true,
+          vertical: label.orientation === 'vertical',
+          ...(label.orientation === 'vertical' ? { glyphs: label.glyphs.map(g => ({ ...g, yPx: offsetY + g.yPx })) } : {}),
           leading: label.glyphs.length > 1 ? label.glyphs[1].yPx - first.yPx : label.fontSizePx * 1.25,
           clips: [exportClipRect(context, label.regionRect, offsetY)],
-        }, target => { for (const glyph of label.glyphs) drawCueText(target, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850, paint.textColor) })
+        }, target => { for (const glyph of label.glyphs) drawCueText(target, glyph.value, glyph.xPx, offsetY + glyph.yPx, label.fontSizePx, 850, paint.textColor, label.orientation === 'vertical') })
       }
       ctx.restore()
     }

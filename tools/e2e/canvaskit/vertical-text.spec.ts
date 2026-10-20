@@ -12,6 +12,7 @@ import { timelineMemoSegmentsForPage } from '../../../packages/ui/src/timelineMe
 import { buildTimelineMemoTextLayout } from '../../../packages/ui/src/timelineMemoTextLayout'
 import { annotationVerticalLayout } from '../../../packages/ui/src/annotationTextLayout'
 import { buildSoundCuePageTextLayouts } from '../../../packages/ui/src/soundCueGeometry'
+import { buildCameraCuePageLayouts } from '../../../packages/ui/src/cameraCueGeometry'
 import { readPsdComposite } from '../psd-composite'
 import { glyphInkBounds, psdRaster, readPng } from '../raster'
 import { waitForPaperPaint } from '../paper-paint-contract'
@@ -101,7 +102,7 @@ test('memo direction switches preserve drafts, Undo, new memo defaults and saved
 })
 
 for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
-  test(`vertical memo and SOUND glyph pixels survive GPU, SVG, print, PNG and PSD (${original.templateId})`, async ({ page }, info) => {
+  test(`vertical memo, SOUND and CAMERA glyph pixels survive GPU, SVG, print, PNG and PSD (${original.templateId})`, async ({ page }, info) => {
     // A renamed SOUND heading still uses its semantic role.
     const template: SheetTemplate = { ...original, regions: original.regions.map(region => region.grid?.role === 'sound'
       ? { ...region, label: 'セリフ' } : region) }
@@ -110,15 +111,21 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       text: 'ー', x: .05, y: .12, color: '#e010b0', fontSizePx: 40, writingMode: 'vertical' }
     project = addTimelineMemo(addAnnotation(project, annotation), memo)
     project.timedRangeCues = [{ cueId: 'voice', role: 'sound', laneId: 'sound_lane_1', frameStart: 3, frameEnd: 20,
-      label: '', text: 'ー', source: 'manual' }]
+      label: '', text: 'ー', source: 'manual' },
+      // Keep the automatically placed label in the initial viewport of both templates.
+      { cueId: 'camera-vertical', role: 'camera', laneId: 'camera_lane_1', frameStart: 3, frameEnd: 9,
+        label: 'ー', text: '', camera: { shape: 'range' }, source: 'manual' }]
     const context = createSheetRenderModelContext(project, template)
     const segment = timelineMemoSegmentsForPage(template, context.pages[0], memo, context)[0]
     const timeline = buildTimelineMemoTextLayout(segment, memo.texts![0], appearance.text.fontSizeUnits, context.pageSize, undefined, 'vertical')
     const sound = buildSoundCuePageTextLayouts(template, context.pages, project.timedRangeCues, context.pageSize, context)[0].textLayout
+    const camera = buildCameraCuePageLayouts(template, context.pages[0], project.timedRangeCues.filter(cue => cue.role === 'camera'), context.pageSize, context)[0].label!
+    expect(camera.orientation).toBe('vertical')
     const targets = [
       { ...annotationVerticalLayout(annotation, context.pageSize).glyphs[0], size: 40, color: annotation.color },
       { ...timeline.glyphs![0], size: timeline.fontSizePx, color: appearance.text.color },
       { ...sound.textGlyphs[0], size: sound.textFontSizePx, color: timedRangeCuePaint(template.theme, 'sound', 0).textColor },
+      { ...camera.glyphs[0], size: camera.fontSizePx, color: timedRangeCuePaint(template.theme, 'camera', 0).textColor },
     ]
     await openProject(page, await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template })))
     const direct = await page.screenshot({ path: info.outputPath('vertical-gpu.png') })
@@ -149,6 +156,7 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
     await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')))
     await expect(page.locator('.soundCueDialogue[data-vertical-glyph="ー"] path')).toHaveCount(1)
     await expect(page.locator('.annotationTextDisplay [data-vertical-glyph="ー"] path')).toHaveCount(1)
+    await expect(page.locator('.cameraCueLabel [data-vertical-glyph="ー"] path')).toHaveCount(1)
     await page.emulateMedia({ media: 'print' })
     const printed = await page.screenshot({ path: info.outputPath('vertical-print.png') })
     const printGeometry = await svg.evaluate(element => ({ rect: element.getBoundingClientRect().toJSON(), ratio: devicePixelRatio }))
@@ -159,7 +167,7 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       size: target.size * printScale * printGeometry.ratio,
     }))
     const printBounds = glyphInkBounds(await readPng(printed), printTargets, true)
-    expect(printBounds).toHaveLength(3)
+    expect(printBounds).toHaveLength(4)
     for (const [index, bound] of printBounds.entries()) {
       expect(bound.count, `print/glyph ${index}: visible ink`).toBeGreaterThan(0)
       expect(bound.height, `print/glyph ${index}: vertical long mark`).toBeGreaterThan(bound.width)

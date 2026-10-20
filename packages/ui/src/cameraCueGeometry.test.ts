@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createDefaultProject, createSheetPages, digitalStandardSheetTemplate, projectSheetLayoutOptions, resolveSheetTemplatePageSize, standardA3SheetTemplate, type TimedRangeCue } from '@xsheet-remap/core'
 import {
   CAMERA_HORIZONTAL_MARK_GRID_RATIO,
@@ -19,6 +19,7 @@ import {
   cameraRangePathsForSegment,
 } from './cameraCueGeometry'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
+import { sharedTextMeasurementProvider } from './textMetrics'
 
 describe('CAMERA cue geometry', () => {
   const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]!
@@ -125,6 +126,25 @@ describe('CAMERA cue geometry', () => {
     expect(layout.label).toMatchObject({ orientation: 'horizontal', overflow: false })
     expect(verticalProgress(layout.label!.rect, layout.segments[0]!.rect)).toBeCloseTo(0.5)
     expect(rectIsContainedBy(layout.label!.rect, layout.label!.regionRect)).toBe(true)
+  })
+
+  it('keeps vertical punctuation inside its box even when its horizontal ink is shallow', () => {
+    const measurement = vi.spyOn(sharedTextMeasurementProvider, 'measure').mockImplementation((text, font) => ({
+      widthPx: Array.from(text).length * font.sizePx, ascentPx: font.sizePx * 0.4, descentPx: 0, exact: true,
+    }))
+    try {
+      for (const label of ['ー', '「コーヒー。」']) {
+        const cue: TimedRangeCue = { cueId: 'vertical', role: 'camera', laneId: 'camera_lane_1', frameStart: 3, frameEnd: 36,
+          label, text: '', source: 'manual', camera: { shape: 'range' } }
+        const size = { widthPx: 1754, heightPx: 2481 }
+        const layout = buildCameraCuePageLayouts(standardA3SheetTemplate, page, [cue], size, { paperTracks })[0]!.label!
+        expect(layout.orientation).toBe('vertical')
+        const top = layout.glyphs[0]!.yPx - layout.fontSizePx * 0.88
+        const bottom = layout.glyphs.at(-1)!.yPx + layout.fontSizePx * 0.12
+        expect(top).toBeGreaterThanOrEqual(layout.rect.y * size.heightPx)
+        expect(bottom).toBeLessThanOrEqual((layout.rect.y + layout.rect.h) * size.heightPx)
+      }
+    } finally { measurement.mockRestore() }
   })
 
   it('protects the single OL crossing while placing its label toward the start side', () => {

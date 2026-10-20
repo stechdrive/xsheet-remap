@@ -108,6 +108,41 @@
   scrollbar-gutter: stable;
 }
 
+.cameraIntervalEditor { display: grid; gap: 6px; }
+.cameraIntervalHeader, .cameraIntervalRow {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) 78px 148px minmax(90px, 1fr) 78px;
+  gap: 8px;
+  align-items: start;
+  font-size: 11px;
+}
+.cameraIntervalHeader { color: #59655e; }
+.cameraIntervalRow { padding: 5px 0; border-top: 1px solid #d4d8d0; }
+.cameraIntervalPosition { display: grid; gap: 3px; }
+.cameraIntervalPosition small { overflow-wrap: anywhere; }
+.cameraIntervalActions { display: flex; gap: 3px; }
+.cameraIntervalActions button { padding: 4px; font-size: 11px; }
+.cameraIntervalEndLabel { color: #59655e; align-self: center; }
+.cameraIntervalHint { margin: 0; font-size: 11px; color: #59655e; }
+.cameraIntervalTools { border-top: 1px solid #d4d8d0; padding-top: 8px; font-size: 12px; }
+.cameraIntervalTools summary { cursor: pointer; }
+.cameraIntervalToolFields { display: grid; grid-template-columns: 1fr 2fr 1fr auto; gap: 8px; align-items: end; margin: 8px 0; }
+.cameraIntervalToolFields label { display: grid; gap: 4px; min-width: 0; }
+.cameraIntervalPreview { display: block; margin: 6px 0; font-weight: 700; overflow-wrap: anywhere; }
+@media (max-width: 680px) {
+  .cameraIntervalHeader { display: none; }
+  .cameraIntervalRow { grid-template-columns: minmax(80px, 1fr) 78px 148px; }
+  .cameraIntervalRow > input, .cameraIntervalEndLabel { grid-column: 1 / 3; }
+  .cameraIntervalActions { grid-column: 3; }
+  .cameraIntervalToolFields { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 420px) {
+  .cameraIntervalRow { grid-template-columns: minmax(0, 1fr) 78px; }
+  .cameraIntervalRow > .cameraSegmentKindControl { grid-column: 1 / -1; }
+  .cameraIntervalRow > input, .cameraIntervalEndLabel { grid-column: 1; }
+  .cameraIntervalActions { grid-column: 2; }
+}
+
 .cameraShapePicker {
   display: flex;
   gap: 6px;

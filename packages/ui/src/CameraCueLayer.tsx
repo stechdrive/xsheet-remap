@@ -18,6 +18,7 @@ import type { SheetSelectionSurface } from './sheet-selection-visuals'
 import { SheetTransformHandle } from './SheetTransformHandle'
 import { timedRangeCueColumnStyle } from './timedRangeCueAppearance'
 import { CanvasKitTextRuns } from './CanvasKitTextRuns'
+import { VerticalSvgGlyph } from './VerticalSvgGlyph'
 import { useVisibleSheetItems } from './useVisibleSheetItems'
 
 const cameraLayoutKey = (item: CameraCuePageLayout) => item.cue.cueId
@@ -192,6 +193,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             data-camera-cue-id={cueId}
             data-cue-column-index={columnIndex}
             data-camera-label-overflow={layout.overflow ? 'true' : 'false'}
+            data-writing-mode={layout.orientation}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
@@ -210,8 +212,10 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
             <rect className="cameraCueLabelHit" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move-label', { labelLayout: layout })} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); onDoubleClick(cueId) }} />
             <g clipPath={`url(#${clipId})`}>
               <g transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
-                <CanvasKitTextRuns className="cameraCueLabelText" viewportHeightPx={pageSize.heightPx} runs={layout.glyphs.map(glyph => ({ ...glyph, size: layout.fontSizePx, anchor: 'middle' as const }))}>
-                {layout.glyphs.map((glyph, index) => <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
+                <CanvasKitTextRuns className="cameraCueLabelText" viewportHeightPx={pageSize.heightPx} runs={layout.glyphs.map(glyph => ({ ...glyph, size: layout.fontSizePx, anchor: 'middle' as const, vertical: layout.orientation === 'vertical', weight: 850 }))}>
+                {layout.glyphs.map((glyph, index) => layout.orientation === 'vertical'
+                  ? <VerticalSvgGlyph key={index} {...glyph} size={layout.fontSizePx} weight={850} />
+                  : <text key={index} x={glyph.xPx} y={glyph.yPx} fontSize={layout.fontSizePx} textAnchor="middle">{glyph.value}</text>)}
                 </CanvasKitTextRuns>
               </g>
             </g>

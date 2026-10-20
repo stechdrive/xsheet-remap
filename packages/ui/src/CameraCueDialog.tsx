@@ -1,26 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
-  CAMERA_INSTRUCTION_CUE_END_POINT_ID,
-  cameraSegmentKindForLegacyInstruction,
-  clampCameraOverlapPivotAnchorFrame,
-  defaultCameraOverlapPivotAnchorFrame,
-  formatLogicalSheetFrameTimecode,
-  resolveCameraInstructionPoints,
-  resolveCameraInstructionSegments,
-  shapeForCameraSegmentKind,
-  type CameraInstruction,
-  type CameraInstructionPathStyle,
-  type CameraInstructionPoint,
-  type CameraInstructionSegment,
-  type CameraInstructionSegmentKind,
-  type TimedRangeCue,
+  cameraInstructionIntervals, cameraIntervalDivisionLengths, changeCameraIntervalDuration,
+  clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, divideCameraInstruction,
+  formatLogicalSheetFrameTimecode, removeCameraInstructionBoundary, resizeCameraInstruction,
+  resolveCameraInstructionPoints, resolveCameraInstructionSegments, scaleCameraInstruction, shapeForCameraSegmentKind,
+  type CameraInstruction, type CameraInstructionRange, type CameraInstructionSegment, type CameraInstructionSegmentKind, type TimedRangeCue,
 } from '@xsheet-remap/core'
 import type { CameraCueDialogState } from './appTypes'
-import {
-  CAMERA_INSTRUCTION_BUILT_INS,
-  CAMERA_INSTRUCTION_HISTORY_LIMIT,
-  CAMERA_POINT_LABEL_HISTORY_LIMIT,
-} from './cameraCueEditing'
+import { CAMERA_INSTRUCTION_BUILT_INS, CAMERA_INSTRUCTION_HISTORY_LIMIT, CAMERA_POINT_LABEL_HISTORY_LIMIT } from './cameraCueEditing'
 import { CompactDurationFrameControl, DurationFrameControl } from './DurationFrameControl'
 import { HistoryInput } from './HistoryInput'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
@@ -34,13 +21,7 @@ export interface CameraCueDialogSubmit {
   camera: CameraInstruction
 }
 
-type CameraSegmentOption = {
-  id: string
-  kind: CameraInstructionSegmentKind
-  label: string
-}
-
-const segmentOptions: CameraSegmentOption[] = [
+const segmentOptions: { id: string; kind: CameraInstructionSegmentKind; label: string }[] = [
   { id: 'straight', kind: 'straight', label: '直線の区間指示' },
   { id: 'wave', kind: 'wave', label: '波線の区間指示' },
   { id: 'fade-in', kind: 'fade-in', label: 'フェードイン・ワイプイン' },
@@ -48,16 +29,10 @@ const segmentOptions: CameraSegmentOption[] = [
   { id: 'overlap', kind: 'overlap', label: 'オーバーラップ' },
 ]
 
+type IntervalAction = 'frames' | 'count' | 'at' | 'ripple' | 'scale'
+
 export function CameraCueDialog({
-  state,
-  cue,
-  fps,
-  frameMin,
-  frameMax,
-  instructionHistory,
-  pointLabelHistory,
-  onSubmit,
-  onCancel,
+  state, cue, fps, frameMin, frameMax, instructionHistory, pointLabelHistory, onSubmit, onCancel,
 }: {
   state: CameraCueDialogState
   cue: TimedRangeCue | null
@@ -70,163 +45,77 @@ export function CameraCueDialog({
   onCancel: () => void
 }) {
   const safeFps = Math.max(1, Math.round(fps))
-  const frameStart = cue?.frameStart ?? state.frameStart
-  const initialFrameEnd = cue?.frameEnd ?? state.frameEnd
-  const initialDuration = Math.max(1, initialFrameEnd - frameStart + 1)
-  const initialCamera = cue?.camera
-  const initialPoints = resolveCameraInstructionPoints(initialCamera, frameStart, initialFrameEnd)
-  const [segmentByEndPointId, setSegmentByEndPointId] = useState<Record<string, CameraInstructionSegment>>(
-    () => Object.fromEntries(resolveCameraInstructionSegments(initialCamera, frameStart, initialFrameEnd, initialPoints)
-      .map(item => [item.endPointId, item])),
-  )
+  const [draft, setDraft] = useState<CameraInstructionRange>(() => ({
+    camera: cue?.camera ?? { shape: 'range', points: [] },
+    frameStart: cue?.frameStart ?? state.frameStart,
+    frameEnd: cue?.frameEnd ?? state.frameEnd,
+  }))
   const [label, setLabel] = useState(cue?.label ?? '')
+  const initialPoints = resolveCameraInstructionPoints(cue?.camera, draft.frameStart, draft.frameEnd)
   const [startLabel, setStartLabel] = useState(initialPoints.find(point => point.role === 'start')?.label ?? '')
   const [endLabel, setEndLabel] = useState(initialPoints.find(point => point.role === 'end')?.label ?? '')
-  const [intermediatePoints, setIntermediatePoints] = useState<CameraInstructionPoint[]>(
-    initialPoints.filter(point => point.role === 'intermediate'),
-  )
-  const [durationFrames, setDurationFrames] = useState(initialDuration)
-  const [labelPlacement, setLabelPlacement] = useState(initialCamera?.labelPlacement)
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [toolTarget, setToolTarget] = useState('all')
+  const [action, setAction] = useState<IntervalAction>('frames')
+  const [actionValue, setActionValue] = useState(12)
   const instructionInputRef = useRef<HTMLInputElement>(null)
+  const intervalToolsRef = useRef<HTMLDetailsElement>(null)
   const dialogRef = useModalDialogKeyboardBoundary<HTMLDivElement>(onCancel)
-  const maxDuration = Math.max(1, frameMax - frameStart + 1)
-  const minimumDuration = Math.max(1, ...intermediatePoints.map(point => point.frameOffset + 2))
-  const frameEnd = frameStart + durationFrames - 1
-  const occupiedOffsets = useMemo(() => new Set([0, durationFrames - 1, ...intermediatePoints.map(point => point.frameOffset)]), [durationFrames, intermediatePoints])
-  const canAddIntermediate = durationFrames >= 3 && occupiedOffsets.size < durationFrames
-  const pointCount = (startLabel.trim() ? 1 : 0)
-    + intermediatePoints.filter(point => point.label.trim()).length
-    + (endLabel.trim() ? 1 : 0)
-  const tooManyPointLabels = pointCount > durationFrames
+  const intervals = cameraInstructionIntervals(draft)
+  const points = resolveCameraInstructionPoints(draft.camera, draft.frameStart, draft.frameEnd)
+  const duration = draft.frameEnd - draft.frameStart + 1
+  const maxDuration = frameMax - draft.frameStart + 1
+  const target = intervals.find(item => item.endPointId === toolTarget)
+  const targetDuration = target?.durationFrames ?? duration
+  const valueIsInteger = Number.isInteger(actionValue) && actionValue >= 1
+  const lengths = action === 'frames' || action === 'count' || action === 'at'
+    ? cameraIntervalDivisionLengths(targetDuration, { mode: action, value: actionValue }) : []
+  const validAction = valueIsInteger && (action === 'scale'
+    ? actionValue >= intervals.length && actionValue <= maxDuration
+    : action === 'ripple' ? Boolean(target && duration - target.durationFrames + actionValue <= maxDuration)
+      : lengths.length >= 2 && (toolTarget === 'all' || Boolean(target)))
+  const preview = validAction
+    ? action === 'scale' ? scaleCameraInstruction(draft, actionValue)
+      : action === 'ripple' ? changeCameraIntervalDuration(draft, toolTarget, actionValue, 'ripple', frameMax)
+        : divideCameraInstruction(draft, toolTarget === 'all' ? null : toolTarget, { mode: action, value: actionValue })
+    : null
+  const previewIntervals = preview ? cameraInstructionIntervals(preview) : []
 
   useEffect(() => {
     instructionInputRef.current?.focus()
     instructionInputRef.current?.select()
   }, [])
 
-  function updateInstruction(value: string) {
-    setLabel(value)
-    if (state.mode !== 'create') return
-    const suggestedKind = suggestedKindForInstruction(value)
-    if (!suggestedKind) return
-    const firstTarget = intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID
-    updateSegment(firstTarget, suggestedKind, frameStart, segmentEndFrame(firstTarget))
-  }
+  useEffect(() => {
+    if (toolsOpen) intervalToolsRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [toolsOpen, toolTarget])
 
-  function updateDuration(nextDuration: number) {
-    setDurationFrames(Math.max(minimumDuration, Math.min(maxDuration, Math.round(nextDuration))))
-  }
-
-  function addIntermediatePoint() {
-    const offset = largestAvailableGapMidpoint(durationFrames, occupiedOffsets)
-    if (offset === null) return
-    const pointId = nextPointId(intermediatePoints)
-    const nextTargetId = intermediatePoints.find(point => point.frameOffset > offset)?.pointId
-      ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID
-    setSegmentByEndPointId(current => ({
-      ...current,
-      [pointId]: {
-        ...(current[nextTargetId] ?? { endPointId: nextTargetId, kind: cameraSegmentKindForLegacyInstruction(initialCamera) }),
-        endPointId: pointId,
-      },
-    }))
-    setIntermediatePoints(current => [...current, {
-      pointId,
-      role: 'intermediate' as const,
-      frameOffset: offset,
-      label: '',
-    }].sort((left, right) => left.frameOffset - right.frameOffset))
-  }
-
-  function updateIntermediatePoint(pointId: string, updates: Partial<Pick<CameraInstructionPoint, 'frameOffset' | 'label'>>) {
-    setIntermediatePoints(current => current.map(point => point.pointId === pointId ? { ...point, ...updates } : point)
-      .sort((left, right) => left.frameOffset - right.frameOffset))
-  }
-
-  function removeIntermediatePoint(pointId: string) {
-    setIntermediatePoints(current => current.filter(item => item.pointId !== pointId))
-    setSegmentByEndPointId(current => {
-      const remaining = { ...current }
-      delete remaining[pointId]
-      return remaining
+  function updateSegment(segment: CameraInstructionSegment) {
+    setDraft(current => {
+      const segments = resolveCameraInstructionSegments(current.camera, current.frameStart, current.frameEnd)
+        .map(item => item.endPointId === segment.endPointId ? segment : item)
+      return { ...current, camera: { ...current.camera, segments, shape: shapeForCameraSegmentKind(segments[0]!.kind) } }
     })
   }
 
-  function segmentEndFrame(endPointId: string): number {
-    const point = intermediatePoints.find(item => item.pointId === endPointId)
-    return point ? frameStart + point.frameOffset - 1 : frameEnd
-  }
-
-  function segmentStartFrame(endPointId: string): number {
-    const targetIndex = intermediatePoints.findIndex(item => item.pointId === endPointId)
-    if (targetIndex < 0) return intermediatePoints.length
-      ? frameStart + intermediatePoints.at(-1)!.frameOffset
-      : frameStart
-    return targetIndex === 0 ? frameStart : frameStart + intermediatePoints[targetIndex - 1]!.frameOffset
-  }
-
-  function resolvedSegment(endPointId: string): CameraInstructionSegment {
-    return segmentByEndPointId[endPointId] ?? {
-      endPointId,
-      kind: cameraSegmentKindForLegacyInstruction(initialCamera),
-    }
-  }
-
-  function updateSegment(endPointId: string, kind: CameraInstructionSegmentKind, start: number, end: number, pivotAnchorFrame?: number) {
-    setSegmentByEndPointId(current => ({
-      ...current,
-      [endPointId]: {
-        endPointId,
-        kind,
-        pivotAnchorFrame: kind === 'overlap'
-          ? clampCameraOverlapPivotAnchorFrame(
-              pivotAnchorFrame ?? current[endPointId]?.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(start, end),
-              start,
-              end,
-            )
-          : undefined,
-      },
-    }))
+  function updateInstruction(value: string) {
+    setLabel(value)
+    const kind = state.mode === 'create' ? suggestedKindForInstruction(value) : null
+    if (kind) updateSegment({ ...intervals[0]!, kind })
   }
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    const normalizedLabel = label.trim()
-    const submittedIntermediatePoints = intermediatePoints.map(point => ({ ...point, label: point.label.trim() }))
-    const points: CameraInstructionPoint[] = [
-      ...(startLabel.trim() ? [{ pointId: 'point_start', role: 'start' as const, frameOffset: 0, label: startLabel.trim() }] : []),
-      ...submittedIntermediatePoints,
-      ...(endLabel.trim() ? [{ pointId: 'point_end', role: 'end' as const, frameOffset: durationFrames - 1, label: endLabel.trim() }] : []),
-    ]
-    const segmentTargetIds = [...submittedIntermediatePoints.map(point => point.pointId), CAMERA_INSTRUCTION_CUE_END_POINT_ID]
-    const segments = segmentTargetIds.map(endPointId => {
-      const segment = resolvedSegment(endPointId)
-      const start = segmentStartFrame(endPointId)
-      const end = segmentEndFrame(endPointId)
-      return {
-        ...segment,
-        endPointId,
-        pivotAnchorFrame: segment.kind === 'overlap'
-          ? clampCameraOverlapPivotAnchorFrame(segment.pivotAnchorFrame ?? defaultCameraOverlapPivotAnchorFrame(start, end), start, end)
-          : undefined,
-      }
-    })
-    const firstKind = segments[0]?.kind ?? 'straight'
-    const allRange = segments.every(segment => segment.kind === 'straight' || segment.kind === 'wave')
     onSubmit({
-      cueId: state.cueId,
-      laneId: state.laneId,
-      frameStart,
-      frameEnd,
-      label: normalizedLabel,
+      cueId: state.cueId, laneId: state.laneId, frameStart: draft.frameStart, frameEnd: draft.frameEnd, label: label.trim(),
       camera: {
-        shape: shapeForCameraSegmentKind(firstKind),
-        pathStyle: firstKind === 'straight' || firstKind === 'wave' ? firstKind : undefined,
-        segmentStyles: allRange ? segments.map(segment => ({ endPointId: segment.endPointId, style: segment.kind as CameraInstructionPathStyle })) : undefined,
-        segments,
-        points,
-        pivotAnchorFrame: segments.length === 1 && firstKind === 'overlap' ? segments[0]?.pivotAnchorFrame : undefined,
-        labelPlacement,
+        ...draft.camera,
+        segments: resolveCameraInstructionSegments(draft.camera, draft.frameStart, draft.frameEnd),
+        points: [
+          ...(startLabel.trim() ? [{ pointId: 'point_start', role: 'start' as const, frameOffset: 0, label: startLabel.trim() }] : []),
+          ...points.filter(point => point.role === 'intermediate').map(point => ({ ...point, label: point.label.trim() })),
+          ...(endLabel.trim() ? [{ pointId: 'point_end', role: 'end' as const, frameOffset: duration - 1, label: endLabel.trim() }] : []),
+        ],
       },
     })
   }
@@ -239,111 +128,87 @@ export function CameraCueDialog({
           <button type="button" className="dialogIconButton" aria-label="閉じる" onClick={onCancel}>×</button>
         </header>
         <div className="soundCueDialogBody cameraCueDialogBody">
-          <label>
-            <span>指示</span>
-            <HistoryInput
-              inputRef={instructionInputRef}
-              aria-label="CAMERA指示"
-              value={label}
-              onChange={event => updateInstruction(event.currentTarget.value)}
-              history={instructionHistory}
-              pinned={CAMERA_INSTRUCTION_BUILT_INS}
-              historyLimit={CAMERA_INSTRUCTION_HISTORY_LIMIT}
-              placeholder="PAN、TU、OLなど"
-            />
+          <label><span>指示</span>
+            <HistoryInput inputRef={instructionInputRef} aria-label="CAMERA指示" value={label}
+              onChange={event => updateInstruction(event.currentTarget.value)} history={instructionHistory}
+              pinned={CAMERA_INSTRUCTION_BUILT_INS} historyLimit={CAMERA_INSTRUCTION_HISTORY_LIMIT} placeholder="PAN、TU、OLなど" />
           </label>
           <div className="timedRangeDialogTimingRow">
-            <span><small>開始</small>{formatLogicalSheetFrameTimecode(frameStart, frameMin, safeFps)}</span>
-            <span><small>終了</small>{formatLogicalSheetFrameTimecode(frameEnd, frameMin, safeFps)}</span>
-            <DurationFrameControl frames={durationFrames} fps={safeFps} maxFrames={maxDuration} label="長さ" onChange={updateDuration} />
+            <span><small>開始</small>{formatLogicalSheetFrameTimecode(draft.frameStart, frameMin, safeFps)}</span>
+            <span><small>終了</small>{formatLogicalSheetFrameTimecode(draft.frameEnd, frameMin, safeFps)}</span>
+            <DurationFrameControl frames={duration} fps={safeFps} maxFrames={maxDuration} label="全体の長さ"
+              onChange={frames => setDraft(current => resizeCameraInstruction(current, current.frameStart, current.frameStart + frames - 1))} />
           </div>
-          <div className="cameraPointEditor">
-            <div className="cameraPointEditorRow cameraPointStartRow">
-              <span className="cameraPointKindLabel">開始ラベル</span>
-              <HistoryInput
-                aria-label="CAMERA開始ラベル"
-                value={startLabel}
-                history={pointLabelHistory}
-                historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
-                placeholder="任意"
-                onChange={event => setStartLabel(event.currentTarget.value)}
-              />
-              <span className="cameraPointDurationSlot" aria-hidden="true" />
-              <SegmentKindControl
-                value={resolvedSegment(intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                label="開始から次の点まで"
-                frameStart={frameStart}
-                frameEnd={segmentEndFrame(intermediatePoints[0]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                frameMin={frameMin}
-                fps={safeFps}
-                onChange={segment => setSegmentByEndPointId(current => ({ ...current, [segment.endPointId]: segment }))}
-              />
-              <span className="cameraPointActionSlot" aria-hidden="true" />
-            </div>
-            {intermediatePoints.map((point, index) => {
-              const previous = intermediatePoints[index - 1]?.frameOffset ?? 0
-              const next = intermediatePoints[index + 1]?.frameOffset ?? durationFrames - 1
-              return (
-                <div className="cameraPointEditorRow cameraIntermediatePointRow" key={point.pointId}>
-                    <span className="cameraPointKindLabel">中間ラベル</span>
-                    <HistoryInput
-                      aria-label={`CAMERA中間ラベル${index + 1}`}
-                      value={point.label}
-                      history={pointLabelHistory}
-                      historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
-                      placeholder="任意"
-                      onChange={event => updateIntermediatePoint(point.pointId, { label: event.currentTarget.value })}
-                    />
-                    <CompactDurationFrameControl
-                      frames={point.frameOffset - previous}
-                      fps={safeFps}
-                      minFrames={1}
-                      maxFrames={Math.max(1, next - previous - 1)}
-                      label={`CAMERA中間ラベル${index + 1}までの区間長`}
-                      onChange={frames => updateIntermediatePoint(point.pointId, {
-                        frameOffset: previous + Math.max(1, Math.min(next - previous - 1, Math.round(frames))),
-                      })}
-                    />
-                    <SegmentKindControl
-                      value={resolvedSegment(intermediatePoints[index + 1]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                      label={`中間ラベル${index + 1}から次の点まで`}
-                      frameStart={frameStart + point.frameOffset}
-                      frameEnd={segmentEndFrame(intermediatePoints[index + 1]?.pointId ?? CAMERA_INSTRUCTION_CUE_END_POINT_ID)}
-                      frameMin={frameMin}
-                      fps={safeFps}
-                      onChange={segment => setSegmentByEndPointId(current => ({ ...current, [segment.endPointId]: segment }))}
-                    />
-                    <button type="button" className="dialogIconButton compact" aria-label={`中間ラベル${index + 1}を削除`} onClick={() => removeIntermediatePoint(point.pointId)}>×</button>
-                  </div>
-              )
+          <div className="cameraCueEndpointFields">
+            <label>開始ラベル<HistoryInput aria-label="CAMERA開始ラベル" value={startLabel} history={pointLabelHistory}
+              historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT} placeholder="任意" onChange={event => setStartLabel(event.currentTarget.value)} /></label>
+            <label>終了ラベル<HistoryInput aria-label="CAMERA終了ラベル" value={endLabel} history={pointLabelHistory}
+              historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT} placeholder="任意" onChange={event => setEndLabel(event.currentTarget.value)} /></label>
+          </div>
+          <p className="cameraIntervalHint">区間の尺は終わりの境界を動かします。全体の長さは末尾だけを伸縮します。各区間は最低1コマです。</p>
+          <div className="cameraIntervalEditor">
+            <div className="cameraIntervalHeader" aria-hidden="true"><span>区間・開始〜終了</span><span>尺</span><span>図形</span><span>終わりの境界ラベル</span><span /></div>
+            {intervals.map((interval, index) => {
+              const boundary = points.find(point => point.role === 'intermediate' && point.pointId === interval.endPointId)
+              const next = intervals[index + 1]
+              return <div className="cameraIntervalRow" key={interval.endPointId} data-camera-interval={index + 1}>
+                <span className="cameraIntervalPosition"><b>区間{index + 1}</b><small>
+                  {formatLogicalSheetFrameTimecode(interval.frameStart, frameMin, safeFps)}〜{formatLogicalSheetFrameTimecode(interval.frameEnd, frameMin, safeFps)}
+                </small></span>
+                <CompactDurationFrameControl frames={interval.durationFrames} fps={safeFps}
+                  maxFrames={next ? interval.durationFrames + next.durationFrames - 1 : frameMax - interval.frameStart + 1}
+                  label={`CAMERA区間${index + 1}の尺`}
+                  onChange={frames => setDraft(current => changeCameraIntervalDuration(current, interval.endPointId, frames, 'boundary', frameMax))} />
+                <SegmentKindControl value={interval} label={`区間${index + 1}`} frameStart={interval.frameStart} frameEnd={interval.frameEnd}
+                  frameMin={frameMin} fps={safeFps} onChange={updateSegment} />
+                {boundary ? <HistoryInput aria-label={`CAMERA境界ラベル${index + 1}`} value={boundary.label} history={pointLabelHistory}
+                  historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT} placeholder="任意"
+                  onChange={event => { const value = event.currentTarget.value; setDraft(current => ({ ...current, camera: { ...current.camera,
+                    points: resolveCameraInstructionPoints(current.camera, current.frameStart, current.frameEnd)
+                      .map(point => point.pointId === boundary.pointId ? { ...point, label: value } : point),
+                  } })) }} /> : <span className="cameraIntervalEndLabel">終了ラベル</span>}
+                <span className="cameraIntervalActions">
+                  <button type="button" aria-label={`区間${index + 1}の分割・尺変更`} onClick={() => { setToolTarget(interval.endPointId); setToolsOpen(true) }}>操作</button>
+                  {boundary && <button type="button" aria-label={`区間${index + 1}と次を結合`} title="次の区間の図形を使って結合"
+                    onClick={() => setDraft(current => removeCameraInstructionBoundary(current, boundary.pointId))}>結合</button>}
+                </span>
+              </div>
             })}
-            <div className="cameraPointEditorRow cameraPointEndRow">
-              <span className="cameraPointKindLabel">終了ラベル</span>
-              <HistoryInput
-                aria-label="CAMERA終了ラベル"
-                value={endLabel}
-                history={pointLabelHistory}
-                historyLimit={CAMERA_POINT_LABEL_HISTORY_LIMIT}
-                placeholder="任意"
-                onChange={event => setEndLabel(event.currentTarget.value)}
-              />
-              <span className="cameraPointDurationSlot" aria-hidden="true" />
-              <span className="cameraPointSegmentSlot" aria-hidden="true" />
-              <span className="cameraPointActionSlot" aria-hidden="true" />
-            </div>
-            <button type="button" className="cameraAddPointButton" disabled={!canAddIntermediate} onClick={addIntermediatePoint}>＋ 中間ラベル</button>
-            {tooManyPointLabels && <span className="cameraPointValidation" role="alert">位置ラベル数を区間のコマ数以下にしてください。</span>}
           </div>
-          {labelPlacement && (
-            <div className="cameraCueManualPlacementNotice">
-              <span>シート上のラベル位置を使用中</span>
-              <button type="button" onClick={() => setLabelPlacement(undefined)}>自動配置に戻す</button>
+          <details ref={intervalToolsRef} className="cameraIntervalTools" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}>
+            <summary>区間の分割・尺変更</summary>
+            <div className="cameraIntervalToolFields">
+              <label>対象<select aria-label="区間操作の対象" value={toolTarget} disabled={action === 'scale'} onChange={event => setToolTarget(event.currentTarget.value)}>
+                <option value="all">指示全体</option>
+                {intervals.map((interval, index) => <option key={interval.endPointId} value={interval.endPointId}>区間{index + 1}</option>)}
+              </select></label>
+              <label>操作<select aria-label="区間操作" value={action} onChange={event => setAction(event.currentTarget.value as IntervalAction)}>
+                <option value="frames">指定コマ数で分割</option><option value="count">指定区間数で等分</option>
+                <option value="at">指定位置で二つに分割</option><option value="ripple">後続をずらして尺変更</option>
+                <option value="scale">全体を比例伸縮</option>
+              </select></label>
+              <label>{action === 'count' ? '区間数' : action === 'at' ? '先頭からのコマ数' : 'コマ数'}
+                <input type="number" aria-label="区間操作の値" min={1} step={1} value={actionValue}
+                  onChange={event => setActionValue(Number(event.currentTarget.value))} />
+              </label>
+              <button type="button" disabled={!preview} onClick={() => { if (preview) { setDraft(preview); setToolTarget('all'); setToolsOpen(false) } }}>適用</button>
             </div>
-          )}
+            {preview ? <output className="cameraIntervalPreview" aria-label="区間操作のプレビュー">
+              {previewIntervals.slice(0, 32).map(item => item.durationFrames).join('・')}{previewIntervals.length > 32 ? '…' : ''} コマ
+              （{previewIntervals.length}区間・計{preview.frameEnd - preview.frameStart + 1}コマ）
+            </output> : <p className="cameraIntervalHint" role="status">{action === 'ripple' && !target ? '変更する区間を選んでください。'
+              : action === 'scale' ? `${intervals.length}〜${maxDuration}コマで指定してください。` : '各区間が1コマ以上になる分割を指定してください。'}</p>}
+            <p className="cameraIntervalHint">{action === 'scale' ? '区間の比率を保ち、合計が指定尺になるようコマ数を配分します。'
+              : action === 'ripple' ? '同じ指示の後続区間を移動します。後続の尺は変わりません。'
+              : toolTarget === 'all' && intervals.length > 1 ? '全体の分割は既存の区切り・中間ラベルを置き換え、最初の区間の図形を引き継ぎます。'
+              : '図形を引き継いで分割します。指定コマ数の余りは末尾へ、等分の余りは先頭から配ります。'}</p>
+          </details>
+          {draft.camera.labelPlacement && <div className="cameraCueManualPlacementNotice"><span>シート上のラベル位置を使用中</span>
+            <button type="button" onClick={() => setDraft(current => ({ ...current, camera: { ...current.camera, labelPlacement: undefined } }))}>自動配置に戻す</button>
+          </div>}
         </div>
-        <footer className="soundCueDialogFooter">
-          <button type="button" onClick={onCancel}>キャンセル</button>
-          <button type="submit" className="primaryButton" disabled={tooManyPointLabels}>{state.mode === 'edit' ? '更新' : '追加'}</button>
+        <footer className="soundCueDialogFooter"><button type="button" onClick={onCancel}>キャンセル</button>
+          <button type="submit" className="primaryButton">{state.mode === 'edit' ? '更新' : '追加'}</button>
         </footer>
       </form>
     </div>
@@ -431,23 +296,4 @@ function suggestedKindForInstruction(value: string): CameraInstructionSegmentKin
   if (normalized === 'FO' || normalized === 'WO') return 'fade-out'
   if (CAMERA_INSTRUCTION_BUILT_INS.some(item => item.toLocaleUpperCase('ja-JP') === normalized)) return 'straight'
   return null
-}
-
-function largestAvailableGapMidpoint(duration: number, occupied: Set<number>): number | null {
-  const sorted = [...occupied].filter(offset => offset >= 0 && offset < duration).sort((left, right) => left - right)
-  let best: { start: number; end: number } | null = null
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    const start = sorted[index]!
-    const end = sorted[index + 1]!
-    if (end - start <= 1) continue
-    if (!best || end - start > best.end - best.start) best = { start, end }
-  }
-  return best ? Math.floor((best.start + best.end) / 2) : null
-}
-
-function nextPointId(points: readonly CameraInstructionPoint[]): string {
-  let index = 1
-  const used = new Set(points.map(point => point.pointId))
-  while (used.has(`point_${index}`)) index += 1
-  return `point_${index}`
 }

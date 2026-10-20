@@ -3,7 +3,7 @@ import {
   createTimedRangeCue,
   deleteTimedRangeCue,
   updateTimedRangeCue,
-  transformCameraInstructionRange,
+  resizeCameraInstruction,
   type CameraInstruction,
   type CutProject,
   type SheetTemplate,
@@ -103,10 +103,10 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
     const frameStart = updates.frameStart ?? cue.frameStart
     const frameEnd = updates.frameEnd ?? cue.frameEnd
     const rangeChanged = frameStart !== cue.frameStart || frameEnd !== cue.frameEnd
-    const camera = updates.camera ?? (rangeChanged && cue.camera
-      ? transformCameraInstructionRange(cue.camera, cue.frameStart, cue.frameEnd, frameStart, frameEnd)
-      : cue.camera)
-    const next = updateTimedRangeCue(sourceProject, cueId, { ...updates, camera })
+    const range = rangeChanged && cue.camera && !updates.camera
+      ? resizeCameraInstruction({ ...cue, camera: cue.camera }, frameStart, frameEnd)
+      : { frameStart, frameEnd, camera: updates.camera ?? cue.camera }
+    const next = updateTimedRangeCue(sourceProject, cueId, { ...updates, ...range })
     if (next !== sourceProject) options.commitProject(next)
     options.setSheetSelection({ kind: 'cue', cueId })
   }

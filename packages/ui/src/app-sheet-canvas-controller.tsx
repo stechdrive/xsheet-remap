@@ -2,7 +2,7 @@ import type { SheetColumnAddContext, SheetColumnAddKind } from './sheetColumnMod
 import type { TimelineLaneInsertRequest } from './TimelineLaneInsertionOverlay'
 import { stackGuideInsertionTargets } from './stack-guides-geometry'
 import { isTauriHost } from '@xsheet-remap/adapters'
-import { clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess } from '@xsheet-remap/core'
+import { clipCelSheetDestination, clipSheetKeyAtFrame, selectTimingProcess, resizeCameraInstruction, moveCameraInstructionBoundary } from '@xsheet-remap/core'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
 import { type NormalizedPoint, type PaperTrack, type SheetCalibrationPointPair, type SheetHit, type SheetPage, type SheetTimingRole, type TimedRangeCue, clampCameraOverlapPivotAnchorFrame, getSheetViewLayout, resolveCameraInstructionPoints, resolveCameraInstructionSegments, resolveSheetTemplateGridLayout, timingHitForFrame, transformCameraInstructionRange, hitTestSheetTemplate, isInteractiveSheetTemplateGridRegion, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, sheetAnnotations } from '@xsheet-remap/core';
 import { uiText } from './i18n';
@@ -1393,10 +1393,14 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
     } else if (currentDrag.mode === 'resize-start') {
       frameStart = clampNumber(pointed.hit.frame, displayFrameStart, origin.frameEnd)
-      camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
+      const resized = resizeCameraInstruction({ camera, frameStart: origin.frameStart, frameEnd: origin.frameEnd }, frameStart, frameEnd)
+      frameStart = resized.frameStart
+      camera = resized.camera
     } else if (currentDrag.mode === 'resize-end') {
       frameEnd = clampNumber(pointed.hit.frame, origin.frameStart, displayFrameEnd)
-      camera = transformCameraInstructionRange(camera, origin.frameStart, origin.frameEnd, frameStart, frameEnd)
+      const resized = resizeCameraInstruction({ camera, frameStart: origin.frameStart, frameEnd: origin.frameEnd }, frameStart, frameEnd)
+      frameEnd = resized.frameEnd
+      camera = resized.camera
     } else if (currentDrag.mode === 'pivot' && currentDrag.labelGeometry?.segmentEndPointId) {
       const points = resolveCameraInstructionPoints(camera, origin.frameStart, origin.frameEnd)
       const targets = [...points.filter(point => point.role === 'intermediate'), { pointId: 'cue-end', frameOffset: duration }]
@@ -1410,15 +1414,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
           : segment),
       }
     } else if (currentDrag.mode === 'point' && currentDrag.labelGeometry?.pointId) {
-      const points = resolveCameraInstructionPoints(camera, origin.frameStart, origin.frameEnd)
-      const pointIndex = points.findIndex(point => point.pointId === currentDrag.labelGeometry?.pointId)
-      const point = points[pointIndex]
-      if (point?.role === 'intermediate') {
-        const previousOffset = points.slice(0, pointIndex).reverse().find(item => item.frameOffset < point.frameOffset)?.frameOffset ?? 0
-        const nextOffset = points.slice(pointIndex + 1).find(item => item.frameOffset > point.frameOffset)?.frameOffset ?? duration - 1
-        const frameOffset = clampNumber(pointed.hit.frame - origin.frameStart, previousOffset + 1, nextOffset - 1)
-        camera = { ...camera, points: points.map(item => item.pointId === point.pointId ? { ...item, frameOffset } : item) }
-      }
+      camera = moveCameraInstructionBoundary({ camera, frameStart, frameEnd }, currentDrag.labelGeometry.pointId, pointed.hit.frame).camera
     } else if (currentDrag.labelOriginPlacement && currentDrag.labelGeometry?.labelLayout) {
       const placement = currentDrag.labelOriginPlacement
       if (currentDrag.mode === 'move-label') {

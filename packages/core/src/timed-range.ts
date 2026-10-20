@@ -372,12 +372,12 @@ export function resolveCameraInstructionPoints(
     const label = raw.label.trim()
     const role: CameraInstructionPointRole = raw.role === 'start' || raw.role === 'end' ? raw.role : 'intermediate'
     if ((role !== 'intermediate' && !label) || (role === 'start' && hasStart) || (role === 'end' && hasEnd)) continue
-    if (role === 'intermediate' && duration < 3) continue
+    if (role === 'intermediate' && duration < 2) continue
     const frameOffset = role === 'start'
       ? 0
       : role === 'end'
         ? duration - 1
-        : clamp(Math.round(raw.frameOffset), 1, duration - 2)
+        : clamp(Math.round(raw.frameOffset), 1, duration - 1)
     if (role === 'intermediate' && usedIntermediateOffsets.has(frameOffset)) continue
     let pointId = raw.pointId.trim() || `point_${normalized.length + 1}`
     while (usedIds.has(pointId)) pointId = `${pointId}_${normalized.length + 1}`
@@ -386,7 +386,6 @@ export function resolveCameraInstructionPoints(
     if (role === 'end') hasEnd = true
     if (role === 'intermediate') usedIntermediateOffsets.add(frameOffset)
     normalized.push({ pointId, role, frameOffset, label })
-    if (normalized.length >= duration) break
   }
   return normalized.sort((left, right) => left.frameOffset - right.frameOffset
     || pointRoleOrder(left.role) - pointRoleOrder(right.role))

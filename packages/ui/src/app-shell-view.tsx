@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { RemapWorkspaceBar } from './RemapWorkspaceBar'
+import { DocumentFileButton } from './DocumentFileButton'
 import { baseTimingProject } from '@xsheet-remap/core'
 import { clearAnnotations, clearAnnotationsForPage, getSheetViewLayout, sheetTemplatePresets, timelineLanesForLayout, updateLogicalSheetSettings, updateSheetFormField, updateSheetViewState } from '@xsheet-remap/core';
 import { XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters';
@@ -37,7 +38,7 @@ import type { DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
-    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
+    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleProjectDrop,
     template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
@@ -239,7 +240,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
   ) : null
 
   return (
-    <div className="appShell" onContextMenu={event => event.preventDefault()}>
+    <div className="appShell" onContextMenu={event => event.preventDefault()} onDropCapture={handleProjectDrop}
+      onDragOverCapture={event => { if (Array.from(event.dataTransfer.types ?? []).includes('Files')) event.preventDefault() }}>
+      <input hidden type="file" ref={projectInputRef} accept={XSR_PROJECT_FILE_ACCEPT} aria-label="ショートカットからXSRを開く" onChange={event => { handleLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
       <header className={`topBar ${appKind === 'remap' && panel === 'sheet' ? 'remapTopBar' : ''}`}>
         <div className="topIdentity">
           <AppNavigationMenu
@@ -249,6 +252,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
             panel={panel}
             onSelect={switchPanel}
             onLoadProject={files => void handleLoadProject(files)}
+            onOpenProject={handleOpenProject}
+            onOpenClip={handleOpenClip}
             onLoadXdts={files => void handleLoadXdts(files)}
             onLoadClip={handleLoadClip}
             onLoadTemplate={files => void handleImportTemplate(files)}
@@ -570,10 +575,10 @@ export function AppShellView({ controller }: { controller: AppController }) {
         <RemapHelpDialog appName={appProfile.appName} initialTopic={panel === 'template' ? 'template' : workMode} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
-      {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} onCanvasSaved={canvas => {
+      {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialDirectory={initialDirectory} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} onCanvasSaved={canvas => {
         if (project.clipDocument && !project.clipDocument.source && JSON.stringify(project.clipDocument.canvas) !== JSON.stringify(canvas)) runProjectCommand(current => ({ ...current, clipDocument: { ...current.clipDocument!, canvas } }))
       }} />}
-      {clipImportFile && <ClipImportDialog file={clipImportFile} document={projectDocumentSnapshot} onClose={() => setClipImportFile(null)} onImport={handleImportClip} />}
+      {clipImportFile && <ClipImportDialog file={clipImportFile.file} document={projectDocumentSnapshot} onClose={() => setClipImportFile(null)} onImport={handleImportClip} />}
       {clipCorrespondenceOpen && project.logicalSheet.processTimings && <ClipCorrespondenceDialog key={project.projectId} document={projectDocumentSnapshot} onClose={() => setClipCorrespondenceOpen(false)} onApply={handleClipCorrespondence} />}
 
       {timingExportDialog && timingExportDialog.kind !== 'clip' && (timingExportPlan || timingExportDialog.kind === 'ae-jsx' || timingExportDialog.kind === 'ae-send') && (
@@ -713,10 +718,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
           <dd>{sheetPages.length}</dd>
         </dl>
         <div className="divider" />
-        <label className="fileButton">
-          {uiText.actions.loadProject}
-          <input type="file" accept={XSR_PROJECT_FILE_ACCEPT} onChange={event => void handleLoadProject(event.currentTarget.files)} />
-        </label>
+        <DocumentFileButton label={uiText.actions.loadProject} accept={XSR_PROJECT_FILE_ACCEPT} onOpen={handleOpenProject} onLoad={handleLoadProject} />
       </aside>
 
       <footer className="statusBar">

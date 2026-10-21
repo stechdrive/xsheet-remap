@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { projectFileDirectory, type ProjectFileLocation } from './projectFileLocation'
 import { activeCutProjectFromDocument, assetAbsolutePath, type CutProject, type AnnotationText, type FileRef, type CutGroupProjectDocument, type LogicalTimelineSectionRole, type SheetHit, type SheetTimingRole, formatLogicalSheetFrameTimecode, updateStackGuideLabel, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, logicalSheetFrameNumber, sheetTimingRoleForEvent, type TimelineEvent, type StackGuideLabel, stackGuideGapIndex, stackGuideStackBand } from '@xsheet-remap/core'
 import { isTauriHost, saveBinaryFile, saveTextFile, statNativePaths, writeBinaryFile, writeTextFile, type SaveTextFileOptions } from '@xsheet-remap/adapters'
 import { uiText } from './i18n'
@@ -406,8 +407,8 @@ export function exportCutProjectsFromDocument(document: CutGroupProjectDocument)
 
 /** Optional convenience location for ordinary save dialogs. CSP automatic
  * registration performs its separate required-root validation. */
-export function preferredSaveDirectory(project: CutProject): string | undefined {
-  return project.assetRoot?.path
+export function preferredSaveDirectory(project: CutProject, location?: ProjectFileLocation): string | undefined {
+  return (location && projectFileDirectory(location)) ?? project.assetRoot?.path
 }
 
 export async function saveTextOutputs(outputs: TextFileOutput[], mimeType: string, options: SaveTextFileOptions): Promise<boolean> {

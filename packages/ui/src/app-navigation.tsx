@@ -1,4 +1,5 @@
 import { requestTemplateEditor } from './template-editor-entry'
+import { DocumentFileButton } from './DocumentFileButton'
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { type CutMetadataFieldId, type CutProject, type NormalizedRect, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetSource, type SheetTemplate, getSheetViewLayout } from '@xsheet-remap/core'
 import { isTauriHost, XSR_PROJECT_FILE_ACCEPT } from '@xsheet-remap/adapters'
@@ -385,6 +386,8 @@ export function AppNavigationMenu({
   panel,
   onSelect,
   onLoadProject,
+  onOpenProject,
+  onOpenClip,
   onLoadXdts,
   onLoadClip,
   onLoadTemplate,
@@ -410,6 +413,8 @@ export function AppNavigationMenu({
   panel: Panel
   onSelect: (panel: Panel) => void
   onLoadProject: (files: FileList | null) => void
+  onOpenProject: () => void
+  onOpenClip: () => void
   onLoadXdts: (files: FileList | null) => void
   onLoadClip?: (files: FileList | null) => void
   onLoadTemplate: (files: FileList | null) => void
@@ -449,22 +454,17 @@ export function AppNavigationMenu({
         activeSubmenu={activeSubmenu}
         onActivate={setActiveSubmenu}
       >
-          <Tooltip label={uiText.actions.resetAppTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onResetApp}>新規プロジェクト</button>
+          <Tooltip label={`${uiText.actions.resetAppTitle}（Ctrl+N）`}>
+            <button type="button" className="appNavMenuItem" onClick={onResetApp} aria-keyshortcuts="Control+N Meta+N">新規プロジェクト</button>
           </Tooltip>
-          <TooltipTarget label={uiText.actions.loadProjectTitle}>
-            {tooltipProps => (
-              <label className="fileButton appNavMenuItem" {...tooltipProps}>
-                プロジェクトを開く…
-                <input type="file" accept={XSR_PROJECT_FILE_ACCEPT} onChange={event => { onLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
-              </label>
-            )}
-          </TooltipTarget>
-          <Tooltip label={uiText.actions.saveProjectTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveProject}>{uiText.actions.saveProject}</button>
+          <Tooltip label={`${uiText.actions.loadProjectTitle}（Ctrl+O）`}>
+            <DocumentFileButton label={uiText.actions.loadProject} accept={XSR_PROJECT_FILE_ACCEPT} onOpen={onOpenProject} onLoad={onLoadProject} className="appNavMenuItem" shortcut="Control+O Meta+O" />
           </Tooltip>
-          <Tooltip label={uiText.actions.saveProjectAsTitle}>
-            <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs}>名前を付けて保存…</button>
+          <Tooltip label={`${uiText.actions.saveProjectTitle}（Ctrl+S）`}>
+            <button type="button" className="appNavMenuItem" onClick={onSaveProject} aria-keyshortcuts="Control+S Meta+S">{uiText.actions.saveProject}</button>
+          </Tooltip>
+          <Tooltip label={`${uiText.actions.saveProjectAsTitle}（Ctrl+Shift+S）`}>
+            <button type="button" className="appNavMenuItem" onClick={onSaveProjectAs} aria-keyshortcuts="Control+Shift+S Meta+Shift+S">名前を付けて保存…</button>
           </Tooltip>
       </AppNavigationFlyout>
       <AppNavigationFlyout
@@ -474,7 +474,7 @@ export function AppNavigationMenu({
         activeSubmenu={activeSubmenu}
         onActivate={setActiveSubmenu}
       >
-          {onLoadClip && <label className="fileButton appNavMenuItem">CLIPを読み込む…<input type="file" accept=".clip" onChange={event => { onLoadClip(event.currentTarget.files); event.currentTarget.value = '' }} /></label>}
+          {onLoadClip && <DocumentFileButton label="CLIPを読み込む…" accept=".clip" onOpen={onOpenClip} onLoad={onLoadClip} className="appNavMenuItem" />}
           <TooltipTarget label="XDTSのキーと任意のSOUND/CAMERA指示を読み込む">
             {tooltipProps => (
               <label className="fileButton appNavMenuItem" {...tooltipProps}>

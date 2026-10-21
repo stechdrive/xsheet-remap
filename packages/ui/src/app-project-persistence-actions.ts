@@ -35,15 +35,15 @@ import { imageExportFilterName } from './app-navigation'
 import { uiText } from './i18n'
 import { correctedSheetImageFileName, projectFileName } from './outputFileNames'
 import { getSheetPageImage, loadImage } from './sheetImages'
+import { fileParentDirectory, projectFileDirectory, projectSaveFileName, type ProjectFileLocation } from './projectFileLocation'
 
 export function createAppProjectPersistenceActions(options: {
   releaseAfterCommit?: (release: () => void) => void
   projectDocument: CutGroupProjectDocument
   template: SheetTemplate
   resolveProject: () => CutProject
-  projectFilePath: string | null
-  setProjectFilePath: (path: string | null) => void
-  setProjectDocument: Dispatch<SetStateAction<CutGroupProjectDocument>>
+  fileLocation: ProjectFileLocation
+  setFileLocation: Dispatch<SetStateAction<ProjectFileLocation>>
   setSavedProjectDocumentSnapshot: (document: CutGroupProjectDocument) => void
   runtimeSourceImageUrls: Record<string, string>
   setSheetImageExportDraft: Dispatch<SetStateAction<SheetImageExportOptions | null>>
@@ -58,20 +58,16 @@ export function createAppProjectPersistenceActions(options: {
     try {
       const nextDocument = resolvedProjectDocument()
       release = retainBrowserFiles(nextDocument)
-      if (!input.saveAs && options.projectFilePath && isXsrProjectFileName(options.projectFilePath)) {
-        await writeProjectFile(options.projectFilePath, nextDocument, { createdWith: APP_VERSION })
-        options.setProjectDocument(nextDocument)
-        options.setSavedProjectDocumentSnapshot(nextDocument)
-        return
-      }
-      const sourceProject = options.resolveProject()
-      const result = await saveProjectFile(nextDocument, projectFileName(nextDocument), {
-        initialDirectory: preferredSaveDirectory(sourceProject),
-        createdWith: APP_VERSION,
-      })
+      const path = options.fileLocation.projectPath
+      const result = !input.saveAs && path && isXsrProjectFileName(path)
+        ? await writeProjectFile(path, nextDocument, { createdWith: APP_VERSION })
+        : await saveProjectFile(nextDocument, projectSaveFileName(options.fileLocation, projectFileName(nextDocument)), {
+          initialDirectory: preferredSaveDirectory(options.resolveProject(), options.fileLocation),
+          createdWith: APP_VERSION,
+        })
       if (!result.saved) return
-      if (result.path) options.setProjectFilePath(result.path)
-      options.setProjectDocument(nextDocument)
+      if (result.path) options.setFileLocation(current => ({ ...current, projectPath: result.path! }))
+      // Mark the bytes actually saved. Edits made during I/O stay in the live document.
       options.setSavedProjectDocumentSnapshot(nextDocument)
     } catch (error) {
       window.alert(uiText.project.saveFailed(errorMessage(error)))
@@ -111,7 +107,7 @@ export function createAppProjectPersistenceActions(options: {
         filterName: imageExportFilterName(exportOptions.format),
         extensions: [exportOptions.format],
         defaultExtension: exportOptions.format,
-        initialDirectory: preferredSaveDirectory(options.resolveProject()),
+        initialDirectory: preferredSaveDirectory(options.resolveProject(), options.fileLocation),
       })
       if (saved) options.setSheetImageExportDraft(null)
     } catch (error) {
@@ -165,7 +161,7 @@ export function createAppProjectPersistenceActions(options: {
         filterName: uiText.actions.correctedSheetImageExportFilter(format.toUpperCase()),
         extensions: [format],
         defaultExtension: format,
-        initialDirectory: parentDirectory(pages[0].source.imageRef.path) ?? preferredSaveDirectory(sourceProject),
+        initialDirectory: projectFileDirectory(options.fileLocation) ?? fileParentDirectory(pages[0].source.imageRef.path) ?? preferredSaveDirectory(sourceProject),
       })
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))
@@ -182,10 +178,4 @@ export function createAppProjectPersistenceActions(options: {
     handleSaveSheetImageExport,
     handleSaveCorrectedSheetImages,
   }
-}
-
-function parentDirectory(path: string | undefined): string | undefined {
-  if (!path) return undefined
-  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return index > 0 ? path.slice(0, index) : undefined
 }

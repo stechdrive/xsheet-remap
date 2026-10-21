@@ -24,6 +24,7 @@ import {
 import { uiText } from './i18n'
 
 interface AppXdtsActionsOptions {
+  initialDirectory?: string
   project: CutProject
   resolveProject: () => CutProject
   getProjectDocument: () => CutGroupProjectDocument
@@ -94,7 +95,7 @@ export function createAppXdtsActions(options: AppXdtsActionsOptions) {
         filterName: 'XDTS',
         extensions: ['xdts'],
         defaultExtension: 'xdts',
-        initialDirectory: preferredSaveDirectory(options.project),
+        initialDirectory: options.initialDirectory ?? preferredSaveDirectory(options.project),
       })
     } catch (error) {
       window.alert(uiText.export.saveFailed(errorMessage(error)))

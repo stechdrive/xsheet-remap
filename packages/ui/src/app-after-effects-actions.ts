@@ -16,6 +16,7 @@ import { uiText } from './i18n'
 import { aeRemapJsxFileName } from './outputFileNames'
 
 interface AppAfterEffectsActionsOptions {
+  initialDirectory?: string
   project: CutProject
   resolveProject: () => CutProject
   setExportOperationNotice: Dispatch<SetStateAction<ExportOperationNotice | null>>
@@ -51,7 +52,7 @@ export function useAppAfterEffectsActions(options: AppAfterEffectsActionsOptions
         filterName: 'After Effects JSX',
         extensions: ['jsx'],
         defaultExtension: 'jsx',
-        initialDirectory: preferredSaveDirectory(options.project),
+        initialDirectory: options.initialDirectory ?? preferredSaveDirectory(options.project),
       })
       if (result.saved) options.setExportOperationNotice({ message: uiText.afterEffects.jsxSaved })
     } catch (error) {

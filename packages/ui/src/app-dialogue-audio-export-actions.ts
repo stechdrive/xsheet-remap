@@ -12,6 +12,7 @@ export interface DialogueAudioTrackExportResult {
 export async function saveDialogueAudioTrackExports(
   project: CutProject,
   format: DialogueAudioTrackExportFormat,
+  initialDirectory?: string,
 ): Promise<DialogueAudioTrackExportResult> {
   const outputs = await createDialogueAudioTrackExports(project, format)
   if (outputs.length === 0) return { trackCount: 0, saved: false }
@@ -19,7 +20,7 @@ export async function saveDialogueAudioTrackExports(
     filterName: `音声トラック (${format.toUpperCase()})`,
     extensions: [format],
     defaultExtension: format,
-    initialDirectory: preferredSaveDirectory(project),
+    initialDirectory: initialDirectory ?? preferredSaveDirectory(project),
   })
   return { trackCount: outputs.length, saved }
 }
@@ -27,10 +28,11 @@ export async function saveDialogueAudioTrackExports(
 export function createAppDialogueAudioExportAction(
   project: CutProject,
   setExportOperationNotice: (notice: ExportOperationNotice) => void,
+  initialDirectory?: string,
 ) {
   return async (format: DialogueAudioTrackExportFormat) => {
     try {
-      const result = await saveDialogueAudioTrackExports(project, format)
+      const result = await saveDialogueAudioTrackExports(project, format, initialDirectory)
       if (result.trackCount === 0) {
         window.alert(uiText.actions.dialogueAudioExportEmpty)
       } else if (result.saved) {

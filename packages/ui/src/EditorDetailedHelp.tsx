@@ -419,6 +419,9 @@ export const editorHelpChapters: HelpChapter[] = [
       {
         title: '主なキーボード操作',
         items: [
+          { term: 'Ctrl+S／Ctrl+Shift+S', description: 'XSRプロジェクトを保存／名前を付けて保存します。EXE版では開いたXSRに上書き保存し、新規プロジェクトは保存先を選びます。' },
+          { term: 'Ctrl+O／Ctrl+N', description: 'XSRプロジェクトを開く／新規作成します。XSRは画面へのドロップでも開けます。未保存の変更がある場合は確認します。MacではCommandも使えます。' },
+          { term: '保存・書き出しの初期フォルダ', description: 'EXE版では現在のXSRのフォルダを使います。XSRをまだ保存していない場合は、読み込んだ元CLIPのフォルダ、素材フォルダの順に使います。' },
           { term: 'Ctrl+Z／Ctrl+Y／Ctrl+Shift+Z', description: '元に戻す／やり直し。Ctrl+YとCtrl+Shift+Zはどちらもやり直しです。タイミング入力のほか、CSPレイヤー構成での追加、並び替え、名前変更、削除にも使えます。' },
           { term: 'Ctrl+C／Ctrl+X／Ctrl+V', description: '最後にクリックした作業領域へ働きます。シートでは選択範囲またはテキスト注釈をコピー／切り取り／上書き貼り付けし、Ctrl+Shift+Vはタイミングのリピート貼り付けです。音声では選択範囲またはクリップを扱い、Ctrl+Shift+Vは再生ヘッドへの挿入貼り付けです。' },
           { term: '矢印／Shift+矢印', description: '選択セルの移動／範囲の拡張。' },

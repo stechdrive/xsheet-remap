@@ -9,7 +9,8 @@ const presetKey = 'xsheet:clip-canvas-preset:v1'
 function rememberedCanvas(): ClipCanvasSettings {
   try { const value = JSON.parse(localStorage.getItem(presetKey) ?? 'null'); validateClipCanvas(value); return value } catch { return defaults }
 }
-export function ClipExportDialog({ document, initialRole, onClose, onSaved, onCanvasSaved }: {
+export function ClipExportDialog({ document, initialRole, initialDirectory, onClose, onSaved, onCanvasSaved }: {
+  initialDirectory?: string
   document: CutGroupProjectDocument; initialRole: 'action' | 'cell'; onClose: () => void; onSaved: (message: string) => void; onCanvasSaved?: (canvas: ClipCanvasSettings) => void
 }) {
   const [role, setRole] = useState(initialRole), [canvas, setCanvas] = useState(() => document.clipDocument?.canvas ?? rememberedCanvas())
@@ -66,7 +67,7 @@ export function ClipExportDialog({ document, initialRole, onClose, onSaved, onCa
       const result = await generateClipFile({ plan: planned.plan, canvas: chosen, fit: layerWorkspace ? 'crop' : fit, images: withImages ? images : {}, ...(source === 'template' && template ? { template: template.bytes } : {}) }, setMessage, controller.signal)
       controller.signal.throwIfAborted(); setMessage('CLIPを保存しています…')
       const base = Array.from(planned.plan.timelines[0]?.name || 'xsheet-remap').map(character => (character.codePointAt(0) ?? 0) < 32 || /[<>:"/\\|?*]/.test(character) ? '_' : character).join('')
-      const saved = await saveBinaryFile(result.bytes, `${base}_remap.clip`, 'application/octet-stream', { filterName: 'CLIP STUDIO FORMAT', extensions: ['clip'], defaultExtension: 'clip' })
+      const saved = await saveBinaryFile(result.bytes, `${base}_remap.clip`, 'application/octet-stream', { filterName: 'CLIP STUDIO FORMAT', extensions: ['clip'], defaultExtension: 'clip', initialDirectory })
       if (saved.saved) { onCanvasSaved?.(result.canvas); onSaved(`CLIPを保存しました。${result.timelines}タイムライン / ${result.canvas.width} × ${result.canvas.height}px`); onClose() }
       else setMessage('保存をキャンセルしました。')
     } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }

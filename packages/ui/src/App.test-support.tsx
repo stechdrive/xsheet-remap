@@ -6,7 +6,12 @@ import type { TimingExportKind } from './appTypes';
 
 const tauriMockState = vi.hoisted(() => ({
   missingPathKeys: new Set<string>(),
+  document: null as { file: File; path: string } | null,
 }))
+
+export function selectNativeDocument(file: File, path = `D:\\projects\\${file.name}`) {
+  tauriMockState.document = { file, path }
+}
 
 export function enterTimingValue(value: string) {
   for (const character of value) fireEvent.keyDown(window, { key: character })
@@ -19,7 +24,12 @@ export function markMissingTauriPath(path: string) {
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => `asset://${path.replace(/\\/g, '/')}`,
-  invoke: async (command: string, args?: { paths?: string[] }) => {
+  invoke: async (command: string, args?: { paths?: string[]; path?: string }) => {
+    if (command === 'open_document_file') return tauriMockState.document?.path ?? null
+    if (command === 'read_document_file') {
+      if (args?.path !== tauriMockState.document?.path) throw new Error('unexpected document path')
+      return tauriMockState.document!.file.arrayBuffer()
+    }
     if (command === 'stat_native_paths') {
       return (args?.paths ?? []).map(path => {
         const missing = tauriMockState.missingPathKeys.has(path.replace(/\\/g, '/').toLocaleLowerCase())
@@ -49,6 +59,7 @@ afterEach(() => {
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   document.body.classList.remove('sheetInteractionActive')
   tauriMockState.missingPathKeys.clear()
+  tauriMockState.document = null
   vi.restoreAllMocks()
 })
 

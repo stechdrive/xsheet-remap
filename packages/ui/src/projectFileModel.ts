@@ -5,6 +5,7 @@ import {
   projectFileErrorCanRecoverFromBackup,
   readProjectBackup,
   readProjectFile,
+  type DocumentFileSource,
 } from '@xsheet-remap/adapters'
 
 export interface LoadedProjectDocumentFile {
@@ -13,8 +14,7 @@ export interface LoadedProjectDocumentFile {
   recoveredFromBackup: boolean
 }
 
-export async function loadProjectDocumentFile(file: File): Promise<LoadedProjectDocumentFile> {
-  const nativePath = (file as File & { path?: string }).path
+export async function loadProjectDocumentFile({ file, nativePath }: DocumentFileSource): Promise<LoadedProjectDocumentFile> {
   let decodedProject: Awaited<ReturnType<typeof readProjectFile>>
   let recoveredFromBackup = false
   try {

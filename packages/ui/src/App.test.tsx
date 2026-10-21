@@ -9,6 +9,7 @@ import { rememberSheetTemplatePreset } from './mainAppPreferences';
 import { ASSET_DRAG_MIME } from './sheetConstants';
 import { clickSheet, clickTemplateFrame, cspPaneTrackRow, dragCspPaneRow, dragInternalPointer, enterTimingValue, expectSelectedHit, expectStatusHint, formatTestFramePosition, getAssetCardByName, getZoomSlider, markMissingTauriPath, openAppNavigationMenu, openCutMetadataMenu, openDisplaySettingsMenu, openPaperSheetMenu, openSharedCutMenu, openTimingExportDialog, registeredCellIdentityText, selectAppPanel, selectCspCorrectionLayer, setSheetRect, sheetImageHrefs, stackGuideConnectorAnchorX, templateFramePoint } from './App.test-support'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
+import { selectNativeDocument } from './App.test-support'
 import { createDefaultDialogueAudioCutState, updateDialogueAudioCutStateInProject } from './dialogueAudioProject'
 
 const originalUserAgentDataDescriptor = Object.getOwnPropertyDescriptor(navigator, 'userAgentData')
@@ -855,13 +856,8 @@ it('restores a paper sheet image from a saved project file path', async () => {
 
     render(<App />)
     const menu = openAppNavigationMenu()
-    const loadProjectInput = within(menu)
-      .getByText(uiText.actions.loadProject)
-      .closest('label')
-      ?.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!loadProjectInput) throw new Error('load project file input not found')
-
-    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+    selectNativeDocument(file)
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.actions.loadProject }))
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
   })
@@ -890,13 +886,8 @@ it('shows one corrected paper export group for every assigned page in the active
 
     render(<App />)
     const menu = openAppNavigationMenu()
-    const loadProjectInput = within(menu)
-      .getByText(uiText.actions.loadProject)
-      .closest('label')
-      ?.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!loadProjectInput) throw new Error('load project file input not found')
-
-    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+    selectNativeDocument(file)
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.actions.loadProject }))
 
     await waitFor(() => expect(screen.getByLabelText(uiText.sheet.cutMetadata).textContent).toContain('BATCH'))
     expect(within(openPaperSheetMenu()).queryByText(uiText.actions.correctedSheetImageExport)).toBeNull()
@@ -923,13 +914,8 @@ it('offers corrected paper image export in Remap when a paper source is loaded',
 
     render(<RemapApp />)
     const menu = openAppNavigationMenu()
-    const loadProjectInput = within(menu)
-      .getByText(uiText.actions.loadProject)
-      .closest('label')
-      ?.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!loadProjectInput) throw new Error('load project file input not found')
-
-    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+    selectNativeDocument(file)
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.actions.loadProject }))
 
     await waitFor(() => expect(sheetImageHrefs()).toContain('asset://D:/cuts/C001/sheet_001.png'))
     expect(within(openPaperSheetMenu()).queryByLabelText(uiText.actions.correctedSheetImageExport)).toBeNull()
@@ -972,13 +958,8 @@ it('warns on project load when registered material files are missing on disk', a
 
     render(<App />)
     const menu = openAppNavigationMenu()
-    const loadProjectInput = within(menu)
-      .getByText(uiText.actions.loadProject)
-      .closest('label')
-      ?.querySelector<HTMLInputElement>('input[type="file"]')
-    if (!loadProjectInput) throw new Error('load project file input not found')
-
-    fireEvent.change(loadProjectInput, { target: { files: [file] } })
+    selectNativeDocument(file)
+    fireEvent.click(within(menu).getByRole('button', { name: uiText.actions.loadProject }))
 
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('登録素材: 1件')))
     expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining(materialPath))

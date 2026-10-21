@@ -4,7 +4,8 @@ import {
   activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type SheetTemplate,
 } from '@xsheet-remap/core'
-import type { NativeDragDropPayload } from '@xsheet-remap/adapters'
+import type { DocumentFileSource, NativeDragDropPayload } from '@xsheet-remap/adapters'
+import { useProjectFileSession } from './useProjectFileSession'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { createAudioPlayheadStore } from './audioPlayheadStore'
 import type { CameraCueClipboard, CameraCueDialogState, EditMode, ExportOperationNotice, Panel, SheetSelection, SoundCueClipboard, SoundCueDialogState, TimingClipboard, TimingEditSession, TimingExportDialogState, XdtsImportDialogState } from './appTypes'
@@ -103,7 +104,7 @@ export function useAppShellState(appKind: MainAppKind) {
     setWorkspaceHistory({ past: [], present: { project, template: document.sheetTemplate, document }, future: [] })
     return project
   }, [])
-  const [projectFilePath, setProjectFilePath] = useState<string | null>(null)
+  const fileSession = useProjectFileSession()
   const paperSheetInputRef = useRef<HTMLInputElement | null>(null)
   const project = workspaceHistory.present.project
   const projectRef = useRef(project)
@@ -165,7 +166,7 @@ export function useAppShellState(appKind: MainAppKind) {
   const [timingExportDialog, setTimingExportDialog] = useState<TimingExportDialogState | null>(null)
   const [exportOperationNotice, setExportOperationNotice] = useState<ExportOperationNotice | null>(null)
   const [xdtsImportDialog, setXdtsImportDialog] = useState<XdtsImportDialogState | null>(null)
-  const [clipImportFile, setClipImportFile] = useState<File | null>(null)
+  const [clipImportFile, setClipImportFile] = useState<DocumentFileSource | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
   const [assetDropMenu, setAssetDropMenu] = useState<AssetDropMenuState | null>(null)
   // Work mode is a view choice: it never replaces project data or consumes Undo.
@@ -185,7 +186,7 @@ export function useAppShellState(appKind: MainAppKind) {
 
   return {
     releaseBrowserFilesAfterCommit,
-    history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, fileSession, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,

@@ -1,4 +1,7 @@
 import { useBrowserFileOwnership } from './useBrowserFileOwnership'
+import { useProjectFileCommands } from './useProjectFileCommands'
+import { emptyProjectFileLocation } from './projectFileLocation'
+import { isXsrProjectFileName, type DocumentFileSource } from '@xsheet-remap/adapters'
 import { planPaperTranscriptionImport, type PaperTranscriptionImportOptions, type PaperTranscriptionRequest, type PaperTranscriptionResult } from '@xsheet-remap/core'
 import { isCompositionKey } from './compositionKeyboard'
 import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
@@ -76,7 +79,7 @@ type PaperSheetEditContext = { document: object; cutId: string; revisionId: stri
 export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
-    history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, projectFilePath, setProjectFilePath, paperSheetInputRef, project, projectRef, template, setTemplate,
+    history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, fileSession, paperSheetInputRef, project, projectRef, template, setTemplate,
     runtimeSourceImageUrls, setRuntimeSourceImageUrls,
     autoCalibrationRunning, setAutoCalibrationRunning, autoCalibrationMessage, setAutoCalibrationMessage, autoCalibrationOverlay, setAutoCalibrationOverlay,
     calibrationLoupeOpen, setCalibrationLoupeOpen, panel, setPanel, editMode, setEditMode, zoom, setZoom, zoomMode, setZoomMode,
@@ -100,6 +103,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   if (pendingClipImageDrop && (pendingClipImageDrop.source !== project || workMode !== 'clip')) setPendingClipImageDrop(null)
   useBrowserFileOwnership(pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null)
   const clipImportContext = useRef<object>({})
+  const nativeProjectDrag = useRef(false)
   const workModeRef = useRef(workMode)
   workModeRef.current = workMode
   const valueDraft = timingEditSession?.value ?? ''
@@ -107,15 +111,24 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const exportProfileId = 'import-stack'
   const issues = useMemo(() => validateProject(project, project.exportProfiles.find(profile => profile.profileId === exportProfileId)), [project, exportProfileId])
   const projectDocumentSnapshot = useMemo(() => updateActiveCutProjectInDocument(projectDocument, project, { sheetTemplate: template }), [projectDocument, project, template])
-  const { resolvedProjectDocument, handleSaveProjectFile, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages } = createAppProjectPersistenceActions({
-    releaseAfterCommit: releaseBrowserFilesAfterCommit, projectDocument, template, resolveProject: () => commitTimingDraft(false), projectFilePath,
-    setProjectFilePath, setProjectDocument, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
+  const { location: fileLocation, setLocation: setFileLocation } = fileSession
+  const initialDirectory = preferredSaveDirectory(project, fileLocation)
+  const { resolvedProjectDocument, handleSaveProjectFile: saveProjectFileAction, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages } = createAppProjectPersistenceActions({
+    releaseAfterCommit: releaseBrowserFilesAfterCommit, projectDocument, template, resolveProject: () => commitTimingDraft(false), fileLocation,
+    setFileLocation, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
-  const handleSaveDialogueAudioTracks = createAppDialogueAudioExportAction(project, setExportOperationNotice)
+  const handleSaveDialogueAudioTracks = createAppDialogueAudioExportAction(project, setExportOperationNotice, initialDirectory)
+  const { projectInputRef, handleOpenProject, handleOpenClip, handleLoadProject, handleLoadClip, handleSaveProjectFile, handleResetApp, handleNativeProjectDrop, handleProjectDrop } = useProjectFileCommands({
+    run: fileSession.run, initialDirectory, enabled: panel !== 'template',
+    loadProject: loadProjectSource, loadClip: source => { commitTimingDraft(false); setClipImportFile(source) },
+    saveProject: saveProjectFileAction, newProject: resetApp,
+  })
   const hasUnsavedProjectChanges = useMemo(
     () => timingEditSession !== null || !projectDocumentsEqual(projectDocumentSnapshot, savedProjectDocumentSnapshot),
     [projectDocumentSnapshot, savedProjectDocumentSnapshot, timingEditSession],
   )
+  const unsavedProjectChangesRef = useRef(hasUnsavedProjectChanges)
+  unsavedProjectChangesRef.current = hasUnsavedProjectChanges
   const projectCuts = projectDocumentSnapshot.cuts
   const {
     activeSheetRevision, sheetRevisions, referenceProject,
@@ -138,14 +151,14 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   const timingExportPlan = useMemo(() => timingExportDialog && timingExportDialog.kind !== 'ae-jsx' && timingExportDialog.kind !== 'ae-send' ? buildExportPlan(project, { profileId: exportProfileId, timingSourceRole: timingExportDialog.timingSourceRole, sheetTemplate: template }) : null, [exportProfileId, project, template, timingExportDialog])
   const timingExportIssues = useMemo(() => timingExportPlan?.validation ?? [], [timingExportPlan])
   const { canSendToAfterEffects, afterEffectsSending, handleCopyAeKeyframeData, handleSaveAeJsx, handleSendAfterEffects } = useAppAfterEffectsActions({
-    project, resolveProject: () => commitTimingDraft(false), setExportOperationNotice,
+    project, initialDirectory, resolveProject: () => commitTimingDraft(false), setExportOperationNotice,
     onSendAccepted: () => setTimingExportDialog(null),
   })
   const {
     openTimingExportDialog, updateTimingExportRole, updateTimingExportOptions, confirmTimingExport,
     handleSaveXdts, handleLoadXdts, updateXdtsImportDialog, confirmXdtsImport,
   } = createAppXdtsActions({
-    project,
+    project, initialDirectory,
     resolveProject: () => commitTimingDraft(false),
     getProjectDocument: resolvedProjectDocument,
     exportProfileId,
@@ -159,25 +172,21 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     sendAfterEffectsRemap: handleSendAfterEffects,
   })
   const sheetDisplayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
-  function handleLoadClip(files: FileList | null) {
-    const file = files?.[0]
-    if (!file) return
-    commitTimingDraft(false)
-    setClipImportFile(file)
-  }
   async function handleImportClip(document: CutGroupProjectDocument) {
-    if (hasUnsavedProjectChanges && !await confirmUserAction('保存していない変更があります。現在のプロジェクトを閉じて、このCLIPを開きますか？', { title: 'CLIPを開く', okLabel: '開く' })) return
-    const next = replaceProjectDocument(document)
-    projectRef.current = next
-    clearSelectionState()
-    setRuntimeSourceImageUrls({})
-    setAutoCalibrationOverlay(null)
-    setAssetDropMenu(null)
-    setProjectFilePath(null)
-    setActiveCorrectionLayerIdState(baseTimingProcessId(next))
-    resetClipWorkspaceView('clip')
-    setClipImportFile(null)
-    setExportOperationNotice({ message: 'CLIPのレイヤー構造とタイムラインを開きました。' })
+    await fileSession.run(async () => {
+      if (hasUnsavedProjectChanges && !await confirmUserAction('保存していない変更があります。現在のプロジェクトを閉じて、このCLIPを開きますか？', { title: 'CLIPを開く', okLabel: '開く' })) return
+      const next = replaceProjectDocument(document)
+      projectRef.current = next
+      clearSelectionState()
+      setRuntimeSourceImageUrls({})
+      setAutoCalibrationOverlay(null)
+      setAssetDropMenu(null)
+      setFileLocation({ projectPath: null, sourcePath: clipImportFile?.nativePath ?? null })
+      setActiveCorrectionLayerIdState(baseTimingProcessId(next))
+      resetClipWorkspaceView('clip')
+      setClipImportFile(null)
+      setExportOperationNotice({ message: 'CLIPのレイヤー構造とタイムラインを開きました。' })
+    })
   }
   const sheetDisplayFrameEnd = logicalSheetDisplayFrameEnd(project.logicalSheet)
   const sheetDisplayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
@@ -335,13 +344,13 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         setTemplate(nextTemplate)
         setTextFontSizePx(defaultTimingTextFontSizePx(nextTemplate, 'cell'))
         setProjectDocument(createProjectDocumentFromCutProject(nextProject, { sheetTemplate: nextTemplate }))
-        setProjectFilePath(null)
+        setFileLocation(emptyProjectFileLocation)
         setHistory(createProjectHistory(nextProject))
         setPanelView(initialPanel)
         setActiveCorrectionLayerIdState(baseTimingProcessId(nextProject))
       },
     })
-  }, [setActiveCorrectionLayerIdState, setHistory, setPanelView, setProjectDocument, setProjectFilePath, setTemplate, setTextFontSizePx])
+  }, [setActiveCorrectionLayerIdState, setHistory, setPanelView, setProjectDocument, setFileLocation, setTemplate, setTextFontSizePx])
 
   useEffect(() => {
     setRuntimeSourceImageUrls(current => {
@@ -411,6 +420,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
+    if (handleNativeProjectDrop(paths)) return
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
     if (projectRef.current.clipDocument) {
       if (!allowClipImageImport()) return
@@ -542,6 +552,15 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleNativeDragDropPayload(payload: NativeDragDropPayload, source: string) {
     const position = payload.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+    if (payload.type === 'enter') nativeProjectDrag.current = Boolean(payload.paths?.some(isXsrProjectFileName))
+    if (payload.type === 'leave') nativeProjectDrag.current = false
+    if (nativeProjectDrag.current || payload.paths?.some(isXsrProjectFileName)) {
+      clearNativeFileDragPreview()
+      if (payload.type !== 'drop') {
+        setStatusHint('sheet-drop', 'XSRプロジェクトを開きます')
+        return
+      }
+    }
     const clipDocument = projectRef.current.clipDocument
     const points = clientPointCandidatesFromNativeDropPosition(position)
     if (clipDocument) {
@@ -1885,25 +1904,23 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  async function handleLoadProject(files: FileList | null) {
-    const file = files?.[0]
-    if (!file) return
+  async function loadProjectSource(source: DocumentFileSource) {
     try {
-      if (hasUnsavedProjectChanges) {
+      const loadedFile = await loadProjectDocumentFile(source)
+      if (unsavedProjectChangesRef.current) {
         const confirmed = await confirmUserAction('保存していない変更があります。現在のプロジェクトを閉じて開きますか？', {
           title: 'プロジェクトを開く',
           okLabel: '開く',
         })
         if (!confirmed) return
       }
-      const loadedFile = await loadProjectDocumentFile(file)
       const loadedDocument = loadedFile.document
       const loaded = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(activeCutProjectFromDocument(loadedDocument))) : activeCutProjectFromDocument(loadedDocument)
       rememberSheetTemplatePreset(appKind, loaded.studioPresetId)
       setTemplate(loadedDocument.sheetTemplate)
       setProjectDocument(loadedDocument)
       setSavedProjectDocumentSnapshot(loadedDocument)
-      setProjectFilePath(loadedFile.projectFilePath)
+      setFileLocation({ projectPath: loadedFile.projectFilePath, sourcePath: source.nativePath })
       setHistory(createProjectHistory(loaded))
       setActiveCorrectionLayerIdState(baseTimingProcessId(loaded))
       resetClipWorkspaceView(loaded.clipDocument?.source ? 'clip' : 'sheet')
@@ -1936,7 +1953,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   async function handleSaveTemplateJson(templateToSave = template) {
     try {
       return await saveJsonFile(templateToSave, templateJsonFileName(templateToSave), {
-        initialDirectory: preferredSaveDirectory(project),
+        initialDirectory,
       })
     } catch (error) {
       window.alert(uiText.template.saveFailed(errorMessage(error)))
@@ -2000,7 +2017,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     if (!activeSheetRevision.protected) { setHistory(current => redoHistory(current)); if (appKind === 'remap' && workMode === 'sheet') selectWorkspaceProcess() }
   }
 
-  async function handleResetApp() {
+  async function resetApp() {
     if (hasUnsavedProjectChanges) {
       const confirmed = await confirmUserAction('保存していない変更があります。新しいプロジェクトを作成しますか？', {
         title: '新規プロジェクト',
@@ -2014,7 +2031,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setTemplate(preset.sheetTemplate)
     setProjectDocument(nextDocument)
     setSavedProjectDocumentSnapshot(nextDocument)
-    setProjectFilePath(null)
+    setFileLocation(emptyProjectFileLocation)
     setHistory(createProjectHistory(nextProject))
     setActiveCorrectionLayerIdState(baseTimingProcessId(nextProject))
     resetClipWorkspaceView('sheet')
@@ -2394,7 +2411,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     clipDropContext: clipImportContext.current,
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange,
     pendingClipImageDrop: pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null, setPendingClipImageDrop, applyClipImageDrop,
-    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project,
+    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleProjectDrop,
     template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,

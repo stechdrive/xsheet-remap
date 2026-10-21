@@ -5,6 +5,7 @@ mod e2e;
 mod file_utils;
 mod help;
 mod persistence;
+mod document_files;
 mod preview;
 mod template_editor;
 
@@ -181,6 +182,8 @@ pub fn run(mut context: tauri::Context<tauri::Wry>) {
             preview::update_asset_preview_window_if_open,
             preview::current_asset_preview_payload,
             persistence::save_project_file,
+            document_files::open_document_file,
+            document_files::read_document_file,
             persistence::write_project_file,
             persistence::read_project_backup,
             persistence::save_text_file,

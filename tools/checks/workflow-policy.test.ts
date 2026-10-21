@@ -52,4 +52,24 @@ describe('Pages publication gates', () => {
     workflow.jobs.check.steps.find(step => step.run === 'npm run setup:rust-audit')!.if = 'false'
     expect(inspectPagesWorkflow(workflow)).toContain('Install the pinned Rust auditor before the dependency gate')
   })
+  it.each(['check', 'native', 'build'])('requires runtime acceptance before npm ci in %s', id => {
+    const workflow = candidate()
+    const steps = workflow.jobs[id].steps
+    const runtime = steps.findIndex(step => step.run === 'npm run check:runtime')
+    const [step] = steps.splice(runtime, 1)
+    expect(inspectPagesWorkflow(workflow)).toContain(`Check the selected Node and bundled npm before installing dependencies in ${id}`)
+    steps.push(step)
+    expect(inspectPagesWorkflow(workflow)).toContain(`Check the selected Node and bundled npm before installing dependencies in ${id}`)
+  })
+  it.each([
+    'npm install --global npm@11.7.0',
+    'npm install --global (Get-Content package.json -Raw | ConvertFrom-Json).packageManager',
+    `npm install --global "$(node -p "require('./package.json').packageManager")"`,
+  ])('rejects a skipped runtime check or replacing the bundled npm: %s', command => {
+    const workflow = candidate()
+    workflow.jobs.check.steps.find(step => step.run === 'npm run check:runtime')!.if = 'false'
+    workflow.jobs.check.steps.push({ run: command })
+    expect(inspectPagesWorkflow(workflow)).toContain('Check the selected Node and bundled npm before installing dependencies in check')
+    expect(inspectPagesWorkflow(workflow)).toContain('Use the npm bundled with the selected Node; do not replace it in CI')
+  })
 })

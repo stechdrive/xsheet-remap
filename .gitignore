@@ -40,8 +40,8 @@ yarn-error.log*
 .env.*
 !.env.example
 AGENTS.md
-apps/csp-import-helper/README.md
-apps/csp-import-helper/tests/fixtures/*/README.md
+# Retired helper: preserve ignored local notes/caches without reintroducing code.
+apps/csp-import-helper/
 
 # Local-only production materials and exports.
 # Keep only synthetic, public-safe fixtures trackable under fixtures/ when needed.

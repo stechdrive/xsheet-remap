@@ -19,11 +19,16 @@ describe('verification evidence and change selection', () => {
     } finally { rmSync(root, { recursive: true, force: true }) }
   })
   it('requires passed evidence for the exact source, environment, phase and artifact', () => {
-    const identity = { commit: 'a', sourceSha256: 'b', node: 'v24', platform: 'win32' }
-    const evidence = { schemaVersion: 1, status: 'passed', phase: 'browser', identity, artifactSha256: 'pwa' }
+    const identity = { commit: 'a', sourceSha256: 'b', node: 'v26.12.1', npm: '11.20.0', nodeOptions: '', nodeExecArgv: [], platform: 'win32' }
+    const evidence = JSON.parse(JSON.stringify({ schemaVersion: 1, status: 'passed', phase: 'browser', identity, artifactSha256: 'pwa' }))
     expect(reusableEvidence(evidence, identity, 'browser', 'pwa')).toBe(true)
-    for (const altered of [{ ...identity, commit: 'c' }, { ...identity, sourceSha256: 'changed' }, { ...identity, node: 'v26' }]) expect(reusableEvidence(evidence, altered, 'browser', 'pwa')).toBe(false)
+    for (const altered of [
+      { ...identity, commit: 'c' }, { ...identity, sourceSha256: 'changed' },
+      { ...identity, node: 'v26.12.2' }, { ...identity, npm: '11.20.1' },
+      { ...identity, nodeOptions: '--no-webstorage' }, { ...identity, nodeExecArgv: ['--no-webstorage'] },
+    ]) expect(reusableEvidence(evidence, altered, 'browser', 'pwa')).toBe(false)
     expect(reusableEvidence({ ...evidence, status: 'failed' }, identity, 'browser', 'pwa')).toBe(false)
+    expect(reusableEvidence({ ...evidence, identity: { ...identity, npm: undefined } }, identity, 'browser', 'pwa')).toBe(false)
     expect(reusableEvidence(evidence, identity, 'browser', 'different')).toBe(false)
   })
   it('keeps web edits off native compilation but includes native, dependency and release changes', () => {

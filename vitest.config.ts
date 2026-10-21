@@ -22,6 +22,10 @@ export default defineConfig({
       { extends: true, test: { name: 'node', environment: 'node', include: nodeTests } },
       { extends: true, test: {
         name: 'dom', environment: 'jsdom',
+        // Vitest 4 otherwise keeps Node's globals instead of jsdom's Storage.
+        // Disable only the host API in DOM workers; jsdom provides browser Storage.
+        // https://github.com/vitest-dev/vitest/issues/10867
+        execArgv: ['--no-experimental-webstorage'],
         include: ['packages/**/*.test.ts', 'packages/**/*.test.tsx', 'apps/**/*.test.tsx', 'tools/**/*.test.ts'],
         exclude: nodeTests,
       } },

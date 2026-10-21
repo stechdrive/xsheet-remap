@@ -19,7 +19,6 @@ REMAP_ACCENT = "#66d2af"
 EDITOR_ACCENT = "#f2bd5c"
 TEMPLATE_ACCENT = "#a98ce8"
 CORRECTOR_ACCENT = "#f0806b"
-IMPORTER_ACCENT = "#59bde8"
 
 
 def scaled_rect(values: tuple[float, float, float, float], factor: float) -> tuple[int, int, int, int]:
@@ -226,67 +225,6 @@ def template_editor_icon(size: int) -> Image.Image:
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
-def csp_import_helper_icon(size: int) -> Image.Image:
-    canvas = size * SCALE
-    factor = canvas / 128
-    image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    compact = size <= COMPACT_MAX_SIZE
-
-    draw_base(draw, factor, compact)
-    if compact:
-        arrow = [
-            (53, 19),
-            (75, 19),
-            (75, 64),
-            (92, 64),
-            (64, 93),
-            (36, 64),
-            (53, 64),
-        ]
-        draw.polygon(scaled_points(arrow, factor), fill=IMPORTER_ACCENT)
-        draw.line(
-            scaled_points([(24, 78), (24, 105), (104, 105), (104, 78)], factor),
-            fill=PAPER,
-            width=max(1, round(10 * factor)),
-            joint="curve",
-        )
-    else:
-        draw.rounded_rectangle(
-            scaled_rect((27, 26, 69, 102), factor),
-            radius=round(6 * factor),
-            fill=PAPER,
-        )
-        paper_lines = (((37, 43), (59, 43)), ((37, 58), (55, 58)), ((37, 87), (59, 87)))
-        for start, end in paper_lines:
-            draw.line(
-                scaled_points([start, end], factor),
-                fill=BASE,
-                width=max(1, round(5 * factor)),
-            )
-
-        draw.line(
-            scaled_points([(51, 72), (82, 72)], factor),
-            fill=IMPORTER_ACCENT,
-            width=max(1, round(8 * factor)),
-        )
-        draw.line(
-            scaled_points([(75, 63), (85, 72), (75, 81)], factor),
-            fill=IMPORTER_ACCENT,
-            width=max(1, round(8 * factor)),
-            joint="curve",
-        )
-        layer_lines = (((79, 39), (99, 39)), ((84, 51), (99, 51)), ((89, 91), (99, 91)))
-        for start, end in layer_lines:
-            draw.line(
-                scaled_points([start, end], factor),
-                fill=PAPER,
-                width=max(1, round(7 * factor)),
-            )
-
-    return image.resize((size, size), Image.Resampling.LANCZOS)
-
-
 def png_bytes(image: Image.Image) -> bytes:
     output = io.BytesIO()
     image.save(output, format="PNG")
@@ -351,20 +289,17 @@ def main() -> None:
     corrector_images = {size: corrector_icon(size) for size in SIZES}
     editor_images = {size: editor_icon(size) for size in SIZES}
     template_editor_images = {size: template_editor_icon(size) for size in SIZES}
-    csp_import_helper_images = {size: csp_import_helper_icon(size) for size in SIZES}
     icon_sets = (
         ("xsheet-remap", remap_images),
         ("xsheet-editor", editor_images),
         ("xsheet-template", template_editor_images),
         ("xsheet-corrector", corrector_images),
-        ("xsheet-importer", csp_import_helper_images),
     )
     validate_icon_sets(icon_sets)
 
     save_ico(ROOT / "apps/desktop/src-tauri/icons/icon.ico", remap_images)
     save_ico(ROOT / "apps/sheet-corrector/src-tauri/icons/icon.ico", corrector_images)
     save_ico(ROOT / "apps/editor/src-tauri/icons/icon.ico", editor_images)
-    save_ico(ROOT / "apps/csp-import-helper/launcher/icons/icon.ico", csp_import_helper_images)
     save_preview(
         ROOT / "design/icon-proposals/xsheet-icon-final-preview.png",
         icon_sets,

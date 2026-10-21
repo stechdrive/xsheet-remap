@@ -1,2 +1,0 @@
-# The portable helper uses standard-library venv/pip tooling plus a native Rust launcher.
-# Runtime dependencies are installed from runtime.txt into the portable bundle.

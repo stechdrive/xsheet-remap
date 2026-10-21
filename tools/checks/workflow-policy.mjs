@@ -49,6 +49,13 @@ export function inspectPagesWorkflow(workflow) {
   require(JSON.stringify(workflow.on?.push?.branches) === '["main"]', 'Publishing push events must target main')
   require(workflow.concurrency?.['cancel-in-progress'] === true, 'Superseded deployment runs must be cancelled')
   for (const [id, job] of Object.entries(jobs)) {
+    const installIndex = (job.steps ?? []).findIndex(step => step.run === 'npm ci')
+    if (installIndex >= 0) {
+      const runtimeIndex = job.steps.findIndex(step => step.run === 'npm run check:runtime' && !step.if)
+      const setupIndex = job.steps.findIndex(step => step.uses?.startsWith('actions/setup-node@') && !step.if)
+      require(setupIndex >= 0 && runtimeIndex > setupIndex && runtimeIndex < installIndex, `Check the selected Node and bundled npm before installing dependencies in ${id}`)
+    }
+    require(!runs(job).some(line => /^npm (?:install|i)\s+(?:-g|--global)(?:\s|$)/.test(line)), 'Use the npm bundled with the selected Node; do not replace it in CI')
     require(!runs(job).some(line => /^npm run (?:verify:browser(?:\s|$)|verify:local(?:\s|$)|e2e:canvaskit(?:\s|$))/.test(line)), 'Full interaction acceptance belongs in local preflight, not the Pages CI gate')
     require(!job['continue-on-error'], `Do not ignore a failed job: ${id}`)
     require(!(job.steps ?? []).some(step => step['continue-on-error']), `Do not ignore failed steps in ${id}`)

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
+import { runtimeIdentity } from '../checks/runtime.mjs'
 
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
 export function hashSourceFiles(root, files) {
@@ -18,13 +19,13 @@ export function hashSourceFiles(root, files) {
 export function sourceIdentity(root = process.cwd()) {
   const git = args => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   const files = [...new Set(git(['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(Boolean))].sort()
-  return { commit: git(['rev-parse', 'HEAD']), workingTreeDirty: !!git(['status', '--porcelain', '--untracked-files=normal']), sourceSha256: hashSourceFiles(root, files), node: process.version, platform: process.platform, arch: process.arch }
+  return { commit: git(['rev-parse', 'HEAD']), workingTreeDirty: !!git(['status', '--porcelain', '--untracked-files=normal']), sourceSha256: hashSourceFiles(root, files), ...runtimeIdentity() }
 }
 export function reusableEvidence(record, identity, phase, artifactSha256 = null, execution = null) {
   return record?.schemaVersion === 1 && record.status === 'passed' && record.phase === phase
     && record.artifactSha256 === artifactSha256
     && JSON.stringify(record.execution ?? null) === JSON.stringify(execution)
-    && Object.keys(identity).every(key => record.identity?.[key] === identity[key])
+    && Object.keys(identity).every(key => JSON.stringify(record.identity?.[key]) === JSON.stringify(identity[key]))
 }
 export function verifyExecutable({ exePath, bytes, buildState, identity }) {
   const normalized = value => path.resolve(value).toLowerCase()

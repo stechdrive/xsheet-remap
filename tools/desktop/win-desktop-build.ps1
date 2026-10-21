@@ -11,6 +11,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$runtimeJson = & node (Join-Path $repoRoot "tools/checks/runtime.mjs") --json
+if ($LASTEXITCODE -ne 0) { throw "Unsupported build runtime; run through npm run build:dev or build:release:desktop." }
+$buildRuntime = $runtimeJson | ConvertFrom-Json
 $cargoTargetRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".cache\cargo-target"))
 $devRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dev-local"))
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
@@ -175,6 +178,7 @@ function Update-DevelopmentLaunchpad {
       commit = $commit
       workingTreeDirty = $workingTreeDirty
       buildSessionId = $BuildSessionId
+      runtime = $buildRuntime
       builtAtUtc = $builtAtUtc
       sourcePath = $app.RelativePath.Replace("\", "/")
       executable = "$($app.Name).exe"

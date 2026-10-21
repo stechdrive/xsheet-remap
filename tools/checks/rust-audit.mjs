@@ -4,6 +4,17 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { sha256 } from '../verification/evidence.mjs'
 
+export function currentCargoLockfiles(root, trackedPaths) {
+  return trackedPaths.filter(file => {
+    if (fs.existsSync(path.join(root, file))) return true
+    if (fs.existsSync(path.join(root, file.replace(/Cargo.lock$/, 'Cargo.toml')))) {
+      throw new Error(`Cargo.lock is missing for an existing manifest: ${file}`)
+    }
+    // Unstaged removal of a retired crate still appears in git ls-files.
+    return false
+  }).sort()
+}
+
 export function inspectRustAudit(report, policy, activePackages, today = new Date().toISOString().slice(0, 10)) {
   if (!Number.isInteger(report?.database?.['advisory-count']) || report.database['advisory-count'] <= 0
     || !Array.isArray(report?.vulnerabilities?.list)
@@ -68,7 +79,7 @@ export function runRustAudit(root = process.cwd()) {
   }
   const inventory = spawnSync('git', ['ls-files', '-z', '--', '**/Cargo.lock'], { cwd: root, encoding: 'utf8' })
   if (inventory.status !== 0) throw new Error(`Cannot enumerate Cargo lockfiles: ${inventory.stderr}`)
-  const lockfiles = inventory.stdout.split('\0').filter(Boolean).sort()
+  const lockfiles = currentCargoLockfiles(root, inventory.stdout.split('\0').filter(Boolean))
   if (!lockfiles.length) throw new Error('No tracked Cargo lockfiles found')
   const output = path.join(root, 'reference-local', 'dependency-audit', `${Date.now()}-${process.pid}`)
   fs.mkdirSync(output, { recursive: true })

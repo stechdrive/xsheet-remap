@@ -1,6 +1,7 @@
 ﻿param(
   [string]$Npm = "",
-  [switch]$IncludeWorkingTree
+  [switch]$IncludeWorkingTree,
+  [switch]$CheckRuntimeOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,8 +11,6 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $preflightRoot = Join-Path $repoRoot ".tmp\ci-preflight"
 $runRoot = Join-Path $preflightRoot ([guid]::NewGuid().ToString("N"))
 $cloneRoot = Join-Path $runRoot "source"
-$nodeVersionPath = Join-Path $repoRoot ".node-version"
-$packageJsonPath = Join-Path $repoRoot "package.json"
 
 function Invoke-CheckedCommand {
   param(
@@ -96,23 +95,13 @@ function Add-WorkingTreeChangesToClone {
 function Assert-ToolVersions {
   param([string]$NpmCommand)
 
-  $expectedNode = (Get-Content -LiteralPath $nodeVersionPath -Raw -Encoding UTF8).Trim()
-  $actualNode = (& node --version).Trim().TrimStart("v")
-  if ($LASTEXITCODE -ne 0 -or $actualNode -ne $expectedNode) {
-    throw "CI preflight requires Node $expectedNode; found $actualNode"
-  }
-
-  $packageJson = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
-  if ($packageJson.packageManager -notmatch '^npm@(.+)$') {
-    throw "package.json packageManager must pin npm, got '$($packageJson.packageManager)'"
-  }
-  $expectedNpm = $Matches[1]
   $actualNpm = (& $NpmCommand --version).Trim()
-  if ($LASTEXITCODE -ne 0 -or $actualNpm -ne $expectedNpm) {
-    throw "CI preflight requires npm $expectedNpm; found $actualNpm"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Cannot identify the selected npm: $NpmCommand"
   }
-
-  Write-Host "[ci-preflight] Node $actualNode / npm $actualNpm"
+  Invoke-CheckedCommand -FilePath "node" -ArgumentList @(
+    (Join-Path $repoRoot "tools/checks/runtime.mjs"), "--npm-version", $actualNpm
+  ) -WorkingDirectory $repoRoot
 }
 
 function Remove-PreflightRun {
@@ -131,10 +120,11 @@ function Remove-PreflightRun {
 }
 
 $npmCommand = Resolve-NpmCommand
+Assert-ToolVersions -NpmCommand $npmCommand
+if ($CheckRuntimeOnly) { return }
 if (-not $IncludeWorkingTree) {
   Assert-CleanWorktree
 }
-Assert-ToolVersions -NpmCommand $npmCommand
 
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 try {

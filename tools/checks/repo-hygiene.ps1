@@ -1,7 +1,6 @@
 param(
   [switch]$IncludeBuildOutput,
   [switch]$IncludeDevOutput,
-  [switch]$IncludeHelperBuildOutput,
   [switch]$IncludeLocalRelease
 )
 
@@ -136,12 +135,6 @@ function Get-OutputScanRoots {
     $devOutputPath = Join-Path $repoRoot "dev-local"
     if (Test-Path -LiteralPath $devOutputPath) {
       $roots.Add($devOutputPath)
-    }
-  }
-  if ($IncludeHelperBuildOutput) {
-    $helperDistPath = Join-Path $repoRoot ".tmp/csp-import-helper-dist"
-    if (Test-Path -LiteralPath $helperDistPath) {
-      $roots.Add($helperDistPath)
     }
   }
   if ($IncludeLocalRelease) {

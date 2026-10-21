@@ -38,7 +38,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm install --global (Get-Content package.json -Raw | ConvertFrom-Json).packageManager
+      - run: npm run check:runtime
       - run: npm ci
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -68,7 +68,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm install --global (Get-Content package.json -Raw | ConvertFrom-Json).packageManager
+      - run: npm run check:runtime
       - run: npm ci
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: needs.plan.outputs.native == 'true'
@@ -102,7 +102,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - run: npm run check:runtime
       - run: npm ci
       - run: npm run verify:pages
       - run: npx playwright install --with-deps chromium

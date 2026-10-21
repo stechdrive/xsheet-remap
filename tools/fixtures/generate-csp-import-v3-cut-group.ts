@@ -48,7 +48,7 @@ interface FixtureCut {
 }
 
 const repoRoot = process.cwd()
-const fixturesRoot = path.resolve(repoRoot, 'apps/csp-import-helper/tests/fixtures')
+const fixturesRoot = path.resolve(repoRoot, 'tools/fixtures')
 const fixtureRoot = path.resolve(fixturesRoot, 'csp-import-v3-cut-group')
 const materialsDirectory = path.join(fixtureRoot, 'materials')
 const packageDirectory = path.join(fixtureRoot, 'xsheet-csp-import')
@@ -425,12 +425,11 @@ Each cut has its own CSP timeline name and duration. The cut number keeps its
 | C101B | 101B | 36f |
 | C101C | 101C | 48f |
 
-The manifest is schemaVersion 4 and is intended to exercise the helper's
-multi-cut XDTS import and cross-cut asset de-duplication path.
-The setup XDTS contains the union animation-folder stack for 作画, 演出, and
-作監. It deliberately repeats animation-folder names such as A under multiple
-process separators so the helper has to resolve duplicate XDTS track names by
-manifest process context.
+These images and XDTS files are retained as reusable multi-cut sample data.
+The former automated CSP registration helper has been removed. The schemaVersion
+4 manifest preserves the original mapping for reference. The setup XDTS contains
+the union animation-folder stack for 作画, 演出, and 作監, with repeated folder
+names such as A under multiple process separators.
 `,
     'utf-8',
   )

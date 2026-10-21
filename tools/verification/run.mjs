@@ -6,7 +6,8 @@ import { reusableEvidence, sha256, sourceIdentity } from './evidence.mjs'
 import { defaultBrowserWorkers, parseOptions } from './options.mjs'
 import { prepareBrowser, validateBrowserResults } from './browser.mjs'
 import { readUnitEvidence, reusableUnitEvidence, unitReportPath } from './unit-evidence.mjs'
-import { readDesktopScenarioEvidence } from './desktop-evidence.mjs'
+import { readComputerUseAcceptance } from './computer-use-desktop.mjs'
+import { assertSupportedRuntime, runtimeIdentity as nodeRuntimeIdentity } from '../checks/runtime.mjs'
 
 const options = parseOptions(process.argv.slice(2))
 const { phase } = options
@@ -53,6 +54,7 @@ if (phase === 'plan') {
   console.log(JSON.stringify({ ...plan, testPurposes }, null, 2))
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `native=${plan.native}\nimporter=${plan.importer}\nbrowsers=${JSON.stringify(plan.browser)}\n`)
 } else {
+  assertSupportedRuntime(nodeRuntimeIdentity())
   const phases = phase === 'local' ? ['check', 'native', 'importer', 'pages', 'browser'] : [phase]
   for (const selected of phases) {
     const browserPhase = selected === 'browser' || selected === 'browser-ci'
@@ -75,8 +77,8 @@ if (phase === 'plan') {
     const canReuse = reusableEvidence(previous, identity, name, artifactSha256, execution)
       && (!['check', 'importer'].includes(selected) || reusableUnitEvidence(root, previous))
     if (artifactSha256 && (browserPhase || options.reuse && canReuse)) npm('check:pages-artifact')
-    // Native input acceptance always reruns against the current EXEs. Source
-    // equality alone cannot certify executables produced by a later build.
+    // Desktop always revalidates the observed EXE bytes and build sessions.
+    // This command verifies evidence; Computer Use performs the actual input.
     if (selected !== 'desktop' && options.reuse && canReuse) {
       console.log(`[verification] ${name}: reusing matching passed evidence (${previous.finishedAt})`)
       continue
@@ -105,13 +107,9 @@ if (phase === 'plan') {
         npm('check:pages-artifact')
         if (sha256(fs.readFileSync(manifestPath)) !== artifactSha256) throw new Error('Pages candidate changed during browser verification')
       } else if (selected === 'desktop') {
-        record.diagnostics = `reference-local/desktop-acceptance/${Date.now()}-${process.pid}`
-        record.scenarios = []
-        for (const script of checks.desktop) {
-          const scenario = script.split(':').at(-1)
-          npm(script, ['--', '-ArtifactRoot', `${record.diagnostics}/${scenario}`])
-          record.scenarios.push(readDesktopScenarioEvidence(root, `${record.diagnostics}/${scenario}`, scenario))
-        }
+        record.desktopEvidence = readComputerUseAcceptance(root, identity, options.evidence)
+        record.scenarios = record.desktopEvidence.scenarios
+        record.diagnostics = path.dirname(record.desktopEvidence.recordPath)
       } else for (const script of checks[selected]) {
         if (script === 'test' || script === 'test:clip') {
           const file = unitReportPath(selected, runId)

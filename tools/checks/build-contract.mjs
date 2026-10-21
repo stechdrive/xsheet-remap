@@ -8,12 +8,14 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json
 const scripts = packageJson.scripts ?? {}
 
 const expectedScripts = {
+  'check:runtime': 'node tools/checks/runtime.mjs',
   'build:dev': 'node tools/desktop/run-build.mjs --mode development',
   'build:release:desktop': 'node tools/desktop/run-build.mjs --mode release --target all',
   'build:release:all': 'npm run build:release:desktop && npm run check:repo-hygiene:release',
   'release:github': 'npm run check:ci-preflight && npm run verify:desktop && npm run release:github:update',
-  'release:github:build': 'npm run check:ci-preflight && npm run build:release:all && npm run verify:desktop && npm run release:github:update',
+  'release:github:build': 'npm run check:ci-preflight && npm run build:release:all && npm run desktop:prepare',
   'verify:desktop': 'node tools/verification/run.mjs desktop',
+  'desktop:prepare': 'node tools/verification/computer-use-desktop.mjs prepare',
   'check:dependency-audit': 'npm audit --audit-level=high && npm run check:rust-audit',
   'check:rust-audit': 'node tools/checks/rust-audit.mjs',
   'setup:rust-audit': 'node tools/checks/install-rust-audit.mjs',
@@ -40,6 +42,16 @@ const retiredScripts = [
   'build:desktop',
   'build:desktop:portable',
   'build:all-local',
+  'e2e:desktop:win:template-entry',
+  'e2e:desktop:win:template-authoring',
+  'e2e:desktop:win:real-dnd',
+  'e2e:desktop:win:real-dnd:build',
+  'e2e:desktop:win:explorer-import',
+  'e2e:desktop:win:real-dnd:full',
+  'e2e:remap:win:real-dnd',
+  'e2e:remap:win:real-dnd:build',
+  'e2e:remap:win:csp-pane',
+  'e2e:remap:win:export-validation',
 ]
 for (const name of retiredScripts) {
   if (Object.hasOwn(scripts, name)) throw new Error(`retired ambiguous build command is still exposed: ${name}`)

@@ -11,8 +11,9 @@ export function parseOptions(argv) {
   const allowed = new Set(phase === 'plan' ? ['base', 'release']
     : phase === 'browser' ? ['reuse', 'list', 'workers', 'project', 'suite', 'grep', 'file']
       : phase === 'browser-ci' ? ['reuse', 'list']
+        : phase === 'desktop' ? ['evidence']
         : phase === 'local' ? ['reuse', 'workers'] : ['reuse'])
-  const options = { phase, reuse: false, list: false, release: false, base: null, project: null, suite: 'all', grep: null, files: [], workers: defaultBrowserWorkers }
+  const options = { phase, reuse: false, list: false, release: false, base: null, project: null, suite: 'all', grep: null, evidence: null, files: [], workers: defaultBrowserWorkers }
   const seen = new Set()
   while (args.length) {
     const arg = args.shift()

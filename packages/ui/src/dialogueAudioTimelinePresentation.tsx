@@ -3,7 +3,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react'
-import { formatLogicalSheetFrameTimecode, type TimedRangeCue } from '@xsheet-remap/core'
+import { formatLogicalSheetFrameTimecode, type LogicalTimelineLane, type TimedRangeCue } from '@xsheet-remap/core'
 import { bindingForCandidate, type DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 import type { DialogueAudioRange } from './dialogueAudioEditing'
 import type { DialogueSileroAnalysis, DialogueVadEngineStatus } from './dialogueAudioSileroVad'
@@ -38,6 +38,8 @@ export interface DialogueAudioTimelineProps {
   durationFrames?: number
   activeRevisionId: string
   soundCues: TimedRangeCue[]
+  soundSectionLabel?: string
+  soundLanes?: LogicalTimelineLane[]
   selectedSoundCueId: string | null
   soundCueNavigationRequest?: SoundCueNavigationRequest | null
   onCutStateChange: (change: {
@@ -185,7 +187,7 @@ export function dialogueAudioClipHandleLane(clips: DialogueAudioClip[], targetCl
   return 0
 }
 
-export function contextMenuTitle(target: DialogueAudioContextTarget): string {
+export function contextMenuTitle(target: DialogueAudioContextTarget, soundLabel = 'SOUND'): string {
   switch (target.kind) {
     case 'track': return 'トラック'
     case 'empty': return 'トラック空白'
@@ -193,23 +195,23 @@ export function contextMenuTitle(target: DialogueAudioContextTarget): string {
     case 'clip': return `音声クリップ ${target.clipIds.length}個 / ${target.frameStart}–${target.frameEnd}F`
     case 'candidate': return `セリフ区間 ${target.candidateIds.length}個`
     case 'region': return 'セリフ区間'
-    case 'cue': return 'リンクSOUND'
+    case 'cue': return `リンク${soundLabel}`
   }
 }
 
-export function contextMenuAriaLabel(target: DialogueAudioContextTarget): string {
-  return `${contextMenuTitle(target)}の操作`
+export function contextMenuAriaLabel(target: DialogueAudioContextTarget, soundLabel = 'SOUND'): string {
+  return `${contextMenuTitle(target, soundLabel)}の操作`
 }
 
-export function contextCommandLabel(command: DialogueAudioContextCommand): string {
+export function contextCommandLabel(command: DialogueAudioContextCommand, soundLabel = 'SOUND'): string {
   switch (command) {
     case 'redetect-track': return 'トラック全体をVAD再検出'
     case 'clear-track': return 'トラックをクリア'
     case 'import-here': return '再生ヘッドへ音声ファイルを読み込む'
     case 'paste-overwrite': return '再生ヘッドへ上書き貼り付け　Ctrl+V'
     case 'paste-insert': return '再生ヘッドへ挿入貼り付け　Ctrl+Shift+V'
-    case 'add-to-selected-sound': return '選択中のSOUNDへ追加'
-    case 'assign-sound': return 'SOUNDへ割り付け…'
+    case 'add-to-selected-sound': return `選択中の${soundLabel}へ追加`
+    case 'assign-sound': return `${soundLabel}へ割り付け…`
     case 'copy': return 'コピー　Ctrl+C'
     case 'cut': return '切り取り　Ctrl+X'
     case 'silence': return '無音化（リフト）　Delete'
@@ -218,11 +220,11 @@ export function contextCommandLabel(command: DialogueAudioContextCommand): strin
     case 'redetect-clips': return '選択クリップをVAD再検出'
     case 'ignore-candidate': return 'セリフ区間を無視'
     case 'restore-candidate': return 'セリフ区間を検出対象へ戻す'
-    case 'edit-sound': return 'リンクSOUNDを編集…'
-    case 'select-sheet-cue': return 'タイムシート側のSOUNDを選択'
-    case 'align-audio-to-cue': return '音声をSOUND位置へ揃える'
-    case 'align-cue-to-audio': return 'SOUNDを音声位置へ揃える'
-    case 'unlink-sound': return 'SOUNDとのリンクを解除'
+    case 'edit-sound': return `リンク${soundLabel}を編集…`
+    case 'select-sheet-cue': return `タイムシート側の${soundLabel}を選択`
+    case 'align-audio-to-cue': return `音声を${soundLabel}位置へ揃える`
+    case 'align-cue-to-audio': return `${soundLabel}を音声位置へ揃える`
+    case 'unlink-sound': return `${soundLabel}とのリンクを解除`
     case 'remove-region': return 'セリフ区間を解除'
     case 'track-vad-mode':
     case 'track-height':

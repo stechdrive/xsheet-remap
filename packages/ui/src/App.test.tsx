@@ -186,7 +186,7 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('heading', { name: '音声トラックを準備する' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '再生・位置確認・表示' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '選択と非破壊編集' })).toBeTruthy()
-    expect(within(dialog).getByRole('heading', { name: 'VAD候補をSOUNDへ割り付ける' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'VAD候補をシートの指示へ割り付ける' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'リンクの同期と保存' })).toBeTruthy()
     expect(within(dialog).getByText(/波形だけ編集するなら「検出しない」/)).toBeTruthy()
     expect(within(dialog).getByText(/Ctrl\+Shift\+Vで挿入貼り付け/)).toBeTruthy()

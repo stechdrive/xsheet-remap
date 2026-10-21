@@ -515,6 +515,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 cutDurationFrames={project.logicalSheet.durationFrames}
                 activeRevisionId={activeSheetRevision.revisionId}
                 soundCues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
+                soundSectionLabel={project.logicalSheet.timelineSections.find(section => section.role === 'sound')?.label ?? 'SOUND'}
+                soundLanes={timelineLanesForLayout(project).sound ?? []}
                 selectedSoundCueId={selectedSoundCueId}
                 soundCueNavigationRequest={soundCueNavigationRequest}
                 onCutStateChange={handleDialogueAudioCutStateChange}
@@ -526,7 +528,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
                 onRedo={handleRedo}
                 onCutDurationChange={durationFrames => runProjectCommand(sourceProject => updateLogicalSheetSettings(sourceProject, { durationFrames }))}
                 onPlayheadChange={handleAudioPlayheadChange}
-                onSoundCueSelect={handleSoundCueSelect}
+                onSoundCueSelect={cueId => handleSoundCueSelect(cueId, 'audio')}
                 onSoundCueEdit={openSoundCueEditor}
                 onSoundCueTransform={handleTransformSoundCue}
                 onSoundCandidateEdit={openSoundCueEditorForAudioCandidate}

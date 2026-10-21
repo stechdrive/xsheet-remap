@@ -4,8 +4,9 @@ import { DialogueAudioWaveform } from './DialogueAudioWaveform'
 import { rangeStyle, type DialogueAudioTimelineTool } from './dialogueAudioTimelinePresentation'
 import { TooltipTarget } from './Tooltip'
 
-export function DialogueAudioClipSurface({ clip, asset, trackId, color, selected, frameOrigin, durationFrames, lane, tool, locked, onPointerDown, onContextMenu }: {
+export function DialogueAudioClipSurface({ clip, asset, trackId, color, selected, linkedHighlight = false, frameOrigin, durationFrames, lane, tool, locked, onPointerDown, onContextMenu }: {
   clip: DialogueAudioClip; asset: DialogueAudioAsset; trackId: string; color: string; selected: boolean
+  linkedHighlight?: boolean
   frameOrigin: number; durationFrames: number; lane: number
   tool: DialogueAudioTimelineTool; locked: boolean
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void
@@ -18,7 +19,8 @@ export function DialogueAudioClipSurface({ clip, asset, trackId, color, selected
     : edge ? `ドラッグで${edge === 'start' ? '開始' : '終了'}をトリム。元の音声は保持。Escで取消`
     : 'ドラッグで移動、両端でトリム。Shift+クリックで追加選択。Alt+←/→で1F移動（Shift併用で5F）、右クリックで操作メニュー'
   return <TooltipTarget label={`${asset.sourceName ?? '音声'} · ${clip.timelineStartFrame}–${clip.timelineStartFrame + clip.durationFrames - 1}F。${help}`}>
-    {tooltipProps => <button {...tooltipProps} type="button" className={`dialogueAudioClipHandle ${selected ? 'isSelected' : ''} ${clip.muted ? 'isMuted' : ''}`}
+    {tooltipProps => <button {...tooltipProps} type="button" className={`dialogueAudioClipHandle ${selected ? 'isSelected' : ''} ${linkedHighlight ? 'isLinkedHighlight' : ''} ${clip.muted ? 'isMuted' : ''}`}
+    data-linked-highlight={linkedHighlight}
     data-track-id={trackId} data-clip-id={clip.clipId} data-source-name={asset.sourceName ?? ''}
     data-frame-start={clip.timelineStartFrame} data-frame-end={clip.timelineStartFrame + clip.durationFrames - 1}
     style={{ ...rangeStyle(clip.timelineStartFrame, clip.timelineStartFrame + clip.durationFrames - 1, frameOrigin, durationFrames), top: 4 + lane * 16, '--clip-color': color } as CSSProperties}

@@ -802,7 +802,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     const sourceProject = commitTimingDraft(false)
     setSelectionFromRange(range, sourceProject)
   }
-  function handleSoundCueSelect(cueId: string) { setWorkspaceFocusOwner('sheet'); selectSoundCue(cueId); setSoundCueNavigationRequest(current => nextSoundCueNavigationRequest(current, cueId)) }
+  function handleSoundCueSelect(cueId: string, origin: 'sheet' | 'audio' = 'sheet') {
+    setWorkspaceFocusOwner(origin)
+    selectSoundCue(cueId)
+    if (origin === 'sheet') setSoundCueNavigationRequest(current => nextSoundCueNavigationRequest(current, cueId))
+  }
   function handleDialogueAudioSelectionChange(nextSelection: typeof dialogueAudioSelection) { setDialogueAudioSelection(nextSelection); setWorkspaceFocusOwner('audio') }
   function handleDialogueAudioFocus() { setWorkspaceFocusOwner('audio') }
   function handleAudioPlayheadChange(frame: number) {

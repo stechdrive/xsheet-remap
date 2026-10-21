@@ -141,7 +141,8 @@ import { DialogueAudioIcon } from './DialogueAudioIcons'
 import { DialogueAudioClipSurface } from './DialogueAudioClipSurface'
 import { DialogueAudioInspector } from './DialogueAudioInspector'
 import { DialogueAudioTrackControls } from './DialogueAudioTrackControls'
-import { DialogueAudioSoundBand, soundBandHeight } from './DialogueAudioSoundBand'
+import { DialogueAudioSoundBand } from './DialogueAudioSoundBand'
+import { dialogueSoundLanes, linkedDialogueClips, soundListHeight } from './dialogueAudioSoundView'
 import { addDialogueAudioTrack, removeDialogueAudioTrack, reorderDialogueAudioTrack, splitDialogueAudioClips, moveDialogueClips, isDialogueTrackAudible } from './dialogueAudioCommands'
 import { DialogueAudioTouchControls, dialogueAudioContextTargetForSelection } from './DialogueAudioTouchControls'
 import { Tooltip, TooltipTarget } from './Tooltip'
@@ -166,6 +167,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     onSoundCandidateEdit, onAutoCreateDialogueRegions, onCutDurationChange,
     audioSelection: controlledAudioSelection, onAudioSelectionChange, onWorkspaceFocus,
   } = props
+  const soundLabel = props.soundSectionLabel?.trim() || 'SOUND'
+  const soundLanes = dialogueSoundLanes(props.soundLanes ?? [], soundCues)
+  const [soundListExpanded, setSoundListExpanded] = useState(false)
+  const [soundCuePreview, setSoundCuePreview] = useState<TimedRangeCue | null>(null)
+  const soundBandHeight = soundListHeight(soundLanes, soundListExpanded)
+  const audioRevealRef = useRef({ key: '', index: -1 })
   const cutDurationFrames = Math.max(1, props.cutDurationFrames ?? props.durationFrames ?? 144)
   const [collapsed, setCollapsed] = useState(true)
   const [playheadFrame, setPlayheadFrame] = useState(frameOrigin)
@@ -291,6 +298,10 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     : null
   const selectedCue = soundCues.find(cue => cue.cueId === selectedSoundCueId) ?? null
   const selectedCueBinding = selectedCue ? bindingForCue(cutState, selectedCue.cueId, activeRevisionId) : undefined
+  const linkedClips = linkedDialogueClips(displayCutState, selectedCueBinding)
+  const linkedClipKeys = new Set(linkedClips.map(ref => `${ref.trackId}:${ref.clipId}`))
+  const guideCue = selectedCue ? soundCuePreview?.cueId === selectedCue.cueId ? soundCuePreview
+    : { ...selectedCue, ...clipDragDisplay?.cueUpdates.find(update => update.cueId === selectedCue.cueId) } : null
   const linkedHighlightRegionKeys = new Set(
     selectedCueBinding?.members.map(member => `${member.regionRef.trackId}:${member.regionRef.regionId}`) ?? [],
   )
@@ -953,7 +964,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     applyTrackEditTo(
       range.trackId,
       track => rippleDeleteDialogueAudioRange(track, range),
-      `${range.frameStart}–${range.frameEnd}Fを削除し、後続音声とリンクSOUNDを詰めました。`,
+      `${range.frameStart}–${range.frameEnd}Fを削除し、後続音声とリンク${soundLabel}を詰めました。`,
     )
     clearAudioFocus()
   }
@@ -963,7 +974,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   function silenceRange(range: DialogueAudioRange & { trackId: string }) {
-    applyTrackEditTo(range.trackId, track => silenceDialogueAudioRange(track, range), `${range.frameStart}–${range.frameEnd}Fを無音化しました。リンク済みSOUNDは確認待ちとして残します。`)
+    applyTrackEditTo(range.trackId, track => silenceDialogueAudioRange(track, range), `${range.frameStart}–${range.frameEnd}Fを無音化しました。リンク済み${soundLabel}は確認待ちとして残します。`)
   }
 
   function copySelection(cut: boolean) {
@@ -1244,7 +1255,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (onCutDurationChange) onCutDurationChange(request.requiredCutDuration)
     else {
       setPendingSoundRequest(null)
-      setStatus('タイムシートのカット尺を変更できないため、SOUNDへ反映できませんでした。')
+      setStatus(`タイムシートのカット尺を変更できないため、${soundLabel}へ反映できませんでした。`)
     }
   }
 
@@ -1481,7 +1492,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     if (!rect) return []
     const top = Math.min(startClientY, currentClientY) - rect.top
     const bottom = Math.max(startClientY, currentClientY) - rect.top
-    let trackTop = TIME_RULER_HEIGHT + soundBandHeight(soundCues)
+    let trackTop = TIME_RULER_HEIGHT + soundBandHeight
     return cutState.tracks.flatMap(track => {
       const trackBottom = trackTop + trackHeight(track.trackId)
       const intersects = top <= trackBottom && bottom >= trackTop
@@ -1585,7 +1596,25 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
   }
 
   function trackHeight(trackId: string): number {
-    return Math.max(inputModality === 'touch' ? 72 : 52, viewPreferences.trackHeights[trackId] ?? DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.small)
+    const track = displayCutState.tracks.find(item => item.trackId === trackId)
+    const hasSpeech = track && showCandidates && (track.speechCandidates.length > 0 || track.dialogueRegions.length > 0)
+    const minimum = inputModality === 'touch' ? hasSpeech ? 72 : 52 : hasSpeech ? 60 : 40
+    return Math.max(minimum, viewPreferences.trackHeights[trackId] ?? DIALOGUE_AUDIO_TRACK_HEIGHT_PRESETS.small)
+  }
+
+  function revealLinkedAudio() {
+    const scroller = timelineScrollerRef.current
+    if (!scroller || !linkedClips.length) return
+    const key = `${selectedSoundCueId}:${linkedClips.map(ref => `${ref.trackId}:${ref.clipId}`).join('|')}`
+    const index = audioRevealRef.current.key === key ? (audioRevealRef.current.index + 1) % linkedClips.length : 0
+    const ref = linkedClips[index]
+    const target = Array.from(scroller.querySelectorAll<HTMLElement>('.dialogueAudioClipHandle')).find(element => element.dataset.trackId === ref.trackId && element.dataset.clipId === ref.clipId)
+    if (!target) return
+    audioRevealRef.current = { key, index }
+    const viewport = scroller.getBoundingClientRect(), bounds = target.getBoundingClientRect()
+    scroller.scrollTop += bounds.top - viewport.top - Math.max(0, (scroller.clientHeight - bounds.height) / 2)
+    if (bounds.left < viewport.left || bounds.right > viewport.right) scroller.scrollLeft += bounds.left - viewport.left - 12
+    if (timelineHeaderRef.current) timelineHeaderRef.current.scrollTop = scroller.scrollTop
   }
 
   function setTrackHeightPreset(trackId: string, preset: DialogueAudioTrackHeightPreset) {
@@ -1740,7 +1769,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     const cue = linkedCueForTarget(target)
     if (!cue) return
     if (target.kind === 'region') {
-      if (runClipCommand(() => moveDialogueRegionAudioToFrame(cutState, target.trackId, target.regionId, cue.frameStart, frameOrigin))) setStatus(`音声区間をSOUNDの${cue.frameStart}Fへ揃えました。`)
+      if (runClipCommand(() => moveDialogueRegionAudioToFrame(cutState, target.trackId, target.regionId, cue.frameStart, frameOrigin))) setStatus(`音声区間を${soundLabel}の${cue.frameStart}Fへ揃えました。`)
       return
     }
     if (target.kind !== 'cue') return
@@ -1754,7 +1783,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       const region = track?.dialogueRegions.find(item => item.regionId === ref.regionId)
       return region?.anchors ?? []
     })
-    if (runClipCommand(() => moveDialogueAnchors(cutState, anchors, delta, frameOrigin))) setStatus(`リンク音声をSOUNDの${cue.frameStart}Fへ揃えました。`)
+    if (runClipCommand(() => moveDialogueAnchors(cutState, anchors, delta, frameOrigin))) setStatus(`リンク音声を${soundLabel}の${cue.frameStart}Fへ揃えました。`)
   }
 
   function alignCueToAudio(target: DialogueAudioContextTarget) {
@@ -1771,7 +1800,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
     }
     if (!resolution) return
     if (resolution.frameEnd > cutFrameEnd) {
-      setStatus('音声区間がタイムシート尺を越えるため、SOUNDを揃えられません。先にカット尺を変更してください。')
+      setStatus(`音声区間がタイムシート尺を越えるため、${soundLabel}を揃えられません。先にカット尺を変更してください。`)
       return
     }
     onSoundCueTransform(
@@ -1779,7 +1808,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       { laneId: cue.laneId, frameStart: resolution.frameStart, frameEnd: resolution.frameEnd },
       'resize-cue',
     )
-    setStatus('SOUND区間をリンク音声へ揃えました。')
+    setStatus(`${soundLabel}区間をリンク音声へ揃えました。`)
   }
 
   function executeContextCommand(command: DialogueAudioContextCommand) {
@@ -1834,7 +1863,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           ? unlinkDialogueAudioCue(cutState, target.cueId, activeRevisionId)
           : cutState
       commitCutState(synchronizeDialogueBindingsFromCues(unlinked, soundCues, activeRevisionId))
-      setStatus('SOUNDとのリンクを解除しました。音声とラベルは保持しています。')
+      setStatus(`${soundLabel}とのリンクを解除しました。音声とラベルは保持しています。`)
     } else if (command === 'remove-region' && target.kind === 'region') {
       const removed = removeDialogueAudioRegion(cutState, target.trackId, target.regionId)
       commitCutState(synchronizeDialogueBindingsFromCues(removed, soundCues, activeRevisionId))
@@ -1855,8 +1884,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
       })
     : []
   const trackRows = cutState.tracks.map(track => `${trackHeight(track.trackId)}px`).join(' ')
-  const headerRows = `${TIME_RULER_HEIGHT}px ${soundBandHeight(soundCues)}px ${trackRows}`
-  const contentHeight = TIME_RULER_HEIGHT + soundBandHeight(soundCues) + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
+  const headerRows = `${TIME_RULER_HEIGHT}px ${soundBandHeight}px ${trackRows}`
+  const contentHeight = TIME_RULER_HEIGHT + soundBandHeight + cutState.tracks.reduce((sum, track) => sum + trackHeight(track.trackId), 0)
   const audioEndsAtCut = audioContentDurationFrames === cutDurationFrames
   const touchContextTarget = dialogueAudioContextTargetForSelection(audioSelection, cutState, activeRevisionId)
 
@@ -1951,14 +1980,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             <Tooltip label="ドラッグして音声の一部分を選択">
               <button
                 type="button"
-                className={`dialogueAudioIconButton dialogueAudioRangeTool ${timelineTool === 'range' ? 'isActiveTool' : ''}`}
+                className={`dialogueAudioIconButton ${timelineTool === 'range' ? 'isActiveTool' : ''}`}
                 aria-label="範囲選択"
                 aria-pressed={timelineTool === 'range'}
                 onClick={() => { setTimelineTool('range'); focusTimeline() }}
-              ><RangeToolIcon /><span>範囲選択</span></button>
+              ><RangeToolIcon /></button>
             </Tooltip>
           </span>
           <DialogueAudioTouchControls
+            soundLabel={soundLabel}
             visible={inputModality === 'touch'}
             additiveSelection={touchAdditiveSelection}
             contextMenuAvailable={Boolean(touchContextTarget)}
@@ -2009,21 +2039,21 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             </Tooltip>
           </span>
           <input ref={fileInputRef} type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden onChange={event => void importAudio(event)} />
-          <Tooltip label="選択した音声をSOUNDの収録区間へ割り付ける。前後の余白はプロパティで調整">
+          <Tooltip label={`選択した音声を${soundLabel}の指示区間へ割り付ける。前後の余白はプロパティで調整`}>
           <button
             type="button"
             className="dialogueAudioReflectButton"
             onClick={createSoundFromSelection}
             disabled={selectedCandidateRefs.length === 0 && selectedRegionRefs.length === 0 && !audioSelectionState.entities.some(entity => entity.kind === 'clip') && !audioSelectionState.timeRange}
           >{selectedCue && (selectedCandidateRefs.length > 0 || selectedRegionRefs.length > 0)
-            ? `選択中のSOUNDへ追加`
+            ? `選択中の${soundLabel}へ追加`
             : (selectedCandidate && bindingForCandidate(cutState, selectedCandidate.candidateId, activeRevisionId))
             || (selectedRegions.length === 1 && bindingForRegion(cutState, {
               trackId: activeTrack?.trackId ?? '',
               regionId: selectedRegions[0].regionId,
             }, activeRevisionId))
             ? '音響指示を編集'
-            : 'SOUNDへ割付…'}</button>
+            : `${soundLabel}へ割付…`}</button>
           </Tooltip>
           {selectedFrameRange && <span className="dialogueAudioSelectionSummary">{dialogueAudioSelectionSummary(audioSelectionState, selectedFrameRange)}</span>}
           <span className="dialogueAudioToolbarSpacer" />
@@ -2055,7 +2085,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             tooltipLabel="音声タイムライン設定"
           >
             <div className="dialogueAudioMenuLabel">VAD検出設定</div>
-            <TooltipTarget label="音声から検出した発話候補とSOUNDに割り付けた区間の表示を切り替え">
+            <TooltipTarget label={`音声から検出した発話候補と${soundLabel}に割り付けた区間の表示を切り替え`}>
               {tooltipProps => <label {...tooltipProps}><input type="checkbox" checked={showCandidates} onChange={event => setShowCandidates(event.target.checked)} />発話候補・区間を表示</label>}
             </TooltipTarget>
             <TooltipTarget label="録音環境に合わせて発話検出の基準を設定">
@@ -2081,6 +2111,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           </ActionMenu>
         </div>
         <DialogueAudioInspector state={cutState} selection={audioSelectionState} cues={soundCues} selectedCue={selectedCue ?? undefined} revision={activeRevisionId}
+          soundLabel={soundLabel} laneLabel={soundLanes.find(lane => lane.laneId === selectedCue?.laneId)?.label}
+          linkedClipCount={linkedClips.length} onRevealAudio={revealLinkedAudio}
           frameOrigin={frameOrigin} disabled={playing || recording} onCommand={runClipCommand} onTransform={onSoundCueTransform} />
       </div>
       {status && <div className="dialogueAudioNotice" role="status">{status}</div>}
@@ -2093,7 +2125,15 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
           style={{ gridTemplateRows: headerRows }}
         >
           <div className="dialogueAudioRulerHeader" aria-hidden="true" />
-          <div className="dialogueAudioSoundHeader">SOUND <small>収録区間</small></div>
+          <div className="dialogueAudioSoundHeader">
+            <Tooltip label={`${soundLabel}の指示一覧を${soundListExpanded ? '折りたたむ' : '表示'}。シートの列名・列順で表示。選択区間のガイドは折りたたんでも残ります`}>
+              <button type="button" className="dialogueAudioSoundToggle" aria-label={`${soundLabel}の指示一覧`} aria-expanded={soundListExpanded}
+                onClick={() => setSoundListExpanded(current => !current)}><span aria-hidden="true">{soundListExpanded ? '▾' : '▸'}</span> {soundLabel} <small>{soundLanes.length}列</small></button>
+            </Tooltip>
+            {soundListExpanded && soundLanes.map(lane => <TooltipTarget key={lane.laneId} label={`${soundLabel}・${lane.label}`}>
+              {tooltipProps => <div {...tooltipProps} className="dialogueAudioSoundLaneName" data-sound-lane-id={lane.laneId}>{lane.label}</div>}
+            </TooltipTarget>)}
+          </div>
           {cutState.tracks.map((track, trackIndex) => (
             <div
               key={track.trackId}
@@ -2104,7 +2144,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 openContextMenu(event, { kind: 'track', trackId: track.trackId })
               }}
             >
-              <TooltipTarget label={`A${trackIndex + 1}：録音・音声読込・貼り付け先のトラック${track.trackId === cutState.activeTrackId ? '（選択中）' : ''}`}>
+              <TooltipTarget label={`A${trackIndex + 1}・${track.name ?? ''}：録音・音声読込・貼り付け先のトラック${track.trackId === cutState.activeTrackId ? '（選択中）' : ''}`}>
                 {tooltipProps => <button
                   type="button"
                   className={`dialogueAudioTrackTarget ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
@@ -2132,6 +2172,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 >M</button>}
               </TooltipTarget>
               <DialogueAudioTrackControls track={track} index={trackIndex} count={cutState.tracks.length} disabled={recording || playing}
+                soundLabel={soundLabel}
                 onUpdate={updates => updateTrack(track.trackId, updates)} onReorder={index => runClipCommand(() => reorderDialogueAudioTrack(cutState, track.trackId, index))}
                 onRemove={() => runClipCommand(() => removeDialogueAudioTrack(cutState, track.trackId))} />
               <TooltipTarget label="上下にドラッグして音声トラックの高さを変更">
@@ -2180,6 +2221,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               onPointerCancel={finishPlayheadScrub}
             />
             <DialogueAudioSoundBand cues={soundCues.map(cue => ({ ...cue, ...clipDragDisplay?.cueUpdates.find(update => update.cueId === cue.cueId) }))}
+              lanes={soundLanes} sectionLabel={soundLabel} expanded={soundListExpanded} onPreview={setSoundCuePreview}
               selected={selectedSoundCueId} frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} cutEnd={cutFrameEnd} pixelsPerFrame={pixelsPerFrame}
               disabled={recording || playing} onSelect={onSoundCueSelect} onEdit={onSoundCueEdit} onTransform={onSoundCueTransform} />
             <TimelineBoundaryMarker
@@ -2199,6 +2241,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
               return <div
                 key={track.trackId}
                 className={`dialogueAudioTrack ${track.trackId === cutState.activeTrackId ? 'isActive' : ''}`}
+                data-has-speech={showCandidates && (track.speechCandidates.length > 0 || track.dialogueRegions.length > 0)}
                 data-track-id={track.trackId}
                 style={{ height: trackHeight(track.trackId) }}
                 onContextMenu={event => {
@@ -2221,6 +2264,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                       tool={timelineTool} locked={Boolean(track.locked)}
                       frameOrigin={frameOrigin} durationFrames={timelineDurationFrames} lane={dialogueAudioClipHandleLane(track.clips, sourceClip.clipId)}
                       selected={dialogueAudioSelectionContains(audioSelectionState, { kind: 'clip', trackId: track.trackId, id: sourceClip.clipId })}
+                      linkedHighlight={linkedClipKeys.has(`${track.trackId}:${sourceClip.clipId}`)}
                       onPointerDown={event => {
                         if (event.button !== 0 || recording || playing) return
                         focusTimeline()
@@ -2333,6 +2377,8 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
                 </div>
               </div>
             })}
+            {guideCue && <div className="dialogueAudioSoundGuide" role="img" aria-label={`${soundLabel}の指示区間ガイド ${guideCue.label || '名称なし'} ${guideCue.frameStart}–${guideCue.frameEnd}F`}
+              style={{ ...rangeStyle(guideCue.frameStart, guideCue.frameEnd, frameOrigin, timelineDurationFrames), top: TIME_RULER_HEIGHT + soundBandHeight, bottom: 0 }} />}
             {marqueeStyle && <span className="dialogueAudioMarquee" style={marqueeStyle} />}
             <span
               className="dialogueAudioPlayhead"
@@ -2356,12 +2402,12 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
         ref={contextMenuRef}
         className="dialogueAudioContextMenu"
         role="menu"
-        aria-label={contextMenuAriaLabel(contextMenu.target)}
+        aria-label={contextMenuAriaLabel(contextMenu.target, soundLabel)}
         style={{ left: contextMenu.x, top: contextMenu.y }}
         onPointerDown={event => event.stopPropagation()}
         onContextMenu={event => event.preventDefault()}
       >
-        <div className="dialogueAudioMenuLabel">{contextMenuTitle(contextMenu.target)}</div>
+        <div className="dialogueAudioMenuLabel">{contextMenuTitle(contextMenu.target, soundLabel)}</div>
         {contextCommands.map(command => {
           if (command === 'track-vad-mode' && contextTrack) {
             return <label key={command}>録音後の処理<select value={contextTrack.vadMode} disabled={recording || vadEngine.status === 'loading'} onChange={event => updateTrack(contextTrack.trackId, { vadMode: event.target.value as DialogueAudioTrackState['vadMode'] })}>
@@ -2395,7 +2441,7 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             key={command}
             className={command === 'clear-track' || command === 'remove-region' || command === 'ripple-delete' || command === 'delete-clips' ? 'isDanger' : undefined}
             onClick={() => executeContextCommand(command)}
-          >{contextCommandLabel(command)}</button>
+          >{contextCommandLabel(command, soundLabel)}</button>
         })}
       </div>, document.body)}
 

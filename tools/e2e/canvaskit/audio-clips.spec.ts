@@ -7,8 +7,11 @@ import { addDialogueAudioTrack, regionsForDialogueClips } from '../../../package
 import { bindDialogueRegionsToCue } from '../../../packages/ui/src/dialogueAudioBinding'
 import { pcmToWavBlob } from '../../../packages/ui/src/dialogueAudioEngine'
 
-async function archive(count: number) {
+async function archive(count: number, sheet?: { columns: number; label: string }) {
   let project=createDefaultProject(), state=createDefaultDialogueAudioCutState(1)
+  if (sheet) project = { ...project, logicalSheet: { ...project.logicalSheet, timelineSections: project.logicalSheet.timelineSections.map(section => section.role !== 'sound' ? section : {
+    ...section, label: sheet.label, lanes: Array.from({ length: sheet.columns }, (_, index) => ({ laneId: `sound_lane_${index + 1}`, label: `話者 ${index + 1}`, order: index })),
+  }) } }
   const left=Float32Array.from({length:48000},(_,i)=>Math.sin(i*.04)*.02), right=Float32Array.from(left,value=>-value)
   const wave=await pcmToWavBlob({samples:new Float32Array(48000),channels:[left,right],sampleRate:12000}).arrayBuffer()
   state.assets=[{assetId:'stereo',audioDataUrl:`data:audio/wav;base64,${Buffer.from(wave).toString('base64')}`,durationFrames:96,waveform:[.1,.5,.2,.4],sourceName:'stereo.wav'}]
@@ -16,7 +19,9 @@ async function archive(count: number) {
   state={...state,activeTrackId:'dialogue-1',tracks:state.tracks.map((track,i)=>({...track,vadMode:'off',clips:i<count?[{clipId:`clip-${i}`,placementId:`placement-${i}`,assetId:'stereo',timelineStartFrame:13,sourceOffsetFrames:12,durationFrames:48}]:[]}))}
   const created=createTimedRangeCue(project,{role:'sound',laneId:'sound_lane_1',frameStart:7,frameEnd:72,label:'収録枠'})
   project=created.project
-  const regions=regionsForDialogueClips(state,[{trackId:'dialogue-1',clipId:'clip-0'}])
+  const refs = [{trackId:'dialogue-1',clipId:'clip-0'}]
+  if (sheet) refs.push({ trackId: state.tracks[count - 1].trackId, clipId: `clip-${count - 1}` })
+  const regions=regionsForDialogueClips(state,refs)
   state=bindDialogueRegionsToCue(regions.state,regions.refs,created.cue,createProjectDocumentFromCutProject(project).cuts[0].activeRevisionId,project.timedRangeCues)
   project=updateDialogueAudioCutStateInProject(project,state,1)
   return Buffer.from(await encodeProjectArchive(createProjectDocumentFromCutProject(project),{includeAssetPreviews:true}))
@@ -31,6 +36,10 @@ test('clip editing preserves the independent SOUND window and atomic undo',async
   expect(playBox!.y+playBox!.height).toBeLessThanOrEqual(collapsedBox!.y+collapsedBox!.height)
   await activateControl(page,page.getByRole('button',{name:'音声タイムラインを開く'}))
   const timeline=page.getByRole('region',{name:'セリフ音声タイムライン'})
+  const resize=await timeline.getByRole('separator',{name:'音声タイムラインの高さを変更',exact:true}).boundingBox()
+  await page.mouse.move(resize!.x+resize!.width/2,resize!.y+resize!.height/2)
+  await page.mouse.down();await page.mouse.move(resize!.x+resize!.width/2,resize!.y-220,{steps:8});await page.mouse.up()
+  await activateControl(page,timeline.getByRole('button',{name:'SOUNDの指示一覧',exact:true}))
   const clip=timeline.getByRole('button',{name:'音声クリップ stereo.wav'})
   await expect(clip).toBeVisible()
   const box=await clip.boundingBox(); expect(box!.height).toBeGreaterThan(24)
@@ -53,9 +62,6 @@ test('clip editing preserves the independent SOUND window and atomic undo',async
   await expect(timeline.getByText('前 +6F / 後 +12F',{exact:true})).toBeVisible()
   await timeline.getByLabel('SOUNDの追従方法',{exact:true}).selectOption('follow-audio')
   await activateControl(page,timeline.getByRole('button',{name:'スナップ',exact:true}))
-  const resize=await timeline.getByRole('separator',{name:'音声タイムラインの高さを変更',exact:true}).boundingBox()
-  await page.mouse.move(resize!.x+resize!.width/2,resize!.y+resize!.height/2)
-  await page.mouse.down();await page.mouse.move(resize!.x+resize!.width/2,resize!.y-160,{steps:8});await page.mouse.up()
   const restored=await clip.boundingBox(), x=restored!.x+restored!.width/2,y=restored!.y+restored!.height/2, delta=restored!.width/4
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+delta,y,{steps:6})
   await expect(clip).toHaveAttribute('data-frame-start','25')
@@ -83,7 +89,9 @@ test('clip editing preserves the independent SOUND window and atomic undo',async
   await activateControl(page,timeline.getByRole('button',{name:'音声トラック1をソロ',exact:true}))
   await expect(timeline.getByRole('button',{name:'音声トラック1をソロ',exact:true})).toHaveAttribute('aria-pressed','true')
   await activateControl(page,timeline.getByRole('button',{name:'＋トラック'}))
-  await expect(timeline.getByLabel('音声トラック4の名前')).toHaveValue('音声 4')
+  await activateControl(page,timeline.getByLabel('音声トラック4の操作'))
+  await expect(page.getByLabel('音声トラック4の名前')).toHaveValue('音声 4')
+  await page.getByLabel('音声トラック4の名前').press('Escape')
   if(info.project.name.endsWith('-touch')){
     await activateControl(page,clip,'touch')
     await expect(timeline).toHaveAttribute('data-input-modality','touch')
@@ -103,7 +111,7 @@ test('shared audio tooltips and Premiere shortcuts preserve focus, geometry and 
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'audio-controls.xsr', mimeType: 'application/octet-stream', buffer: await archive(3) })
   await activateControl(page, page.getByRole('button', { name: '音声タイムラインを開く' }))
   const timeline = page.getByRole('region', { name: 'セリフ音声タイムライン' })
-  await expect(timeline.getByRole('button', { name: '範囲選択', exact: true })).toHaveText('範囲選択')
+  await expect(timeline.getByRole('button', { name: '範囲選択', exact: true })).toHaveText('')
   for (const [name, description] of [
     ['範囲選択', 'ドラッグして音声の一部分を選択'],
     ['レーザーツール（C）', 'Shift+クリック'],
@@ -143,10 +151,11 @@ test('shared audio tooltips and Premiere shortcuts preserve focus, geometry and 
   await expect(timeline.locator('.dialogueAudioClipHandle')).toHaveCount(6)
   await editor.press('Control+z')
   await expect(timeline.locator('.dialogueAudioClipHandle')).toHaveCount(3)
-  await timeline.getByLabel('音声トラック1の名前').fill('Voice')
-  await timeline.getByLabel('音声トラック1の名前').press('s')
+  await activateControl(page, timeline.getByLabel('音声トラック1の操作'))
+  await page.getByLabel('音声トラック1の名前').fill('Voice')
+  await page.getByLabel('音声トラック1の名前').press('s')
   await expect(timeline.getByRole('button', { name: 'スナップ', exact: true })).toHaveAttribute('aria-pressed', 'false')
-  await timeline.getByLabel('音声トラック1の名前').press('Escape')
+  await page.getByLabel('音声トラック1の名前').press('Escape')
   await activateControl(page, timeline.getByLabel('音声トラック1の操作', { exact: true }))
   const trackCommand = page.getByRole('button', { name: 'トラックと音声を削除', exact: true })
   await trackCommand.press('s')
@@ -157,6 +166,64 @@ test('shared audio tooltips and Premiere shortcuts preserve focus, geometry and 
   const geometry = await timeline.evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth, track: element.querySelector('.dialogueAudioBody')!.clientHeight }))
   expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)
   expect(geometry.track).toBeGreaterThan(80)
+})
+
+test('variable sheet columns, folded guides and compact tracks keep linked audio reachable without stealing edits', async ({ page }, info) => {
+  await page.goto('./')
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'sheet-audio.xsr', mimeType: 'application/octet-stream', buffer: await archive(12, { columns: 6, label: 'セリフ' }) })
+  await activateControl(page, page.getByRole('button', { name: '音声タイムラインを開く' }))
+  const timeline = page.getByRole('region', { name: 'セリフ音声タイムライン' })
+  const toggle = timeline.getByRole('button', { name: 'セリフの指示一覧', exact: true })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(timeline.locator('.dialogueAudioTrackHeader input')).toHaveCount(0)
+  const resize = await timeline.getByRole('separator', { name: '音声タイムラインの高さを変更', exact: true }).boundingBox()
+  await page.mouse.move(resize!.x + resize!.width / 2, resize!.y + resize!.height / 2)
+  await page.mouse.down(); await page.mouse.move(resize!.x + resize!.width / 2, resize!.y - 180, { steps: 8 }); await page.mouse.up()
+  await activateControl(page, toggle)
+  await expect(timeline.locator('.dialogueAudioSoundLaneName')).toHaveText(['話者 1', '話者 2', '話者 3', '話者 4', '話者 5', '話者 6'])
+  const names = await timeline.locator('.dialogueAudioSoundLaneName').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top))
+  const rows = await timeline.locator('.dialogueAudioSoundRow').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top))
+  names.forEach((top, index) => expect(Math.abs(top - rows[index])).toBeLessThan(1))
+  const scroller = timeline.locator('.dialogueAudioScroller')
+  const before = await scroller.evaluate(element => element.scrollTop)
+  await activateControl(page, timeline.getByRole('button', { name: 'セリフ 収録枠 7–72F', exact: true }))
+  expect(await scroller.evaluate(element => element.scrollTop)).toBe(before)
+  await activateControl(page, toggle)
+  await expect(timeline.locator('.dialogueAudioSoundLaneName')).toHaveCount(0)
+  const guide = timeline.getByRole('img', { name: 'セリフの指示区間ガイド 収録枠 7–72F', exact: true })
+  await expect(guide).toBeVisible()
+  await expect(timeline.locator('[data-linked-highlight="true"]')).toHaveCount(2)
+  await expect(guide).toHaveCSS('pointer-events', 'none')
+  await activateControl(page, timeline.getByRole('button', { name: '対応する音声へ', exact: true }))
+  await activateControl(page, timeline.getByRole('button', { name: '対応する音声へ', exact: true }))
+  const last = timeline.locator('[data-clip-id="clip-11"]')
+  const lastBox = await last.boundingBox(), view = await scroller.boundingBox()
+  expect(lastBox!.y).toBeGreaterThanOrEqual(view!.y)
+  expect(lastBox!.y + lastBox!.height).toBeLessThanOrEqual(view!.y + view!.height)
+  expect(await scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(100)
+  await expect(timeline.getByRole('slider', { name: '音声再生ヘッド' })).toHaveAttribute('aria-valuenow', '1')
+  await expect(last).toHaveAttribute('aria-pressed', 'false')
+  await activateControl(page, last, info.project.name.endsWith('-touch') ? 'touch' : 'mouse')
+  await expect(last).toHaveAttribute('aria-pressed', 'true')
+  await expect(last).toHaveAttribute('data-frame-start', '13')
+  const header = timeline.locator('.dialogueAudioTrackHeader[data-track-id="dialogue-12"]')
+  const headerBox = await header.boundingBox()
+  const buttons = await header.locator('button, summary').evaluateAll(elements => elements.map(element => {
+    const box = element.getBoundingClientRect(); return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, height: box.height }
+  }))
+  expect(buttons).toHaveLength(5)
+  for (const button of buttons) {
+    expect(button.top).toBeGreaterThanOrEqual(headerBox!.y)
+    expect(button.bottom).toBeLessThanOrEqual(headerBox!.y + headerBox!.height)
+    expect(button.left).toBeGreaterThanOrEqual(headerBox!.x)
+    expect(button.right).toBeLessThanOrEqual(headerBox!.x + headerBox!.width)
+    if (info.project.name.endsWith('-touch')) expect(button.height).toBeGreaterThanOrEqual(40)
+  }
+  expect(Math.max(...buttons.map(button => button.top)) - Math.min(...buttons.map(button => button.top))).toBeLessThan(2)
+  const compact = timeline.locator('.dialogueAudioTrack[data-track-id="dialogue-2"]')
+  expect((await compact.boundingBox())!.height).toBe(info.project.name.endsWith('-touch') ? 52 : 48)
+  await page.screenshot({ path: info.outputPath('audio-guide-compact.png') })
 })
 
 test('32 tracks schedule real stereo playback and solo restricts the audible set @isolated',async({page},info)=>{

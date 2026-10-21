@@ -37,12 +37,14 @@ export function DialogueAudioTouchControls({
   visible,
   additiveSelection,
   contextMenuAvailable,
+  soundLabel,
   onToggleAdditiveSelection,
   onOpenContextMenu,
 }: {
   visible: boolean
   additiveSelection: boolean
   contextMenuAvailable: boolean
+  soundLabel: string
   onToggleAdditiveSelection: () => void
   onOpenContextMenu: (event: ReactMouseEvent<HTMLButtonElement>) => void
 }) {
@@ -58,7 +60,7 @@ export function DialogueAudioTouchControls({
         onClick={onToggleAdditiveSelection}
       >＋</button>
       </Tooltip>
-      <Tooltip label="選択した音声の操作メニュー。コピー・削除・SOUND割付など">
+      <Tooltip label={`選択した音声の操作メニュー。コピー・削除・${soundLabel}割付など`}>
       <button
         type="button"
         className="dialogueAudioIconButton"

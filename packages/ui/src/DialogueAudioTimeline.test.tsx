@@ -42,9 +42,9 @@ describe('DialogueAudioTimeline', () => {
     expect(screen.getAllByLabelText(/を録音対象にする/)).toHaveLength(3)
     expect(screen.getByRole('region', { name: 'セリフ音声タイムライン' }).style.height).toBe('288px')
     expect(Array.from(document.querySelectorAll<HTMLElement>('.dialogueAudioTrack')).map(track => track.style.height)).toEqual([
-      '60px',
-      '60px',
-      '60px',
+      '48px',
+      '48px',
+      '48px',
     ])
     expect(screen.queryByLabelText('選択SOUNDをループ')).toBeNull()
     expect(screen.getByRole('separator', { name: '音声タイムラインの高さを変更' })).toBeTruthy()
@@ -387,7 +387,10 @@ describe('DialogueAudioTimeline', () => {
     expect(trackTarget.querySelector('.dialogueAudioTrackColorBar')).toBeTruthy()
     expect(screen.queryByText('未リンクSOUND / トラック別ラベル')).toBeNull()
     expect(screen.getAllByRole('button', { name: /ソロ/ })).toHaveLength(3)
+    expect(screen.queryByLabelText('音声トラック1の名前')).toBeNull()
+    fireEvent.click(screen.getByLabelText('音声トラック1の操作'))
     expect(screen.getByLabelText('音声トラック1の名前')).toBeTruthy()
+    fireEvent.keyDown(screen.getByLabelText('音声トラック1の名前'), { key: 'Escape' })
 
     const muteButton = screen.getByRole('button', { name: '音声トラック1をミュート' })
     expect(muteButton.textContent).toBe('M')
@@ -1643,6 +1646,7 @@ describe('DialogueAudioTimeline', () => {
 
 function openAudioTimeline() {
   fireEvent.click(screen.getByRole('button', { name: '音声タイムラインを開く' }))
+  fireEvent.click(screen.getByRole('button', { name: 'SOUNDの指示一覧' }))
 }
 
 function rectangle(left: number, width: number): DOMRect {

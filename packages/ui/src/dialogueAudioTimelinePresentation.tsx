@@ -342,8 +342,8 @@ export function SelectionToolIcon() {
 }
 
 export function RangeToolIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M6 5v14M18 5v14M9 12h6m-4-3-3 3 3 3m2-6 3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M8 4h8m-4 0v16m-4 0h8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 }
 

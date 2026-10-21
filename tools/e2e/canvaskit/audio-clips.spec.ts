@@ -103,7 +103,9 @@ test('shared audio tooltips and Premiere shortcuts preserve focus, geometry and 
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'audio-controls.xsr', mimeType: 'application/octet-stream', buffer: await archive(3) })
   await activateControl(page, page.getByRole('button', { name: '音声タイムラインを開く' }))
   const timeline = page.getByRole('region', { name: 'セリフ音声タイムライン' })
+  await expect(timeline.getByRole('button', { name: '範囲選択', exact: true })).toHaveText('範囲選択')
   for (const [name, description] of [
+    ['範囲選択', 'ドラッグして音声の一部分を選択'],
     ['レーザーツール（C）', 'Shift+クリック'],
     ['スナップ', '吸着'],
     ['音声トラック1をソロ', 'ソロにしたトラックだけ'],

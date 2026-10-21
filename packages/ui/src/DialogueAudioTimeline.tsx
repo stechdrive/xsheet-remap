@@ -1948,14 +1948,14 @@ export function DialogueAudioTimeline(props: DialogueAudioTimelineProps) {
             <Tooltip label="レーザーツール（C）。クリック位置で分割。Shift+クリックでロックされていない全トラックを分割">
               <button type="button" className={`dialogueAudioIconButton ${timelineTool === 'razor' ? 'isActiveTool' : ''}`} aria-label="レーザーツール（C）" aria-keyshortcuts="C" aria-pressed={timelineTool === 'razor'} onClick={() => { setTimelineTool('razor'); focusTimeline() }}><DialogueAudioIcon name="razor" /></button>
             </Tooltip>
-            <Tooltip label="時間範囲選択ツール。ドラッグした時間範囲を無音化・リップル削除・SOUND割付に使用">
+            <Tooltip label="ドラッグして音声の一部分を選択">
               <button
                 type="button"
-                className={`dialogueAudioIconButton ${timelineTool === 'range' ? 'isActiveTool' : ''}`}
-                aria-label="時間範囲選択ツール"
+                className={`dialogueAudioIconButton dialogueAudioRangeTool ${timelineTool === 'range' ? 'isActiveTool' : ''}`}
+                aria-label="範囲選択"
                 aria-pressed={timelineTool === 'range'}
                 onClick={() => { setTimelineTool('range'); focusTimeline() }}
-              ><RangeToolIcon /></button>
+              ><RangeToolIcon /><span>範囲選択</span></button>
             </Tooltip>
           </span>
           <DialogueAudioTouchControls

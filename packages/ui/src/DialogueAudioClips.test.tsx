@@ -118,6 +118,7 @@ describe('clip tools',()=>{
   it('explains controls and trim edges in shared tooltips and dismisses them when dragging starts', async () => {
     mount()
     for (const [name, description] of [
+      ['範囲選択', 'ドラッグして音声の一部分を選択'],
       ['レーザーツール（C）', 'Shift+クリック'],
       ['スナップ', '吸着'],
       ['音声トラック1をソロ', 'ソロにしたトラックだけ'],

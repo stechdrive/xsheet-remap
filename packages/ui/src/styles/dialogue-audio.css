@@ -192,6 +192,16 @@
   height: 18px;
 }
 
+.dialogueAudioTimeline .dialogueAudioRangeTool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
 .dialogueAudioTimeline .dialogueAudioIconButton.isActiveTool {
   border-color: #9ac9ad;
   background: #496354;

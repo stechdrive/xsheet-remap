@@ -168,7 +168,7 @@ async function verifyEditing(): Promise<void> {
   await waitForClipStarts(original.map(item => [item.clipId, item.frameStart + 6]))
   checks.push('undid and redid the multi-clip move as exact project snapshots')
 
-  await h().clickSelector('[aria-label="時間範囲選択ツール"]')
+  await h().clickSelector('[aria-label="範囲選択"]')
   await h().mouseDrag(await audioFramePoint('dialogue-1', 42, 0.72), await audioFramePoint('dialogue-1', 50, 0.72))
   await h().waitForSelector('.dialogueAudioSelectionSummary')
   await h().keyPress('Delete')

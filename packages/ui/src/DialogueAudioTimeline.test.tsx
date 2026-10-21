@@ -594,7 +594,7 @@ describe('DialogueAudioTimeline', () => {
       releasePointerCapture: { configurable: true, value: vi.fn() },
     })
 
-    fireEvent.click(screen.getByRole('button', { name: '時間範囲選択ツール' }))
+    fireEvent.click(screen.getByRole('button', { name: '範囲選択' }))
     fireEvent.pointerDown(lane, { button: 0, pointerId: 4, clientX: 100, clientY: 50 })
     fireEvent.pointerUp(lane, { pointerId: 4, clientX: 100, clientY: 50 })
     expect(document.querySelector('.dialogueAudioSelection')).toBeNull()

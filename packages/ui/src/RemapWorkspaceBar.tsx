@@ -1,6 +1,8 @@
 import type { CutProject } from '@xsheet-remap/core'
 import { ActionMenu } from './AppControls'
 import { ClipProcessComparison } from './ClipProcessComparison'
+import { TooltipTarget } from './Tooltip'
+import { remapProcessHelp } from './remap-process-help'
 import './styles/remap-workspace.css'
 
 export type RemapWorkMode = 'sheet' | 'clip'
@@ -17,11 +19,11 @@ export function RemapWorkspaceBar({ project, mode, onModeChange, baseProcessId, 
       <button type="button" aria-pressed={mode === 'sheet'} onClick={() => onModeChange('sheet')}>シート編集</button>
       <button type="button" aria-pressed={mode === 'clip'} onClick={() => onModeChange('clip')}>CLIP組み立て</button>
     </div>
-    <ActionMenu label={<span className="remapBaseLabel">基準：{base?.label}</span>} ariaLabel="基準シートの設定" tooltipLabel={`基準シート：${base?.label}`}>
+    <ActionMenu label={<span className="remapBaseLabel">基準：{base?.label}</span>} ariaLabel="基準シートの設定" tooltipLabel={remapProcessHelp.baseTooltip}>
       <label>基準にする工程<select aria-label="基準にする工程" value={baseProcessId} disabled={protectedSheet} onChange={event => onBaseProcessChange(event.target.value)}>{options}</select></label>
     </ActionMenu>
-    {mode === 'clip' && <label className="remapEditingProcess">編集先<select aria-label="編集先の工程" value={processId} onChange={event => onProcessChange(event.target.value)}>{options}</select></label>}
-    {mode === 'clip' && project.logicalSheet.processTimings && <ActionMenu label="比較" ariaLabel="基準シートと比較" className="remapComparisonMenu">
+    {mode === 'clip' && <label className="remapEditingProcess">編集先<TooltipTarget label={remapProcessHelp.editingTooltip}>{tooltip => <select {...tooltip} aria-label="編集先の工程" value={processId} onChange={event => onProcessChange(event.target.value)}>{options}</select>}</TooltipTarget></label>}
+    {mode === 'clip' && project.logicalSheet.processTimings && <ActionMenu label="比較" ariaLabel="基準シートと比較" className="remapComparisonMenu" tooltipLabel="選んだ基準工程と、ほかの工程のタイミング・セル指定を比較します。">
       <ClipProcessComparison project={project} baseProcessId={baseProcessId} processId={processId} />
     </ActionMenu>}
   </div>

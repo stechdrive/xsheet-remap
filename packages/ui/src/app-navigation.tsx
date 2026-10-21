@@ -8,10 +8,8 @@ import { type SheetImageExportFormat } from './cleanSheetExport'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import { Tooltip, TooltipTarget } from './Tooltip'
 import { ActionMenu } from './AppControls'
-import { CalibrationPointKind, RegisteredCellSortDirection, type MainAppKind } from './app-foundation'
+import { CalibrationPointKind, RegisteredCellSortDirection } from './app-foundation'
 import { DurationFrameControl } from './DurationFrameControl'
-import { EditorDetailedHelp } from './EditorDetailedHelp'
-import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
 import { SHEET_TEMPLATE_FILE_ACCEPT } from './app-template-import'
 import { type CorrectedSheetImageExportFormat } from './correctedSheetImageExport'
 import { type DialogueAudioTrackExportFormat } from './dialogueAudioExport'
@@ -302,129 +300,6 @@ export function SharedCutIcon() {
       <path d="M6.5 14h4.2M10.7 14l4-3M10.7 14l4 3M14.7 9.8v2.4M14.7 15.8v2.4" />
     </svg>
   )
-}
-
-export function AppHelpDialog({
-  appName,
-  appKind,
-  onClose,
-}: {
-  appName: string
-  appKind: MainAppKind
-  onClose: () => void
-}) {
-  const isEditor = appKind === 'editor'
-  const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
-  const isDetailedHelp = helpView === 'detailed'
-  return (
-    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label={`${appName}の使い方`}>
-      <section className="appHelpDialog appHelpDialogTabbed">
-        <header>
-          <div>
-            <strong>{appName} ヘルプ</strong>
-            <span>{helpView === 'licenses' ? licenseHelpDescription : isDetailedHelp
-              ? 'やりたいことから、必要な機能と画面操作を章ごとに確認できます。'
-              : isEditor
-                ? 'タイムシートを作って保存・受け渡しするまでの最短手順です。'
-                : 'いまある資料から照合を始め、CSPへ登録するまでの最短手順です。'}</span>
-          </div>
-          <button type="button" onClick={onClose}>閉じる</button>
-        </header>
-        <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={helpView === 'quick'}
-            className={helpView === 'quick' ? 'active' : ''}
-            onClick={() => setHelpView('quick')}
-          >
-            クイックガイド
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={helpView === 'detailed'}
-            className={helpView === 'detailed' ? 'active' : ''}
-            onClick={() => setHelpView('detailed')}
-          >
-            詳しい使い方
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={helpView === 'licenses'}
-            className={helpView === 'licenses' ? 'active' : ''}
-            onClick={() => setHelpView('licenses')}
-          >
-            ライセンス・謝辞
-          </button>
-        </div>
-        <div className={`appHelpBody${isDetailedHelp ? ' appHelpBodyDetailed' : ''}`}>
-          {helpView === 'licenses' ? <LicenseNotices /> : isDetailedHelp
-            ? <EditorDetailedHelp remap={!isEditor} />
-            : isEditor ? <EditorHelpContent /> : <RemapHelpContent />}
-        </div>
-        {helpView !== 'licenses' && <footer>
-          <p>{isEditor
-            ? 'まずクイックガイドで1本作り、細かな編集や判断に迷ったときは「詳しい使い方」の該当章を開いてください。'
-            : '「CLIPを作成」から、画像とタイムラインを登録したCLIPを直接保存できます。'}</p>
-        </footer>}
-      </section>
-    </div>
-  )
-}
-
-function EditorHelpContent() {
-  return <>
-    <article className="appHelpWorkflow">
-      <h2>タイムシートを作って保存する</h2>
-      <p>最初は次の順番だけで、入力を再開できる.xsrプロジェクトまで作れます。</p>
-      <ol>
-        <li><strong>カット情報と尺を決める</strong><span>上部の「カット情報」を開き、作品名、話数、カット番号、尺を入力します。ページ数と入力できる最終フレームがここで決まります。</span></li>
-        <li><strong>ACTIONまたはCELLへタイミングを入れる</strong><span>入力したいマスを選び、番号を入力してEnterで確定します。記号は半角の x がカラセル、/ が中割記号○、. が中割記号●で、同じくEnterで確定します。連続範囲はドラッグし、右クリックまたは「…」からコピー・貼り付け・リピートを選びます。</span></li>
-        <li><strong>必要な指示を加える</strong><span>台詞やSEはSOUND、撮影処理はCAMERAを区間選択して入力します。自由な申し送りはメモ、紙面への書き込みはペン・テキスト注釈を使います。</span></li>
-        <li><strong>全体を見直す</strong><span>「全体表示」や連続表示で先頭から末尾まで確認します。紙シートを使う場合は、先に画像を読み込んで四隅を合わせると転記しやすくなります。</span></li>
-        <li><strong>.xsrで保存する</strong><span>画面切替メニューの「プロジェクト」→「保存」を選びます。.xsrにはタイミング、指示、注釈、素材対応、テンプレート、音声編集がまとめて保持されます。</span></li>
-      </ol>
-    </article>
-    <article className="appHelpWorkflow">
-      <h2>やりたいことに合わせて仕上げる</h2>
-      <p>基本入力の後は、渡し先と素材の有無で使う機能を選びます。</p>
-      <ol>
-        <li><strong>セリフ音声からSOUNDを作る</strong><span>下部の「音声」を開き、録音または音声ファイルを追加します。発話候補を選んで「音響指示へ割付…」を押すと、波形の位置に合うSOUNDを作れます。</span></li>
-        <li><strong>紙タイムシートを転記する</strong><span>シート作業レールの「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。文字認識は候補を確認してから採用し、読みにくい箇所は手入力します。</span></li>
-        <li><strong>CSPへ素材を組み込む</strong><span>左右ペインを開き、右の画像素材をキーへ割り付け、左で工程・セル名・重ね順を確認します。「CLIPを作成」で新規設定またはテンプレートを選び、画像とタイムラインを登録したCLIPを保存します。画像なしでも作成できます。</span></li>
-        <li><strong>他ソフトへタイミングを渡す</strong><span>確認画像はJPG／PNG／PSD、交換用はXDTSを選びます。After Effectsは1列なら列見出しの「AE用データをコピー」、複数列ならJSXまたはWindows版の直接送信を使います。1列コピーでは、0フレームへ貼り付けるとAE 2026のタイムリマップが自動で有効になります。貼り付け後はタイムリマップのキーをHOLDにし、カラセルがある場合はブラインドのキーもHOLDにします。レイヤーは手動でカット終端まで伸ばします。操作手順は「詳しい使い方」のAfter Effectsの項目を参照してください。</span></li>
-      </ol>
-    </article>
-  </>
-}
-
-function RemapHelpContent() {
-  return <>
-    <article className="appHelpWorkflow appHelpWorkflowPrep">
-      <h2>照合結果をCSPへ登録する</h2>
-      <p>紙タイムシートや画像素材がなくても始められます。手元にある資料から、次の順番で進めてください。</p>
-      <ol>
-        <li><strong>始め方を選ぶ</strong><span>続きの作業は「プロジェクト」→「プロジェクトを開く」で.xsrを開きます。既存タイミングは「読み込み」→「XDTSを読み込む」、何もない場合は「新規プロジェクト」から始めます。</span></li>
-        <li><strong>カットと入力先を確認する</strong><span>上部の「カット情報」で作品名、カット番号、尺を確認します。原画側のタイミングはACTION、動画・セル番号はCELLを使い、読み込みや書き出しでも同じ側を選びます。記号はマスを選び、半角の x でカラセル、/ で中割記号○、. で中割記号●を入力し、Enterで確定します。</span></li>
-        <li><strong>CLIPと登録先を決める</strong><span>既存のCLIPを開くか、既定のレイヤー構造から始めます。CLIPを開くと現在のシートとUndo履歴はリセットされます。右のレイヤーで工程・セル列とアニメーションフォルダーの対応を指定します。</span></li>
-        <li><strong>必要な資料だけ追加する</strong><span>紙を転記するときは「紙シート」→「読込」で画像を入れ、「補正」で罫線を合わせます。作画画像は右のレイヤーツリーへ一括追加できます。クイックルックで確認し、該当するACTION／CELLのコマへドラッグします。OSからシートへ画像を直接ドロップすると、選択工程・列の登録先にも追加されます。</span></li>
-        <li><strong>CSPへ渡す内容を見直す</strong><span>左でセル名、フォルダー、重ね順、不透明度、合成モードを確認します。BG／BOOK・メモ用の素材は通常フォルダーにも保管できます。シート上の表示フラグとCLIPの保存先は別々に指定します。</span></li>
-        <li><strong>.xsrを保存する</strong><span>「プロジェクト」→「保存」で、紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存します。外部ソフトへ渡す前に保存しておくと、同じ状態から修正を再開できます。</span></li>
-        <li><strong>CLIPを作成する</strong><span>「書き出し」→「CLIPを作成」でACTION／CELLと対象カットを選びます。左のレイヤー構造をそのまま保存します。既存CLIPの用紙サイズは維持し、新規CLIPでは用紙サイズを指定できます。画像は中央に配置し、用紙の外側は切り取ります。</span></li>
-      </ol>
-    </article>
-    <article className="appHelpWorkflow">
-      <h2>目的が違うときの選び方</h2>
-      <ol>
-        <li><strong>紙の文字を転記したい</strong><span>デスクトップ版の「文字認識」でACTIONまたはCELLを選び、候補を修正してから個別または一括で採用します。迷う候補は採用せず、シートへ直接入力します。</span></li>
-        <li><strong>紙に列が収まらない</strong><span>入力は消えていません。欄外ラベルで位置を確認するか、表示テンプレートをデジタルへ切り替えるとすべての列を確認できます。</span></li>
-        <li><strong>確認用のシートを渡したい</strong><span>JPG／PNGはすぐ見られる画像、PSDは表示内容をあとから調整できるレイヤー付き画像です。タイミングを対応ソフトへ渡す場合はXDTSを使います。</span></li>
-        <li><strong>After Effectsへ渡したい</strong><span>1列だけなら列見出しの「AE用データをコピー」、複数列ならAfter Effects JSX、Windowsで起動中のAEへ渡すなら直接送信を選びます。1列コピーはAE側でタイムリマップ有効化とレイヤー延長を行い、JSXと直接送信は自動で行います。</span></li>
-      </ol>
-    </article>
-  </>
 }
 
 type AppNavigationSubmenu = 'project' | 'import' | 'export'

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { remapProcessHelp } from './remap-process-help'
 import { activeCutProjectFromDocument, createDefaultProjectDocument, clipImportFolders, clipImportSettings, openClipDocument, suggestClipProcessColumns, suggestClipBaseProcess, clipProcessName, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
 import { readClipFile, clipSourceDataUrl } from '@xsheet-remap/adapters'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
@@ -86,7 +87,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
           </div>
           <footer>
             {(error || preview.error) && <p className="issue error clipImportError" role="alert">{error || preview.error}</p>}
-            {processNames.length > 0 && <label className="clipImportBaseProcess"><span>シートの基準にする工程を選択</span><TooltipTarget label="シート編集で使い、CLIP組み立て中も常に表示する工程">{tooltip => <select {...tooltip} aria-label="シートの基準にする工程を選択" value={selectedBase} onChange={event => setBaseProcess(event.target.value)}>{processNames.map(name => <option key={name}>{name}</option>)}</select>}</TooltipTarget></label>}
+            {processNames.length > 0 && <label className="clipImportBaseProcess"><span>シートの基準にする工程を選択</span><TooltipTarget label={remapProcessHelp.baseTooltip}>{tooltip => <select {...tooltip} aria-label="シートの基準にする工程を選択" value={selectedBase} onChange={event => setBaseProcess(event.target.value)}>{processNames.map(name => <option key={name}>{name}</option>)}</select>}</TooltipTarget></label>}
             <div className="clipImportSubmit"><button type="button" onClick={onClose}>キャンセル</button><button type="button" className="primary" disabled={!preview.project || Boolean(error)} onClick={() => { if (preview.project) onImport(preview.project) }}>タイムシートに読み込む</button></div>
           </footer>
         </div>

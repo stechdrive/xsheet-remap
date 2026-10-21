@@ -2,6 +2,7 @@ import { bindingForRegion } from './dialogueAudioBinding'
 import type { DialogueAudioCutState } from './dialogueAudioProject'
 import type { DialogueAudioContextTarget, DialogueAudioSelectionFocus } from './dialogueAudioContextMenuModel'
 import type { MouseEvent as ReactMouseEvent } from 'react'
+import { Tooltip } from './Tooltip'
 
 export function dialogueAudioContextTargetForSelection(
   selection: DialogueAudioSelectionFocus | null,
@@ -48,6 +49,7 @@ export function DialogueAudioTouchControls({
   if (!visible) return null
   return (
     <span className="dialogueAudioToolGroup dialogueAudioTouchTools" aria-label="タッチ選択操作">
+      <Tooltip label="追加選択。タップしたクリップや発話区間を選択に追加・解除">
       <button
         type="button"
         className={`dialogueAudioIconButton ${additiveSelection ? 'isActiveTool' : ''}`}
@@ -55,6 +57,8 @@ export function DialogueAudioTouchControls({
         aria-pressed={additiveSelection}
         onClick={onToggleAdditiveSelection}
       >＋</button>
+      </Tooltip>
+      <Tooltip label="選択した音声の操作メニュー。コピー・削除・SOUND割付など">
       <button
         type="button"
         className="dialogueAudioIconButton"
@@ -62,6 +66,7 @@ export function DialogueAudioTouchControls({
         disabled={!contextMenuAvailable}
         onClick={onOpenContextMenu}
       >…</button>
+      </Tooltip>
     </span>
   )
 }

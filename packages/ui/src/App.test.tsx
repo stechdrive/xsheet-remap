@@ -137,7 +137,7 @@ it('renders the main workspace shell', () => {
     expect(document.querySelector('.actionMenuPortalContent.appNavMenu')).toBe(menu)
   })
 
-  it('shows Editor-specific help instead of the Remap workflow', () => {
+  it('opens the unified sheet guide from the legacy Editor entry', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
@@ -145,13 +145,13 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: 'タイムシートを作って保存する' })).toBeTruthy()
-    expect(within(dialog).getByText(/ページ数と入力できる最終フレーム/)).toBeTruthy()
-    expect(within(dialog).getByText(/\.xsrにはタイミング、指示、注釈、素材対応、テンプレート、音声編集/)).toBeTruthy()
-    expect(within(dialog).getByRole('heading', { name: 'やりたいことに合わせて仕上げる' })).toBeTruthy()
-    expect(within(dialog).getByText(/発話候補を選んで「音響指示へ割付…」/)).toBeTruthy()
-    expect(within(dialog).getByText(/文字認識は候補を確認してから採用/)).toBeTruthy()
-    expect(within(dialog).getByText(/画像とタイムラインを登録したCLIPを保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/After Effectsは1列なら列見出し/)).toBeTruthy()
+    expect(within(dialog).getByText(/カット情報.*作品名、話数、カット番号、尺/)).toBeTruthy()
+    expect(within(dialog).getByText(/シート、指示、メモ、素材、テンプレート、音声をまとめて保存/)).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: '音声・紙シート・他ソフトとつなぐ' })).toBeTruthy()
+    expect(within(dialog).getByText(/発話区間を選び「音響指示へ割付…」/)).toBeTruthy()
+    expect(within(dialog).getByText(/返ってきたJSONを確認・修正してから反映/)).toBeTruthy()
+    expect(within(dialog).getByText(/右のレイヤーツリーから素材を扱えます/)).toBeTruthy()
+    expect(within(dialog).getByText(/AEへ1列をコピーした場合.*HOLD/)).toBeTruthy()
     expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
   })
 
@@ -164,7 +164,7 @@ it('renders the main workspace shell', () => {
     expect(templateInput?.accept).toBe(SHEET_TEMPLATE_FILE_ACCEPT)
   })
 
-  it('opens the chapter-based Editor manual from help', () => {
+  it('opens sheet and CLIP chapters from the legacy Editor entry', () => {
     render(<EditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
 
@@ -174,12 +174,12 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('tab', { name: '詳しい使い方' }).getAttribute('aria-selected')).toBe('true')
     expect(within(dialog).getByRole('navigation', { name: '詳しい使い方の目次' })).toBeTruthy()
     expect(within(dialog).getByRole('heading', { name: '画面の見方' })).toBeTruthy()
-    expect(within(dialog).getByText('全13章')).toBeTruthy()
+    expect(within(dialog).getByText('全11章')).toBeTruthy()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /04\s*ACTION・CELL入力/ }))
     expect(within(dialog).getByRole('heading', { name: 'ACTION・CELL入力' })).toBeTruthy()
     expect(within(dialog).getByText('ACTIONとCELLの共通列')).toBeTruthy()
-    expect(within(dialog).getByText(/デジタルではACTION／CELLの通常列/)).toBeTruthy()
+    expect(within(dialog).getByText(/デジタルでは列数に合わせて横幅が広がります/)).toBeTruthy()
     expect(within(dialog).getByText('フレーム挿入・削除')).toBeTruthy()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /05\s*SOUND指示/ }))
@@ -190,39 +190,38 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('heading', { name: 'リンクの同期と保存' })).toBeTruthy()
     expect(within(dialog).getByText(/波形だけ編集するなら「検出しない」/)).toBeTruthy()
     expect(within(dialog).getByText(/Ctrl\+Shift\+Vで挿入貼り付け/)).toBeTruthy()
-    expect(within(dialog).getByText(/音声をSOUND位置へ揃える/)).toBeTruthy()
+    expect(within(dialog).getByText(/前後の余白を保って追従/)).toBeTruthy()
     expect(within(dialog).getByText('SOUND列の管理')).toBeTruthy()
-    expect(within(dialog).getByText(/紙で欄数を超えた列は「欄外＋件数」/)).toBeTruthy()
+    expect(within(dialog).getByText(/紙に収まらない列があると案内が表示/)).toBeTruthy()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /06\s*CAMERA指示/ }))
     expect(within(dialog).getByText('CAMERA列の管理')).toBeTruthy()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: /12\s*読み込みと書き出し/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /読み込みと書き出し/ }))
     expect(within(dialog).getByRole('heading', { name: '読み込みと書き出し' })).toBeTruthy()
     expect(within(dialog).getByText('CLIPを作成')).toBeTruthy()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: /09\s*素材・登録セル・CSP構成/ }))
-    expect(within(dialog).getByText('ペイン下部の操作')).toBeTruthy()
-    expect(within(dialog).getByText('ドラッグで並び替え')).toBeTruthy()
-    expect(within(dialog).getByText('BG／BOOK・紙の欄外セル列')).toBeTruthy()
-    expect(within(dialog).getByText(/デジタルでは追加セル列を通常のACTION／CELL列/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CLIP組み立て' }))
+    expect(within(dialog).getByRole('heading', { name: 'CLIPレイヤーと素材' })).toBeTruthy()
+    expect(within(dialog).getByText('レイヤーの編集')).toBeTruthy()
+    expect(within(dialog).getByText('通常素材と表示フラグ')).toBeTruthy()
+    expect(within(dialog).getByText(/ツリーの順番がCLIPの重ね順/)).toBeTruthy()
   })
 
-it('guides Remap users from their available source through CSP registration', () => {
+  it('opens the sheet guide by default and the CLIP guide while assembling a CLIP', () => {
     render(<RemapApp />)
     fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
-
     const dialog = screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })
-    expect(within(dialog).getByRole('tab', { name: 'クイックガイド' }).getAttribute('aria-selected')).toBe('true')
-    expect(within(dialog).getByRole('tab', { name: '詳しい使い方' })).toBeTruthy()
-    expect(within(dialog).getByRole('heading', { name: '照合結果をCSPへ登録する' })).toBeTruthy()
-    expect(within(dialog).getByText(/\.xsrを開きます。既存タイミングは.*XDTSを読み込む.*何もない場合/)).toBeTruthy()
-    expect(within(dialog).getByText(/工程・セル列とアニメーションフォルダーの対応/)).toBeTruthy()
-    expect(within(dialog).getByText(/OSからシートへ画像を直接ドロップ/)).toBeTruthy()
-    expect(within(dialog).getByText(/紙シート、タイミング、素材対応、CSP構成を作業ファイルへ保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/左のレイヤー構造をそのまま保存/)).toBeTruthy()
-    expect(within(dialog).getByText(/シート上の表示フラグとCLIPの保存先は別々/)).toBeTruthy()
-    expect(within(dialog).queryByRole('heading', { name: '必ず先に準備すること' })).toBeNull()
+    expect(within(dialog).getByRole('heading', { name: 'タイムシートを作って保存する' })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CLIP組み立て' }))
+    expect(within(dialog).getByRole('heading', { name: '素材とタイミングからCLIPを作る' })).toBeTruthy()
+    expect(within(dialog).getByText(/現在のシート、下敷き、Undo履歴がリセット/)).toBeTruthy()
+    expect(within(dialog).getByText(/工程・セル列の対応を設定/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: '閉じる' }))
+    expect(screen.getByRole('button', { name: 'シート編集' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ヘルプ' }))
+    expect(screen.getByRole('heading', { name: '素材とタイミングからCLIPを作る' })).toBeTruthy()
   })
 
   it('includes the complete editing manual in the unified Remap app', () => {
@@ -232,8 +231,10 @@ it('guides Remap users from their available source through CSP registration', ()
     fireEvent.click(within(dialog).getByRole('tab', { name: '詳しい使い方' }))
     fireEvent.click(within(dialog).getByRole('button', { name: /05\s*SOUND/ }))
     expect(within(dialog).getByRole('heading', { name: '音声トラックを準備する' })).toBeTruthy()
-    fireEvent.click(within(dialog).getByRole('button', { name: /11/ }))
-    expect(within(dialog).getByRole('heading', { name: 'テンプレートを用意する' })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'テンプレート作成・編集' }))
+    expect(within(dialog).getByRole('heading', { name: '作り方を選ぶ' })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /保存・利用/ }))
+    expect(within(dialog).getByText('プロジェクトへ反映')).toBeTruthy()
   })
 
 it('loads XDTS through the import menu with ACTION as the default destination', async () => {

@@ -3,6 +3,71 @@
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
+.remapHelpDialog {
+  height: min(820px, calc(100dvh - 48px));
+}
+
+.remapHelpPage {
+  height: 100dvh;
+  padding: 12px;
+  background: #edf0eb;
+}
+
+.remapHelpPage .remapHelpDialog {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0 auto;
+}
+
+.appHelpDialog > header > .remapHelpActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.remapHelpActions button {
+  white-space: nowrap;
+}
+
+.remapHelpOpenError {
+  margin: 0;
+  color: #9b2929;
+}
+
+.appHelpControls {
+  display: grid;
+  gap: 8px;
+}
+
+.appHelpTopics {
+  flex-wrap: wrap;
+}
+
+.appHelpTabs.appHelpTopics button {
+  flex-basis: 160px;
+}
+
+.remapHelpQuickBody {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+}
+
+@media (max-width: 720px) {
+  .remapHelpDialog > header {
+    flex-wrap: wrap;
+  }
+
+  .remapHelpPage {
+    padding: 6px;
+  }
+  .remapHelpQuickBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .appHelpTabs {
   display: flex;
   gap: 4px;

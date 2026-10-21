@@ -415,7 +415,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
 
     fireEvent.click(helpButton)
-    expect(screen.getByRole('dialog', { name: 'Remap テンプレート編集の使い方' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'xsheet-remapの使い方' })).toBeTruthy()
     const quickTab = screen.getByRole('tab', { name: 'クイックガイド' })
     const detailedTab = screen.getByRole('tab', { name: '詳しい使い方' })
     expect(quickTab.getAttribute('aria-selected')).toBe('true')
@@ -431,7 +431,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.getByText(/奇数列と偶数列の背景、線、文字/)).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
-    expect(screen.queryByRole('dialog', { name: 'Remap テンプレート編集の使い方' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'xsheet-remapの使い方' })).toBeNull()
 
     startA3Authoring()
     expect(document.querySelector('[title]')).toBeNull()

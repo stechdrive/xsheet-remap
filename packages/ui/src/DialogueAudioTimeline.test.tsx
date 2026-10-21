@@ -334,7 +334,7 @@ describe('DialogueAudioTimeline', () => {
     const tooltipTrigger = playButton.closest('.appTooltipTrigger')
     expect(tooltipTrigger).toBeTruthy()
     fireEvent.pointerEnter(tooltipTrigger!)
-    expect((await screen.findByRole('tooltip')).textContent).toBe('再生。末尾では頭から再開')
+    expect((await screen.findByRole('tooltip')).textContent).toBe('再生（Space）。末尾では頭から再開')
   })
 
   it('selects the armed track without changing the SOUND selection', () => {
@@ -383,15 +383,14 @@ describe('DialogueAudioTimeline', () => {
 
     const trackTarget = screen.getByRole('button', { name: '音声トラック1を録音対象にする' })
     expect(trackTarget.getAttribute('aria-pressed')).toBe('true')
-    expect(trackTarget.textContent).toBe('')
+    expect(trackTarget.textContent).toBe('A1')
     expect(trackTarget.querySelector('.dialogueAudioTrackColorBar')).toBeTruthy()
     expect(screen.queryByText('未リンクSOUND / トラック別ラベル')).toBeNull()
     expect(screen.getAllByRole('button', { name: /ソロ/ })).toHaveLength(3)
     expect(screen.getByLabelText('音声トラック1の名前')).toBeTruthy()
 
     const muteButton = screen.getByRole('button', { name: '音声トラック1をミュート' })
-    expect(muteButton.textContent).toBe('')
-    expect(muteButton.querySelector('svg')).toBeTruthy()
+    expect(muteButton.textContent).toBe('M')
     fireEvent.click(muteButton)
     expect(onCutStateChange.mock.calls.at(-1)?.[0].cutState.tracks[0].muted).toBe(true)
 

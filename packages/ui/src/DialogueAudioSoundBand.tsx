@@ -2,6 +2,7 @@ import type { TimedRangeCue } from '@xsheet-remap/core'
 import type { DialogueAudioTimelineProps } from './dialogueAudioTimelinePresentation'
 import { rangeStyle } from './dialogueAudioTimelinePresentation'
 import { usePointerDragSession } from './usePointerDragSession'
+import { TooltipTarget } from './Tooltip'
 
 export function DialogueAudioSoundBand({ cues, selected, frameOrigin, durationFrames, cutEnd, pixelsPerFrame, disabled, onSelect, onEdit, onTransform }: {
   cues: TimedRangeCue[]; selected: string | null; frameOrigin: number; durationFrames: number; cutEnd: number; pixelsPerFrame: number; disabled: boolean
@@ -24,12 +25,14 @@ export function DialogueAudioSoundBand({ cues, selected, frameOrigin, durationFr
     {!cues.length && <small>クリップを選択して「SOUNDへ割付」</small>}
     {cues.map(cue => {
       const current = drag.active?.cue.cueId === cue.cueId ? { ...cue, frameStart: drag.active.start, frameEnd: drag.active.end } : cue
-      return <button type="button" key={cue.cueId} className={`dialogueAudioSoundLabel ${selected === cue.cueId ? 'isSelected' : ''}`}
+      return <TooltipTarget key={cue.cueId} label={`SOUND ${cue.label || '名称なし'}：${current.frameStart}–${current.frameEnd}F。ドラッグで収録区間を移動、両端で範囲を変更。ダブルクリックで音響指示を編集`}>
+        {tooltipProps => <button {...tooltipProps} type="button" className={`dialogueAudioSoundLabel ${selected === cue.cueId ? 'isSelected' : ''}`}
         style={{ ...rangeStyle(current.frameStart, current.frameEnd, frameOrigin, durationFrames), top: 3 + lanes.indexOf(cue.laneId) * 24 }}
         aria-label={`SOUND ${cue.label || '名称なし'} ${current.frameStart}–${current.frameEnd}F`} onClick={() => onSelect(cue.cueId)} onDoubleClick={() => onEdit(cue.cueId)}
-        onPointerDown={event => { if (disabled || event.button !== 0) return; event.preventDefault(); onSelect(cue.cueId); drag.begin({ pointerId: event.pointerId, cue, clientX: event.clientX, edge: (event.target as HTMLElement).dataset.soundEdge, start: cue.frameStart, end: cue.frameEnd }, event.currentTarget) }}>
+        onPointerDown={event => { tooltipProps.onPointerDown(); if (disabled || event.button !== 0) return; event.preventDefault(); onSelect(cue.cueId); drag.begin({ pointerId: event.pointerId, cue, clientX: event.clientX, edge: (event.target as HTMLElement).dataset.soundEdge, start: cue.frameStart, end: cue.frameEnd }, event.currentTarget) }}>
         <span className="dialogueAudioClipEdge isStart" data-sound-edge="start" />{cue.label || '名称なし'}<span className="dialogueAudioClipEdge isEnd" data-sound-edge="end" />
-      </button>
+      </button>}
+      </TooltipTarget>
     })}
   </div>
 }

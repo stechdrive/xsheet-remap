@@ -27,11 +27,6 @@
   flex: 0 0 auto;
 }
 
-.templateEditorHelpDialog {
-  width: min(1180px, calc(100vw - 48px));
-  height: min(820px, calc(100vh - 48px));
-}
-
 .templateHelpQuickBody {
   display: block;
   overflow: auto;

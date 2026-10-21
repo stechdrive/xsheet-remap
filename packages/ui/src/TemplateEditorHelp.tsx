@@ -1,6 +1,4 @@
-import { useState } from 'react'
-import { ChapteredHelp, type HelpChapter } from './ChapteredHelp'
-import { LicenseNotices, licenseHelpDescription } from './LicenseNotices'
+import { ChapteredHelp, type HelpChapter, type HelpChapterSelection } from './ChapteredHelp'
 
 const templateHelpChapters: HelpChapter[] = [
   {
@@ -40,17 +38,17 @@ const templateHelpChapters: HelpChapter[] = [
         title: 'アプリ全体',
         items: [
           { term: '開始画面', description: 'A3標準、参照画像、デジタル、既存JSONの4つの入口を表示します。未保存の下書きがあれば復元できます。' },
-          { term: '上部ツールバー', description: '未保存状態、開始画面へ戻る、新規作成、JSON読込・保存、領域追加をまとめています。倍率はキャンバス右上の表示へポインターを重ねると調整できます。' },
-          { term: '左の領域一覧', description: '紙では6秒タイムライン表を一つにまとめ、ほかの要素は個別に表示します。個別要素の表示、位置固定、複製、重なり順、削除もここで管理します。' },
+          { term: '上部ツールバー', description: '未保存状態、JSON保存、元に戻す・やり直しを操作します。「その他」から新規作成、JSON読込、検証結果、JSON表示を開きます。要素の追加は左の「＋ 要素」、倍率はキャンバス右上で調整します。' },
+          { term: '左：テンプレート構成', description: '「テンプレート構成」で用紙全体、下絵、6秒タイムライン表、シート情報、補助要素を選びます。選択した個別要素の表示、一時固定、複製、重なり順、削除もここで操作します。' },
           { term: '中央キャンバス', description: '参照画像、罫線、見出し、領域を重ねた仕上がりプレビューです。ポインター下の領域が薄く強調され、クリックで編集対象になります。' },
-          { term: '右のタスクナビゲーション', description: '紙では最初に「用紙レイアウト」が開きます。「個別要素」「見た目」「参照画像」へ目的に応じて移動します。保存できない問題がある場合は、自動的に検証結果が開きます。' },
+          { term: '右：選択項目の設定', description: '左の構成またはキャンバスで選んだ対象の設定が表示されます。紙の表を選ぶと6秒表全体、個別要素を選ぶと名前・内容・配置などを編集できます。保存を妨げる問題があれば検証結果が自動的に開きます。' },
           { term: 'ステータスバー', description: '左下に現在のテンプレート名、右下にページのピクセル寸法が表示されます。' },
         ],
       },
       {
         title: 'このアプリで作れるもの',
         items: [
-          { term: 'JSON保存とシートへの反映', description: 'この画面の「テンプレートJSONを保存」はJSONファイルを書き出します。編集中のシートには自動反映されません。RemapでJSONを読み込むか、シート側の「テンプレ」画面で「プロジェクトへ反映」を押します。Correctorでは保存後に「テンプレJSONを読み込み」で選んでください。' },
+          { term: 'JSON保存とシートへの反映', description: 'この画面の「テンプレートJSONを保存」はJSONファイルを書き出します。編集中のシートには自動反映されません。RemapでJSONを読み込むか、シート側の「シートテンプレ」画面で「プロジェクトへ反映」を押します。Correctorでは保存後に「テンプレJSONを読み込み」で選んでください。' },
           { term: '保存されるもの', description: '用紙、領域、固定文字、入力項目、表示するカット情報、罫線、配色など、繰り返し使えるシートのひな形をJSONへ保存します。' },
           { term: 'プロジェクトごとに決めるもの', description: '実際のカット内容、素材、作画・演出・監督などの工程はここでは入力しません。保存したテンプレートをRemapで使い、プロジェクトごとに設定します。' },
         ],
@@ -103,7 +101,7 @@ const templateHelpChapters: HelpChapter[] = [
           { term: '移動とサイズ変更', description: '選択した要素にマウスを重ねると、移動アイコンと四辺のハンドルが表示されます。選択要素の内側もマウスでドラッグできます。タッチ操作では要素をタップしてハンドルを表示します。6秒表は内部の境界を保ったまま一緒に動きます。' },
           { term: '元に戻す・やり直し', description: '上部の矢印ボタン、Ctrl+Zで元に戻し、Ctrl+YまたはCtrl+Shift+Zでやり直します。MacではCommandも使えます。移動やサイズ変更は1回のドラッグをまとめて戻します。保存後も履歴は残ります。別のテンプレートを開くと履歴を切り替えます。' },
           { term: 'ドラッグの取り消し', description: '移動・サイズ変更の途中でEscを押すと、開始前の位置と大きさに戻ります。操作中も文字と罫線の配置を確認できます。' },
-          { term: '数値で仕上げ', description: '「用紙レイアウト」のX・Y・W・H、左右間隔、役割別の幅は実寸mmで入力できます。個別要素には表や用紙へ揃える整列ボタンがあります。' },
+          { term: '数値で仕上げ', description: '「6秒タイムライン表」のX・Y・W・H、左右間隔、役割別の幅は実寸mmで入力できます。個別要素には表や用紙へ揃える整列ボタンがあります。' },
         ],
       },
       {
@@ -174,7 +172,7 @@ const templateHelpChapters: HelpChapter[] = [
         title: '4種類の役割',
         items: [
           { term: 'ACTION', description: '原画工程でタイミング指示を記入する欄です。CELLと同じセル列を共有するため、列名・順序・列数は常に一致します。' },
-          { term: 'SOUND', description: '台詞やSEなどの音響指示を、開始から終了までの区間として記入する欄です。「見た目」で初期列名と列名表示を決め、開いた領域の「フレームと列」で初期列数を変更します。' },
+          { term: 'SOUND', description: '台詞やSEなどの音響指示を、開始から終了までの区間として記入する欄です。「用紙と見た目」で初期列名と列名表示を決め、開いた領域の「フレームと列」で初期列数を変更します。' },
           { term: 'CELL', description: '動画工程で動画番号とタイミングを記入する欄です。ACTIONと同じセル列を、動画用の記入欄として表示します。' },
           { term: 'CAMERA', description: 'カメラワークや撮影指示を、指定フレームの区間に記入する欄です。テンプレートでは初期列数・初期列名・列名表示を決め、実際のプロジェクトでは列見出しの右クリックから管理します。デジタルではSOUNDと同様に実際のレーン数に合わせて横方向へ増やせます。' },
         ],
@@ -232,16 +230,16 @@ const templateHelpChapters: HelpChapter[] = [
       {
         title: '参照画像',
         items: [
-          { term: '読込と解除', description: '紙テンプレートの「参照画像」で画像を読み込み、不要な場合は解除します。画像を読み込んだら、6秒表、シート情報、見た目の順に合わせます。' },
+          { term: '読込と解除', description: '紙テンプレートで左の「下絵」を選び、画像を読み込みます。不要な場合は解除します。画像を読み込んだら、6秒表、シート情報、見た目の順に合わせます。' },
           { term: '下絵の濃さ', description: '参照画像があると上のツールバーに「下絵」が表示されます。画像の明暗を保った赤色表示で、0～100%のスライダーを動かして罫線と見分けやすい濃さにします。' },
           { term: '元画像情報', description: '画像名、ピクセル寸法、PPI、ピクセル等倍・中央配置のオフセットを確認できます。テンプレートPPIと一致しないと警告されます。' },
-          { term: '画像とアプリ描画', description: '最初に「6秒タイムライン表を調整」で表の外周と列境界を合わせます。その後、シート情報などの個別要素を配置し、画像の文字との重複を確認します。' },
+          { term: '画像とアプリ描画', description: '左の「6秒タイムライン表」を選び、表の外周と列境界を合わせます。その後、シート情報などの個別要素を配置し、画像の文字との重複を確認します。' },
         ],
       },
       {
         title: '補正基準枠',
         items: [
-          { term: '編集対象にする', description: '「基本設定」の補正基準枠にあるボタンを押すと、キャンバス上の枠をドラッグまたはX・Y・W・Hで編集できます。' },
+          { term: '編集対象にする', description: '左の「用紙と見た目」を選び、右の基本設定にある補正基準枠のボタンから枠を編集します。キャンバス上のドラッグまたはX・Y・W・Hで調整できます。' },
           { term: '6秒表との連動', description: '補正基準枠が6秒表と一致している場合、表全体を移動・変形すると補正基準枠も一緒に更新されます。別の枠を明示した場合は変更しません。' },
           { term: 'A3標準枠に戻す', description: 'A3標準で使っている紙補正用の枠へ戻します。A3以外や独自罫線では元画像に合わせて再設定します。' },
           { term: 'グリッド外接を使う', description: '明示的な枠を解除し、現在のグリッド外接から自動計算する状態へ戻します。' },
@@ -252,26 +250,26 @@ const templateHelpChapters: HelpChapter[] = [
   {
     id: 'dock',
     number: '09',
-    title: '右のタスクナビゲーション',
-    summary: '目的別のボタンと、「領域」から詳細を開いて戻る流れをまとめます。',
+    title: '編集対象と設定パネル',
+    summary: '左で編集対象を選び、右で設定する流れと、保存・検証の操作先をまとめます。',
     sections: [
       {
         title: 'テンプレートを編集',
         items: [
-          { term: '用紙レイアウト', description: '紙で最初に開きます。固定の3秒×2構造を確認し、6秒表全体の位置・大きさ、左右間隔、役割別の幅、共有列数を変更します。' },
-          { term: '基本設定', description: 'テンプレート全体のID・名前・用紙寸法などを編集します。紙の時間構造は用紙レイアウト側で固定管理します。' },
-          { term: '個別要素', description: '6秒表以外の情報欄、固定文字、メモ、補助罫線などを縦のカードで確認し、編集したい1件を開きます。6秒表は一つのカードとして用紙レイアウトへ案内します。' },
-          { term: '領域の詳細', description: 'カードの「編集する」またはキャンバス上の領域を押すと開きます。名前と役割、固定文字、動的データ、入力項目、行列、配置、文字の見た目を縦に編集します。' },
-          { term: '個別要素へ戻る', description: '詳細の一番上にある戻るボタンでカード一覧へ戻ります。別の情報欄やメモへ進むときの戻り道です。' },
-          { term: '見た目', description: '用紙色、罫線、複数領域に共通するタイムライン見出しや初期列名を編集します。領域ごとの固定文字は各領域の詳細で変更します。' },
-          { term: '参照画像', description: '紙テンプレートでだけ表示されます。元画像の読込、配置、PPIを確認します。' },
+          { term: '6秒タイムライン表', description: '左の「6秒タイムライン表」を選びます。固定の3秒×2構造を確認し、6秒表全体の位置・大きさ、左右間隔、役割別の幅、共有列数を変更します。' },
+          { term: '用紙と見た目', description: '左の「用紙と見た目」（デジタルでは「テンプレートと見た目」）を選びます。右の「基本設定」でID・名前・用紙寸法・補正基準枠などを編集します。紙の時間構造は「6秒タイムライン表」で調整します。' },
+          { term: '個別要素を選ぶ・追加する', description: '左の構成からシート情報や補助要素を選ぶと、右にその設定が開きます。「＋ 要素」から情報欄、入力表、補助罫線などを追加できます。' },
+          { term: '領域の詳細', description: '左の構成またはキャンバスで選んだ要素について、名前と役割、固定文字、表示する情報、入力項目、行列、配置、文字の見た目を編集します。' },
+          { term: '別の要素を選ぶ', description: '左の構成で次の要素を選びます。検証結果やJSONの表示中は「選択項目へ戻る」で元の設定へ戻れます。' },
+          { term: '共通の見た目', description: '左の「用紙と見た目」または「テンプレートと見た目」を選び、右の「共通の見た目」で色、罫線、見出し、初期列名を編集します。領域ごとの固定文字はその領域を選んで変更します。' },
+          { term: '下絵', description: '紙テンプレートでは左の「下絵」を選びます。元画像の読込、配置、PPIを確認します。' },
         ],
       },
       {
         title: '検証結果とデータ',
         items: [
-          { term: '検証結果', description: 'ID、名前、入力領域、ページ内配置、参照画像PPI、補正基準枠を自動検査します。保存できない問題があると自動的に開き、対象領域の詳細へ移動できます。' },
-          { term: 'JSON', description: '現在の下書きに保存される内容を確認する読み取り専用表示です。ここへ直接入力はできないため、変更したい内容に対応する設定画面へ戻ります。' },
+          { term: '検証結果', description: '上部の「その他」→「検証結果を表示」から開きます。ID、名前、入力領域、ページ内配置、参照画像PPI、補正基準枠を検査します。保存できない問題があると自動的に開き、対象領域へ移動できます。' },
+          { term: 'JSON', description: '上部の「その他」→「JSONを表示」で下書きを確認します。読み取り専用なので直接変更はできません。「選択項目へ戻る」で設定を続けます。' },
         ],
       },
     ],
@@ -280,13 +278,15 @@ const templateHelpChapters: HelpChapter[] = [
     id: 'save',
     number: '10',
     title: '保存・利用',
-    summary: '編集中の下書きを検査し、JSONとして保存し、Remapで使います。',
+    summary: '下書きをJSONへ保存する方法と、編集中のシートへ反映する方法を説明します。',
     sections: [
       {
         title: '検証と保存',
         items: [
           { term: '自動検証', description: '保存時に、保存できないエラーと実機で確認すべき注意を検査します。エラーがある場合は検証結果を開き、対象領域へ移動できます。' },
           { term: 'テンプレートJSONを保存', description: '検査を通った現在の下書きを、他のアプリで読み込めるJSONとして保存します。成功すると「保存済み」へ変わります。' },
+          { term: 'プロジェクトへ反映', description: 'シート側の「シートテンプレ」画面では、検査を通した下書きを現在のプロジェクトへ反映できます。入力済みのセル列、SOUND・CAMERAの列と内容を保持するので、反映後に表示と入力位置を確認します。専用画面で保存したJSONは、シート側で読み込んで使用してください。JSON保存だけでは編集中のシートは変わりません。' },
+          { term: '変更を取り消す', description: 'シート側の「シートテンプレ」画面では、下書きの変更を取り消して適用中のテンプレートへ戻せます。別案を残す場合は先にJSONへ保存します。専用画面の下書きは開始画面から復元できます。' },
           { term: '未保存保護', description: '別テンプレートへ移る操作と終了時に確認し、編集中の下書きは次回起動時に復元できます。' },
         ],
       },
@@ -321,49 +321,12 @@ const templateHelpChapters: HelpChapter[] = [
   },
 ]
 
-export function TemplateEditorHelpDialog({ onClose }: { onClose: () => void }) {
-  const [helpView, setHelpView] = useState<'quick' | 'detailed' | 'licenses'>('quick')
-
-  return (
-    <div className="appHelpBackdrop" role="dialog" aria-modal="true" aria-label="Remap テンプレート編集の使い方">
-      <section className="appHelpDialog appHelpDialogTabbed templateEditorHelpDialog">
-        <header>
-          <div>
-            <strong>Remap テンプレート編集 ヘルプ</strong>
-            <span>{helpView === 'licenses' ? licenseHelpDescription : helpView === 'quick' ? '使えるテンプレートJSONを最短で作る順番です。' : '目的から探せるように、すべての設定と操作を章別に説明します。'}</span>
-          </div>
-          <button type="button" onClick={onClose}>閉じる</button>
-        </header>
-
-        <div className="appHelpTabs" role="tablist" aria-label="ヘルプの種類">
-          <button type="button" role="tab" aria-selected={helpView === 'quick'} className={helpView === 'quick' ? 'active' : ''} onClick={() => setHelpView('quick')}>
-            クイックガイド
-          </button>
-          <button type="button" role="tab" aria-selected={helpView === 'detailed'} className={helpView === 'detailed' ? 'active' : ''} onClick={() => setHelpView('detailed')}>
-            詳しい使い方
-          </button>
-          <button type="button" role="tab" aria-selected={helpView === 'licenses'} className={helpView === 'licenses' ? 'active' : ''} onClick={() => setHelpView('licenses')}>
-            ライセンス・謝辞
-          </button>
-        </div>
-
-        <div className={`appHelpBody ${helpView === 'detailed' ? 'appHelpBodyDetailed' : 'templateHelpQuickBody'}`}>
-          {helpView === 'licenses' ? <LicenseNotices /> : helpView === 'quick' ? <TemplateEditorQuickGuide /> : <TemplateEditorDetailedHelp />}
-        </div>
-        {helpView !== 'licenses' && <footer>
-          <p>{helpView === 'quick' ? '迷ったら、作りたいシートに最も近い標準形から始めてください。' : '保存後はRemapで、実際の入力と表示を一度確認してください。'}</p>
-        </footer>}
-      </section>
-    </div>
-  )
-}
-
-function TemplateEditorQuickGuide() {
+export function TemplateEditorQuickGuide() {
   const steps = [
     { title: '近い作り方を選ぶ', description: '紙の標準形なら「標準用紙を調整」、手元の用紙に合わせるなら「用紙画像から作成」、可変幅なら「デジタルシートを作成」、続きの編集なら「既存JSONを開く」を選びます。' },
-    { title: '6秒表を合わせる', description: '紙では最初に「用紙レイアウト」を開きます。3秒×2の行を保ったまま、表全体の位置・大きさ、左右間隔、列幅・列数を合わせます。' },
-    { title: '個別要素を整える', description: '「個別要素」でシート情報、固定文字、入力欄、メモなどを編集します。整列ボタンで用紙または6秒表へ揃えられます。' },
-    { title: '見た目と紙の基準を合わせる', description: '「見た目」で色・罫線・列名を整えます。紙画像を使う場合は「参照画像」で元画像とアプリ描画の重なりを確認します。' },
+    { title: '6秒表を合わせる', description: '紙では最初に「6秒タイムライン表」を開きます。3秒×2の行を保ったまま、表全体の位置・大きさ、左右間隔、列幅・列数を合わせます。' },
+    { title: '個別要素を整える', description: '左の構成からシート情報、固定文字、入力欄、メモなどを選び、右の設定で編集します。整列ボタンで用紙または6秒表へ揃えられます。' },
+    { title: '見た目と紙の基準を合わせる', description: '「用紙と見た目」で色・罫線・列名を整えます。紙画像を使う場合は「下絵」で元画像とアプリ描画の重なりを確認します。' },
     { title: 'テンプレートJSONを保存する', description: '「テンプレートJSONを保存」を押します。問題があれば検証結果が自動的に開くので、指摘を直してもう一度保存します。保存したJSONをRemapで読み込み、入力範囲と最初・最後のフレームを確認すれば完成です。' },
   ]
 
@@ -372,7 +335,8 @@ function TemplateEditorQuickGuide() {
       <header>
         <span>QUICK GUIDE</span>
         <h2>最短でテンプレートを完成させる</h2>
-        <p>RemapまたはCorrectorの「テンプレートを作成・編集」から開く専用画面です。未保存の下書きは開始画面で復元できます。JSONを保存しても、編集中のシートへは自動反映されません。</p>
+        <p>メニューの「テンプレートを作成・編集」から専用画面を開きます。シート側の「シートテンプレ」画面でも編集できます。専用画面の未保存の下書きは開始画面で復元できます。</p>
+        <p>JSON保存だけでは編集中のシートへ反映されません。保存したJSONをシート側で読み込むか、「シートテンプレ」画面で「プロジェクトへ反映」を押します。Correctorで使う場合は「テンプレJSONを読み込み」からJSONを選んでください。</p>
         <p>完成すると、同じレイアウトと入力方法をRemapで繰り返し使えるテンプレートJSONが得られます。</p>
       </header>
       <section className="templateHelpSteps" aria-label="テンプレート完成までの手順">
@@ -396,7 +360,7 @@ function TemplateEditorQuickGuide() {
   )
 }
 
-export function TemplateEditorDetailedHelp() {
+export function TemplateEditorDetailedHelp(selection: HelpChapterSelection) {
   return (
     <ChapteredHelp
       chapters={templateHelpChapters}
@@ -404,6 +368,7 @@ export function TemplateEditorDetailedHelp() {
       navigationLabel="Remap テンプレート編集の詳しい使い方の目次"
       idPrefix="template-help"
       className="templateHelpManual"
+      {...selection}
     />
   )
 }

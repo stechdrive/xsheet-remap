@@ -9,7 +9,9 @@ const params = new URLSearchParams(window.location.search)
 const isAssetPreviewWindow = params.get('window') === 'asset-preview'
 const isInkDiagnostic = params.get('diagnostic') === 'ink'
 const appKind = params.get('app')
-const applicationTitle = isInkDiagnostic
+const applicationTitle = appKind === 'help'
+  ? 'xsheet-remap ヘルプ'
+  : isInkDiagnostic
   ? '手描き診断'
   : isAssetPreviewWindow
   ? '素材プレビュー'
@@ -26,6 +28,10 @@ document.title = applicationTitle
 if (isPagesBuild) registerPagesServiceWorker()
 
 async function resolveApplication() {
+  if (appKind === 'help') {
+    const { RemapHelpPage } = await import('@xsheet-remap/ui')
+    return <RemapHelpPage />
+  }
   if (isInkDiagnostic) {
     const { InkDiagnosticApp } = await import('./InkDiagnosticApp')
     return <InkDiagnosticApp />

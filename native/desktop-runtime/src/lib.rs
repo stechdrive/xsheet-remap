@@ -3,6 +3,7 @@ use std::sync::Mutex;
 mod after_effects;
 mod e2e;
 mod file_utils;
+mod help;
 mod persistence;
 mod preview;
 mod template_editor;
@@ -169,6 +170,7 @@ pub fn run(mut context: tauri::Context<tauri::Wry>) {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            help::open_help_window,
             template_editor::open_template_editor,
             open_image_files,
             image_file_refs_from_paths,

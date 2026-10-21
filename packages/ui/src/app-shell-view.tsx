@@ -15,8 +15,9 @@ import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './TemplateW
 import type { TemplateHistoryControls } from './useTemplateDraftHistory'
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
-import { AppHelpDialog, AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RedoIcon, UndoIcon } from './app-navigation';
+import { AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RedoIcon, UndoIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
+import { RemapHelpDialog } from './RemapHelpDialog'
 import type { AppController } from './app-shell-controller'
 import { TimingExportDialog } from './TimingExportDialog'
 import { ClipExportDialog } from './ClipExportDialog'
@@ -564,7 +565,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
       )}
 
       {appHelpDialogOpen && (
-        <AppHelpDialog appName={appProfile.appName} appKind={appKind} onClose={() => setAppHelpDialogOpen(false)} />
+        <RemapHelpDialog appName={appProfile.appName} initialTopic={panel === 'template' ? 'template' : workMode} onClose={() => setAppHelpDialogOpen(false)} />
       )}
 
       {timingExportDialog?.kind === 'clip' && <ClipExportDialog document={projectDocumentSnapshot} initialRole={timingExportDialog.timingSourceRole} onClose={() => setTimingExportDialog(null)} onSaved={message => setExportOperationNotice({ message })} onCanvasSaved={canvas => {

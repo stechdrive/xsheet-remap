@@ -97,6 +97,66 @@ test('clip editing preserves the independent SOUND window and atomic undo',async
   await page.screenshot({path:info.outputPath('audio-clips.png')})
 })
 
+test('shared audio tooltips and Premiere shortcuts preserve focus, geometry and undo', async ({ page }, info) => {
+  await page.goto('./')
+  await activateControl(page, page.getByLabel('画面切替', { exact: true }))
+  await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'audio-controls.xsr', mimeType: 'application/octet-stream', buffer: await archive(3) })
+  await activateControl(page, page.getByRole('button', { name: '音声タイムラインを開く' }))
+  const timeline = page.getByRole('region', { name: 'セリフ音声タイムライン' })
+  for (const [name, description] of [
+    ['レーザーツール（C）', 'Shift+クリック'],
+    ['スナップ', '吸着'],
+    ['音声トラック1をソロ', 'ソロにしたトラックだけ'],
+    ['音声トラック1をロック', '移動・トリム・削除'],
+    ['音声トラック1を録音対象にする', '録音・音声読込・貼り付け先'],
+  ]) {
+    await timeline.getByRole('button', { name, exact: true }).hover()
+    const tooltip = page.getByRole('tooltip')
+    await expect(tooltip).toContainText(description)
+    const box = await tooltip.boundingBox()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  }
+  const clip = timeline.locator('[data-clip-id="clip-0"]')
+  await clip.locator('[data-clip-edge="end"]').hover()
+  await expect(page.getByRole('tooltip')).toContainText('終了をトリム')
+  await page.screenshot({ path: info.outputPath('audio-trim-tooltip.png') })
+  await activateControl(page, clip, 'mouse')
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  const editor = timeline.getByRole('group', { name: '音声トラック編集領域' })
+  await editor.press('ArrowRight')
+  await expect(timeline.getByRole('slider', { name: '音声再生ヘッド' })).toHaveAttribute('aria-valuenow', '2')
+  await expect(clip).toHaveAttribute('data-frame-start', '13')
+  await editor.press('Alt+Shift+ArrowRight')
+  await expect(clip).toHaveAttribute('data-frame-start', '18')
+  await editor.press('Control+z')
+  await expect(clip).toHaveAttribute('data-frame-start', '13')
+  await editor.press('s')
+  await expect(timeline.getByRole('button', { name: 'スナップ', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await editor.press('c')
+  await expect(timeline.getByRole('button', { name: 'レーザーツール（C）' })).toHaveAttribute('aria-pressed', 'true')
+  await editor.press('v')
+  for (let i = 0; i < 3; i++) await editor.press('Shift+ArrowRight')
+  await editor.press('Control+Shift+k')
+  await expect(timeline.locator('.dialogueAudioClipHandle')).toHaveCount(6)
+  await editor.press('Control+z')
+  await expect(timeline.locator('.dialogueAudioClipHandle')).toHaveCount(3)
+  await timeline.getByLabel('音声トラック1の名前').fill('Voice')
+  await timeline.getByLabel('音声トラック1の名前').press('s')
+  await expect(timeline.getByRole('button', { name: 'スナップ', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await timeline.getByLabel('音声トラック1の名前').press('Escape')
+  await activateControl(page, timeline.getByLabel('音声トラック1の操作', { exact: true }))
+  const trackCommand = page.getByRole('button', { name: 'トラックと音声を削除', exact: true })
+  await trackCommand.press('s')
+  await trackCommand.press('Delete')
+  await expect(timeline.getByRole('button', { name: 'スナップ', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await expect(timeline.locator('.dialogueAudioClipHandle')).toHaveCount(3)
+  await trackCommand.press('Escape')
+  const geometry = await timeline.evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth, track: element.querySelector('.dialogueAudioBody')!.clientHeight }))
+  expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)
+  expect(geometry.track).toBeGreaterThan(80)
+})
+
 test('32 tracks schedule real stereo playback and solo restricts the audible set @isolated',async({page},info)=>{
   await page.addInitScript(()=>{
     const counts:number[]=[];Object.assign(window,{__audioChannels:counts})
@@ -111,9 +171,11 @@ test('32 tracks schedule real stereo playback and solo restricts the audible set
   await expect(page.locator('.dialogueAudioTrack')).toHaveCount(32)
   const supportsAudio=await page.evaluate(()=>typeof AudioContext==='function')
   if(!supportsAudio){await info.attach('audio-availability',{body:'This Playwright WebKit build has no Web Audio; track geometry only.',contentType:'text/plain'});return}
-  await activateControl(page,page.getByRole('button',{name:'▶ 再生ヘッドから',exact:true}))
+  const editor = page.getByRole('group', { name: '音声トラック編集領域' })
+  await editor.press('Space')
   await expect.poll(()=>page.evaluate(()=>Reflect.get(window,'__audioChannels'))).toEqual(Array(32).fill(2))
-  await activateControl(page,page.getByRole('button',{name:'⏸ 一時停止',exact:true}))
+  await editor.press('Space')
+  await expect(page.getByRole('button', { name: '▶ 再生ヘッドから', exact: true })).toBeVisible()
   await activateControl(page,page.getByRole('button',{name:'音声トラック1をソロ',exact:true}))
   await activateControl(page,page.getByRole('button',{name:'⏮ カット頭から',exact:true}))
   await expect.poll(()=>page.evaluate(()=>Reflect.get(window,'__audioChannels').length)).toBe(33)

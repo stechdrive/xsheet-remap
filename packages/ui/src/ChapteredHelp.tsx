@@ -19,28 +19,38 @@ export type HelpChapter = {
   sections: ChapterHelpSection[]
 }
 
+export type HelpChapterSelection = {
+  activeChapterId?: string
+  onChapterChange?: (chapter: string) => void
+}
+
 export function ChapteredHelp({
   chapters,
   tocTitle = '詳しい使い方',
   navigationLabel = '詳しい使い方の目次',
   idPrefix,
   className = '',
+  activeChapterId,
+  onChapterChange,
 }: {
   chapters: HelpChapter[]
   tocTitle?: string
   navigationLabel?: string
   idPrefix: string
   className?: string
-}) {
-  const [activeChapterId, setActiveChapterId] = useState(chapters[0]?.id ?? '')
-  const activeChapterIndex = Math.max(0, chapters.findIndex(chapter => chapter.id === activeChapterId))
+} & HelpChapterSelection) {
+  const [localChapterId, setLocalChapterId] = useState(chapters[0]?.id ?? '')
+  const activeChapterIndex = Math.max(0, chapters.findIndex(chapter => chapter.id === (activeChapterId ?? localChapterId)))
   const activeChapter = chapters[activeChapterIndex]
 
   if (!activeChapter) return null
 
   function selectChapter(index: number) {
     const chapter = chapters[index]
-    if (chapter) setActiveChapterId(chapter.id)
+    if (chapter) {
+      setLocalChapterId(chapter.id)
+      onChapterChange?.(chapter.id)
+    }
   }
 
   return (
@@ -51,13 +61,13 @@ export function ChapteredHelp({
           <span>全{chapters.length}章</span>
         </div>
         <nav aria-label={navigationLabel}>
-          {chapters.map(chapter => (
+          {chapters.map((chapter, index) => (
             <button
               key={chapter.id}
               type="button"
               className={chapter.id === activeChapter.id ? 'active' : ''}
               aria-current={chapter.id === activeChapter.id ? 'page' : undefined}
-              onClick={() => setActiveChapterId(chapter.id)}
+              onClick={() => selectChapter(index)}
             >
               <span>{chapter.number}</span>
               {chapter.title}

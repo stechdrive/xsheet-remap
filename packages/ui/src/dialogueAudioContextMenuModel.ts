@@ -119,7 +119,7 @@ export function dialogueAudioContextCommands(
     case 'clip':
       return [
         'copy',
-        ...(!availability.busy ? ['cut', 'delete-clips', 'redetect-clips'] as const : []),
+        ...(!availability.busy ? ['cut', 'delete-clips', 'ripple-delete', 'redetect-clips'] as const : []),
       ]
     case 'candidate':
       return target.ignored

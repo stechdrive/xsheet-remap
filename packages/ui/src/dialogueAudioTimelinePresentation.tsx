@@ -378,9 +378,11 @@ export function DialogueAudioTimeRuler(props: {
   onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) => void
 }) {
   const plan = planDialogueAudioRulerTicks(props.durationFrames, props.fps, props.pixelsPerFrame)
-  return <div
+  return <TooltipTarget label="クリックで再生ヘッドを移動。ドラッグで音声を聴きながら位置を確認。←/→で1F、Shift併用で5F移動">
+    {tooltipProps => <div
+    {...tooltipProps}
     className="dialogueAudioRuler"
-    onPointerDown={props.onPointerDown}
+    onPointerDown={event => { tooltipProps.onPointerDown(); props.onPointerDown(event) }}
     onPointerMove={props.onPointerMove}
     onPointerUp={props.onPointerUp}
     onPointerCancel={props.onPointerCancel}
@@ -399,7 +401,8 @@ export function DialogueAudioTimeRuler(props: {
         style={{ left: tick.offsetFrames * props.pixelsPerFrame }}
       ><span>{tick.frameInSecond}</span></span>)}
     </div>
-  </div>
+  </div>}
+  </TooltipTarget>
 }
 
 export function DialogueAudioTimelineBoundaryMarker(props: {

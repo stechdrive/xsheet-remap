@@ -16,7 +16,7 @@ import { HelpIcon } from './app-navigation'
 import { uiText } from './i18n'
 import { TemplateStartScreen } from './TemplateStartScreen'
 import { TemplateWorkspace, type TemplateWorkspaceDraftState, type TemplateWorkspaceEntryMode } from './template-workspace-workspace'
-import { TemplateEditorHelpDialog } from './TemplateEditorHelp'
+import { RemapHelpDialog } from './RemapHelpDialog'
 import { Tooltip } from './Tooltip'
 import {
   createPaperTemplateDraftFromImage,
@@ -234,7 +234,7 @@ export function TemplateEditorApp() {
         <span>{view === 'start' ? 'テンプレートの作り方を選択' : draftSummary.name}</span>
         {view === 'workspace' && <span className="statusIssueSummary">{draftSummary.widthPx} x {draftSummary.heightPx}px</span>}
       </footer>
-      {helpDialogOpen && <TemplateEditorHelpDialog onClose={() => setHelpDialogOpen(false)} />}
+      {helpDialogOpen && <RemapHelpDialog initialTopic="template" onClose={() => setHelpDialogOpen(false)} />}
     </div>
   )
 }

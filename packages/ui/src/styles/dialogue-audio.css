@@ -295,7 +295,7 @@
   position: relative;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: 24px 30px 26px 26px 28px;
+  grid-template-columns: 36px 28px 26px 26px 28px;
   grid-template-rows: 18px 27px;
   align-items: center;
   gap: 1px 2px;
@@ -337,7 +337,8 @@
 .dialogueAudioTrackHeader .dialogueAudioTrackTarget {
   grid-area: 2 / 1;
   display: grid;
-  width: 22px;
+  position: relative;
+  width: 36px;
   height: 27px;
   place-items: center;
   padding: 0;
@@ -357,7 +358,9 @@
 }
 
 .dialogueAudioTrackColorBar {
-  width: 5px;
+  position: absolute;
+  left: 1px;
+  width: 3px;
   height: 20px;
   border-radius: 2px;
 }
@@ -365,7 +368,7 @@
 .dialogueAudioTrackHeader .dialogueAudioTrackMute {
   grid-area: 2 / 2;
   display: grid;
-  width: 30px;
+  width: 28px;
   height: 27px;
   place-items: center;
   padding: 5px;
@@ -980,3 +983,27 @@
 .dialogueAudioTimeline[data-input-modality="touch"] { --audio-header-width: 224px; }
 .dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioTrackHeader { grid-template-columns: repeat(5, 40px); grid-template-rows: 20px 40px; }
 .dialogueAudioTimeline[data-input-modality="touch"] .dialogueAudioTrackHeader .actionMenu > summary { width: 40px; height: 40px; }
+
+.dialogueAudioTrackLock svg,
+.dialogueAudioSettingsMenu > summary svg {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+
+.dialogueAudioTrackHeader .dialogueAudioTrackMute[aria-pressed="true"],
+.dialogueAudioTrackHeader .dialogueAudioTrackSolo[aria-pressed="true"] {
+  color: #211b08;
+  background: #e4c66b;
+  border-color: #f3d989;
+}
+
+.dialogueAudioClipHandle[data-tool="razor"],
+.dialogueAudioClipHandle[data-tool="razor"] .dialogueAudioClipEdge {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='m4 13 9-9 7 7-9 9-7-7Z' fill='%23202724' stroke='white' stroke-width='1.5'/%3E%3Cpath d='m8 14 6-6m-4 8 6-6' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 4 20, crosshair;
+}
+
+.dialogueAudioClipHandle[data-tool="range"],
+.dialogueAudioClipHandle[data-tool="range"] .dialogueAudioClipEdge { cursor: crosshair; }
+.dialogueAudioClipHandle[data-locked="true"],
+.dialogueAudioClipHandle[data-locked="true"] .dialogueAudioClipEdge { cursor: not-allowed; }

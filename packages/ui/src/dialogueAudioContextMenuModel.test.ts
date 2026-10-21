@@ -55,7 +55,7 @@ describe('dialogueAudioContextCommands', () => {
       clipIds: ['clip-1', 'clip-2'],
       frameStart: 10,
       frameEnd: 30,
-    }, available)).toEqual(['copy', 'cut', 'delete-clips', 'redetect-clips'])
+    }, available)).toEqual(['copy', 'cut', 'delete-clips', 'ripple-delete', 'redetect-clips'])
   })
 
   it('shows link maintenance only for linked regions and cues', () => {

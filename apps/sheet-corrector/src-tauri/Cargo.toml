@@ -1,6 +1,6 @@
 [package]
 name = "xsheet-corrector"
-version = "0.1.832"
+version = "0.1.833"
 description = "Batch sheet image correction utility"
 authors = ["xsheet-remap contributors"]
 license = "MIT"
@@ -11,15 +11,15 @@ name = "xsheet_corrector_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.7.3", features = [] }
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "2.12.4", features = ["protocol-asset"] }
+tauri = { version = "2.12.5", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-fs = "2.7.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-base64 = "0.22"
+base64 = "0.23.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "tga"] }
 
 [profile.release]

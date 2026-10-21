@@ -99,7 +99,7 @@ pub(super) fn asset_root_candidate(
 
 #[cfg(test)]
 mod tests {
-    use super::public_path_string;
+    use super::{public_path_string, sha256_file};
     use std::path::Path;
 
     #[test]
@@ -124,6 +124,28 @@ mod tests {
             public_path_string(Path::new("/projects/C001")),
             "/projects/C001"
         );
+    }
+
+    #[test]
+    fn file_hash_matches_sha256_vectors_across_read_chunks() {
+        let path = std::env::temp_dir().join(format!(
+            "xsheet-file-hash-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for (bytes, expected) in [
+            (Vec::new(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+            (b"abc".to_vec(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+            (vec![b'a'; 1_000_000], "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"),
+        ] {
+            std::fs::write(&path, bytes).expect("write hash fixture");
+            assert_eq!(sha256_file(&path).unwrap(), format!("sha256:{expected}"));
+        }
+        std::fs::remove_file(&path).expect("remove hash fixture");
+        assert!(sha256_file(&path).is_err());
     }
 }
 
@@ -225,6 +247,7 @@ pub(super) fn take_ascii_digit_run(chars: &mut std::iter::Peekable<std::str::Cha
 
 pub(super) fn sha256_file(path: &std::path::Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
     use std::io::Read;
 
     let mut file = std::fs::File::open(path).map_err(|error| error.to_string())?;
@@ -237,7 +260,12 @@ pub(super) fn sha256_file(path: &std::path::Path) -> Result<String, String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
+    let mut hash = String::with_capacity(71);
+    hash.push_str("sha256:");
+    for byte in hasher.finalize() {
+        write!(&mut hash, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Ok(hash)
 }
 
 pub(super) fn list_files_recursive(

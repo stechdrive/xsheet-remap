@@ -487,5 +487,14 @@ mod tests {
         let data_url = encode_sheet_image_data_url("png", bytes).expect("PNG data URL");
 
         assert_eq!(data_url, "data:image/png;base64,AQIDBA==");
+        assert_eq!(decode_png_data_url(&data_url).unwrap(), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn binary_payload_decode_preserves_bytes_and_rejects_corrupt_input() {
+        assert_eq!(decode_base64_payload("AAEC/f7/").unwrap(), [0, 1, 2, 253, 254, 255]);
+        for invalid in ["!invalid!", "A", "AB=="] {
+            assert!(decode_base64_payload(invalid).is_err());
+        }
     }
 }

@@ -324,6 +324,29 @@ mod project_file_tests {
     use super::*;
 
     #[test]
+    fn base64_project_save_preserves_binary_backup_and_rejects_invalid_input() {
+        let root = std::env::temp_dir().join(format!(
+            "xsheet-project-base64-{}-{}",
+            std::process::id(),
+            next_atomic_write_id()
+        ));
+        std::fs::create_dir_all(&root).expect("create test directory");
+        let project = root.join("binary.xsr");
+        let path = project.to_string_lossy().into_owned();
+        write_project_file(path.clone(), "AAEC/f7/".into()).expect("first binary save");
+        assert_eq!(std::fs::read(&project).unwrap(), [0, 1, 2, 253, 254, 255]);
+        write_project_file(path.clone(), "AP+A".into()).expect("replace binary save");
+        assert_eq!(std::fs::read(&project).unwrap(), [0, 255, 128]);
+        assert_eq!(read_project_backup(path.clone()).unwrap().as_deref(), Some("AAEC/f7/"));
+        for invalid in ["!invalid!", "A", "AB=="] {
+            assert!(write_project_file(path.clone(), invalid.into()).is_err());
+            assert_eq!(std::fs::read(&project).unwrap(), [0, 255, 128]);
+            assert_eq!(read_project_backup(path.clone()).unwrap().as_deref(), Some("AAEC/f7/"));
+        }
+        std::fs::remove_dir_all(root).expect("remove test directory");
+    }
+
+    #[test]
     fn atomic_project_save_keeps_the_previous_complete_file_as_backup() {
         let root = std::env::temp_dir().join(format!(
             "xsheet-remap-project-save-test-{}-{}",

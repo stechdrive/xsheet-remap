@@ -1,3 +1,4 @@
+import { useNativeFileDropEvents } from './useNativeFileDropEvents'
 import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { useProjectFileCommands } from './useProjectFileCommands'
 import { emptyProjectFileLocation } from './projectFileLocation'
@@ -15,7 +16,7 @@ import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
 import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
-import { collectAssetPathDrop, confirmUserAction, filesToFileRefs, releaseBrowserFileRefs, retainBrowserFiles, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, subscribeNativeDragDrop, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
+import { collectAssetPathDrop, confirmUserAction, filesToFileRefs, releaseBrowserFileRefs, retainBrowserFiles, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { updateNativeFileDragPreview, avoidNativeFileDragPreview, clearNativeFileDragPreview } from './nativeFileDragPreview'
 import { projectDocumentsEqual } from './projectDocumentEquality';
@@ -97,7 +98,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+    releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef,
   } = useAppShellState(appKind)
   const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
   if (pendingClipImageDrop && (pendingClipImageDrop.source !== project || workMode !== 'clip')) setPendingClipImageDrop(null)
@@ -582,13 +583,6 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         setStatusHint('sheet-drop', workMode === 'clip' ? `${process?.label} / ${hit.paperTrack}${key ? ` / ${key.displayLabel}（登録先・差し替えを選択）` : 'へ新規登録'}` : '画像を登録するには「CLIP組み立て」に切り替えてください。')
       }
     }
-    if (payload.type === 'drop' && Array.isArray(payload.paths) && payload.paths.length > 0) {
-      const signature = `${payload.paths.join('\u001f')}@${Math.round(position.x)},${Math.round(position.y)}`
-      const timestamp = performance.now()
-      const previous = nativeFileDropDedupeRef.current
-      if (previous && previous.signature === signature && timestamp - previous.timestamp < 500) return
-      nativeFileDropDedupeRef.current = { signature, timestamp }
-    }
     recordDropDiagnostic({
       source,
       type: payload.type,
@@ -601,34 +595,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     nativeFileDropHandlerRef.current(payload.paths, position)
   }
 
-  useEffect(() => {
-    nativeDragDropPayloadHandlerRef.current = handleNativeDragDropPayload
-  })
-
-  useEffect(() => {
-    if (!isTauriHost()) return undefined
-    let disposed = false
-    let unsubscribe: (() => void) | undefined
-    async function subscribeNativeDropEvents() {
-      const nextUnsubscribe = await subscribeNativeDragDrop(
-        (payload, source) => nativeDragDropPayloadHandlerRef.current(payload, `native:${source}`),
-        ['webview', 'window', 'event'],
-      )
-      if (disposed) {
-        nextUnsubscribe()
-        return
-      }
-      unsubscribe = nextUnsubscribe
-    }
-    void subscribeNativeDropEvents().catch(error => {
-      console.error('Failed to subscribe native file drop event', error)
-    })
-    return () => {
-      disposed = true
-      unsubscribe?.()
-      clearNativeFileDragPreview()
-    }
-  }, [nativeDragDropPayloadHandlerRef])
+  useNativeFileDropEvents(handleNativeDragDropPayload)
 
   function nativeSheetHitFromClientPoint(clientX: number, clientY: number): SheetHit | null {
     const target = document.elementFromPoint(clientX, clientY)

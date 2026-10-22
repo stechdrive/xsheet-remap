@@ -29,6 +29,33 @@ export const computerUseScenarios = [
     ['mode-return', 'シート編集からCLIP組み立てへ戻っても右CLIPツリーの元レイヤーが保持される'],
   ] },
 ]
+export const desktopScenarioVersion = 2
+const standardInput = ['pointer', 'keyboard']
+export const desktopCheckRequirements = Object.fromEntries(computerUseScenarios.flatMap(scenario => scenario.checks.map(([id]) => [id, {
+  artifact: ['corrector-entry', 'draft-recovery'].includes(id) ? 'corrector' : 'remap',
+  capabilities: [...standardInput,
+    ...(['folder-drop', 'multiple-file-drop'].includes(id) ? ['crossWindowFileDrop'] : []),
+    ...(id === 'range-history' ? ['observeHeldPointer'] : []),
+    ...(id === 'draft-recovery' ? ['restartProcess'] : [])],
+  methods: [...standardInput, ...(['folder-drop', 'multiple-file-drop'].includes(id) ? ['file-drop'] : [])],
+}])))
+
+// A capability declaration selects what can be attempted. It is not evidence of a completed operation.
+export function assessDesktopCapabilities(profile) {
+  return Object.fromEntries(Object.entries(desktopCheckRequirements).map(([id, requirement]) => {
+    const missing = requirement.capabilities.filter(capability => profile?.capabilities?.[capability] !== true)
+    return [id, { status: missing.length ? 'blocked' : 'pending', missing }]
+  }))
+}
+
+export function summarizeDesktopActors(record) {
+  const counts = { automation: 0, human: 0, assisted: 0, unknown: 0 }
+  for (const scenario of record.scenarios ?? []) for (const check of scenario.checks ?? []) {
+    const actor = check.executor?.actor
+    counts[['automation', 'human', 'assisted'].includes(actor) ? actor : 'unknown']++
+  }
+  return counts
+}
 const pointerPath = 'reference-local/desktop-acceptance/computer-use/current.json'
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''))
 const nonempty = value => typeof value === 'string' && value.trim().length > 0
@@ -58,14 +85,19 @@ export function desktopArtifacts(root, identity) {
   return artifacts
 }
 
-export function prepareComputerUseAcceptance(root, identity = sourceIdentity(root)) {
+export function prepareComputerUseAcceptance(root, identity = sourceIdentity(root), profile = null) {
   const artifacts = desktopArtifacts(root, identity)
   const runId = `${Date.now()}-${randomUUID()}`
   const directory = `reference-local/desktop-acceptance/computer-use/${runId}`
-  const record = { schemaVersion: 1, inputMode: 'codex-computer-use', tool: '@oai/sky', status: 'pending',
+  const capabilities = assessDesktopCapabilities(profile)
+  const record = { schemaVersion: 2, scenarioVersion: desktopScenarioVersion, inputMode: 'os-input', status: 'pending',
+    profile, capabilityAssessment: capabilities,
     runId, preparedAt: new Date().toISOString(), startedAt: null, finishedAt: null, operator: '', identity, artifacts,
     scenarios: computerUseScenarios.map(scenario => ({ id: scenario.id, checks: scenario.checks.map(([id, expected]) => ({
-      id, expected, status: 'pending', steps: [], observed: '', screenshots: [],
+      id, expected, scenarioVersion: desktopScenarioVersion, artifact: desktopCheckRequirements[id].artifact,
+      inputMode: 'os-input', methods: [], executor: { actor: null, tool: profile?.tool ?? '', version: profile?.version ?? '' },
+      startedAt: null, finishedAt: null, status: capabilities[id].status, blockedBy: capabilities[id].missing,
+      steps: [], observed: '', screenshots: [],
     })) })) }
   fs.mkdirSync(path.join(root, directory, 'screenshots'), { recursive: true })
   const recordPath = `${directory}/record.json`
@@ -83,7 +115,7 @@ function sameKeys(actual, expected, label) {
 export function validateComputerUseAcceptance(root, recordPath, identity, now = Date.now()) {
   const fullPath = within(root, recordPath)
   const bytes = fs.readFileSync(fullPath), record = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
-  if (record.schemaVersion !== 1 || record.inputMode !== 'codex-computer-use' || record.tool !== '@oai/sky') throw new Error('Codex Computer Use evidence is required; legacy/protocol-only evidence is not accepted')
+  if (record.schemaVersion !== 2 || record.scenarioVersion !== desktopScenarioVersion || record.inputMode !== 'os-input') throw new Error('Per-check native input evidence is required (schema 2); preserve legacy records as historical observations')
   if (record.status !== 'passed' || !nonempty(record.operator)) throw new Error('Computer Use acceptance is incomplete')
   if (Object.keys(identity).some(key => JSON.stringify(record.identity?.[key]) !== JSON.stringify(identity[key]))) throw new Error('Computer Use evidence does not match the current source and runtime')
   const artifacts = desktopArtifacts(root, identity)
@@ -91,26 +123,41 @@ export function validateComputerUseAcceptance(root, recordPath, identity, now = 
   const dates = [record.preparedAt, record.startedAt, record.finishedAt].map(value => typeof value === 'string' ? Date.parse(value) : NaN)
   if (dates.some(value => !Number.isFinite(value)) || dates[0] > dates[1] || dates[1] >= dates[2] || dates[2] > now) throw new Error('Computer Use evidence has invalid observation times')
   sameKeys(record.scenarios, computerUseScenarios.map(scenario => scenario.id), 'desktop scenarios')
+  const actors = summarizeDesktopActors(record)
+  const capabilities = assessDesktopCapabilities(record.profile)
   const directory = path.dirname(fullPath)
   const scenarios = computerUseScenarios.map(required => {
     const scenario = record.scenarios.find(item => item.id === required.id)
     sameKeys(scenario.checks, required.checks.map(([id]) => id), `${required.id} checks`)
     for (const check of scenario.checks) {
       if (check.status !== 'passed' || !nonempty(check.observed) || !Array.isArray(check.steps) || !check.steps.length || !check.steps.every(nonempty)) throw new Error(`Unverified Computer Use check: ${required.id}/${check.id}`)
+      const requirement = desktopCheckRequirements[check.id]
+      if (check.scenarioVersion !== desktopScenarioVersion || check.expected !== required.checks.find(([id]) => id === check.id)[1]) throw new Error(`Scenario contract changed: ${check.id}`)
+      if (check.artifact !== requirement.artifact) throw new Error(`Wrong EXE for check: ${check.id}`)
+      if (check.inputMode !== 'os-input' || !Array.isArray(check.methods) || check.methods.length !== requirement.methods.length
+        || !requirement.methods.every(method => check.methods.includes(method))) throw new Error(`Native input methods missing or substituted: ${check.id}`)
+      if (check.executor?.actor !== 'automation') throw new Error(`Human/assisted/unknown input is not automated acceptance: ${check.id}; actors=${JSON.stringify(actors)}`)
+      if (!nonempty(check.executor.tool) || !nonempty(check.executor.version)
+        || check.executor.tool !== record.profile?.tool || check.executor.version !== record.profile?.version) throw new Error(`Input executor/version is missing or inconsistent: ${check.id}`)
+      if (capabilities[check.id].status === 'blocked') throw new Error(`Required input capability unavailable: ${check.id}: ${capabilities[check.id].missing.join(', ')}`)
+      const checkDates = [check.startedAt, check.finishedAt].map(value => typeof value === 'string' ? Date.parse(value) : NaN)
+      if (checkDates.some(value => !Number.isFinite(value)) || checkDates[0] < dates[1] || checkDates[0] >= checkDates[1] || checkDates[1] > dates[2]) throw new Error(`Invalid check observation times: ${check.id}`)
       if (!Array.isArray(check.screenshots) || !check.screenshots.length) throw new Error(`Screenshot evidence is missing: ${check.id}`)
       for (const screenshot of check.screenshots) {
         if (!nonempty(screenshot.screenshotId)) throw new Error('Computer Use screenshot ID is missing')
         const capturedAt = Date.parse(screenshot.capturedAt)
-        if (!Number.isFinite(capturedAt) || capturedAt < dates[1] || capturedAt > dates[2]) throw new Error('Screenshot is outside the recorded observation')
+        if (!Number.isFinite(capturedAt) || capturedAt < checkDates[0] || capturedAt > checkDates[1]) throw new Error('Screenshot is outside the recorded observation')
         const image = fs.readFileSync(within(directory, screenshot.path))
         const png = image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
         const jpeg = image[0] === 255 && image[1] === 216 && image[2] === 255
         if ((!png && !jpeg) || sha256(image) !== screenshot.sha256) throw new Error('Screenshot content/hash does not match the recorded evidence')
       }
     }
-    return { scenario: required.id, inputMode: record.inputMode, checks: scenario.checks.length, directory: path.relative(root, directory).replaceAll('\\', '/') }
+    return { scenario: required.id, inputMode: 'os-input', checks: scenario.checks.length,
+      observations: scenario.checks.map(check => ({ id: check.id, artifact: check.artifact, executor: check.executor, methods: check.methods, startedAt: check.startedAt, finishedAt: check.finishedAt })),
+      directory: path.relative(root, directory).replaceAll('\\', '/') }
   })
-  return { recordPath, recordSha256: sha256(bytes), startedAt: record.startedAt, finishedAt: record.finishedAt, artifacts, scenarios }
+  return { recordPath, recordSha256: sha256(bytes), startedAt: record.startedAt, finishedAt: record.finishedAt, actors, automationComplete: true, artifacts, scenarios }
 }
 
 export function readComputerUseAcceptance(root, identity, selectedPath = null) {
@@ -122,8 +169,13 @@ export function readComputerUseAcceptance(root, identity, selectedPath = null) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   assertSupportedRuntime(runtimeIdentity())
-  if (process.argv.slice(2).join(' ') !== 'prepare') throw new Error('Usage: npm run desktop:prepare')
-  const recordPath = prepareComputerUseAcceptance(process.cwd())
-  console.log(`[desktop] Prepared pending Computer Use checklist: ${recordPath}`)
-  console.log('[desktop] No GUI action has been performed. Complete the actual EXE observations before verify:desktop.')
+  const [command, profilePath, ...extra] = process.argv.slice(2)
+  if (!['prepare', 'capabilities'].includes(command) || extra.length) throw new Error('Usage: computer-use-desktop.mjs prepare|capabilities [capability-profile.json]')
+  const profile = profilePath ? readJson(profilePath) : null
+  if (command === 'capabilities') console.log(JSON.stringify(assessDesktopCapabilities(profile), null, 2))
+  else {
+    const recordPath = prepareComputerUseAcceptance(process.cwd(), sourceIdentity(process.cwd()), profile)
+    console.log(`[desktop] Prepared native-input checklist: ${recordPath}`)
+    console.log('[desktop] No GUI action has been performed. Unsupported capabilities remain blocked; human assistance is not automated acceptance.')
+  }
 }

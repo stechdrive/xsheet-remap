@@ -32,11 +32,11 @@ describe('verification evidence and change selection', () => {
     expect(reusableEvidence(evidence, identity, 'browser', 'different')).toBe(false)
   })
   it('keeps web edits off native compilation but includes native, dependency and release changes', () => {
-    expect(selectChecks(['packages/ui/src/TemplateEditorApp.tsx'])).toMatchObject({ native: false, importer: false, browser: browserProjects, ciBrowser: ciBrowserTestFiles, desktop: true })
+    expect(selectChecks(['packages/ui/src/TemplateEditorApp.tsx'])).toMatchObject({ native: false, importer: false, browser: browserProjects, ciBrowser: ciBrowserTestFiles, webview: true, desktop: false })
     expect(selectChecks(['native/desktop-runtime/src/lib.rs']).native).toBe(true)
     expect(selectChecks(['package-lock.json'])).toMatchObject({ native: true, importer: true })
     expect(selectChecks(['rust-toolchain.toml'])).toMatchObject({ native: true, importer: true })
-    expect(selectChecks(['packages/adapters/src/clip/writer.ts'])).toMatchObject({ native: false, importer: true, desktop: true })
+    expect(selectChecks(['packages/adapters/src/clip/writer.ts'])).toMatchObject({ native: false, importer: true, webview: true, desktop: false })
     expect(selectChecks([], { release: true })).toMatchObject({ native: true, importer: true, desktop: true })
   })
   it('ignores only generated workspace versions, retaining actual dependency changes', () => {

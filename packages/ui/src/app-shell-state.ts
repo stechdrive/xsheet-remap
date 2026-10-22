@@ -4,7 +4,7 @@ import {
   activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type SheetTemplate,
 } from '@xsheet-remap/core'
-import type { DocumentFileSource, NativeDragDropPayload } from '@xsheet-remap/adapters'
+import type { DocumentFileSource } from '@xsheet-remap/adapters'
 import { useProjectFileSession } from './useProjectFileSession'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { createAudioPlayheadStore } from './audioPlayheadStore'
@@ -173,8 +173,6 @@ export function useAppShellState(appKind: MainAppKind) {
   const [workMode, setWorkMode] = useState<RemapWorkMode>('sheet')
   const [activeCorrectionLayerIdState, setActiveCorrectionLayerIdState] = useState(() => defaultCorrectionLayerId(initialWorkspace.project) ?? '')
   const nativeFileDropHandlerRef = useRef<(paths: string[], position: { x: number; y: number }) => void>(() => undefined)
-  const nativeDragDropPayloadHandlerRef = useRef<(payload: NativeDragDropPayload, source: string) => void>(() => undefined)
-  const nativeFileDropDedupeRef = useRef<{ signature: string; timestamp: number } | null>(null)
 
   useEffect(() => saveSoundLabelHistory(soundLabelHistory), [soundLabelHistory])
   useEffect(() => saveCameraInstructionHistory(cameraInstructionHistory), [cameraInstructionHistory])
@@ -204,7 +202,7 @@ export function useAppShellState(appKind: MainAppKind) {
     timingEditSession, timingEditSessionRef, setTimingEditSession, sheetImageExportDraft, setSheetImageExportDraft,
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
-    workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef, nativeDragDropPayloadHandlerRef, nativeFileDropDedupeRef,
+    workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef,
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.833",
+  "version": "0.1.834",
   "private": true,
   "type": "module",
   "engines": {
@@ -33,6 +33,7 @@
     "prebuild:release:all": "npm run sync:version",
     "dev": "npm run dev -w @xsheet-remap/web",
     "check": "node tools/verification/run.mjs check",
+    "verify:webview": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/webview-native.ps1",
     "check:runtime": "node tools/checks/runtime.mjs",
     "check:ci-preflight": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/ci-preflight.ps1",
     "check:dependency-audit": "npm audit --audit-level=high && npm run check:rust-audit",
@@ -117,6 +118,7 @@
     "verify:browser:ci": "node tools/verification/run.mjs browser-ci",
     "verify:desktop": "node tools/verification/run.mjs desktop",
     "desktop:prepare": "node tools/verification/computer-use-desktop.mjs prepare",
+    "desktop:capabilities": "node tools/verification/computer-use-desktop.mjs capabilities",
     "verify:plan": "node tools/verification/run.mjs plan",
     "test:clip": "node tools/verification/run-unit.mjs run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/core/src/clip-document.test.ts packages/core/src/process-timing.test.ts packages/adapters/src/clip",
     "check:corrector-native": "cargo test --manifest-path apps/sheet-corrector/src-tauri/Cargo.toml",

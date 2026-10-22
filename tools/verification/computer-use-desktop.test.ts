@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { prepareComputerUseAcceptance, readComputerUseAcceptance, validateComputerUseAcceptance } from './computer-use-desktop.mjs'
+import { assessDesktopCapabilities, desktopCheckRequirements, prepareComputerUseAcceptance, readComputerUseAcceptance, summarizeDesktopActors, validateComputerUseAcceptance } from './computer-use-desktop.mjs'
 import { sha256 } from './evidence.mjs'
 import { parseOptions } from './options.mjs'
 import { selectChecks } from './plan.mjs'
@@ -11,6 +11,9 @@ const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }) })
 const identity = { commit: 'current', sourceSha256: 'current-source', workingTreeDirty: false,
   platform: 'win32', arch: 'x64', node: 'v26.12.1', npm: '11.20.0', nodeOptions: '', nodeExecArgv: [] }
+// Synthetic policy fixture, never an operational capability claim or GUI observation.
+const profile = { tool: 'policy-test-fixture', version: '1', capabilities: { pointer: true, keyboard: true,
+  crossWindowFileDrop: true, observeHeldPointer: true, restartProcess: true } }
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xsheet-computer-use-')); roots.push(root)
@@ -23,7 +26,7 @@ function fixture() {
   }))
   const statePath = path.join(root, 'dev-local/build-state.json')
   fs.writeFileSync(statePath, JSON.stringify({ applications }))
-  const recordPath = prepareComputerUseAcceptance(root, identity)
+  const recordPath = prepareComputerUseAcceptance(root, identity, profile)
   const full = path.join(root, recordPath)
   const record = JSON.parse(fs.readFileSync(full, 'utf8'))
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')
@@ -32,6 +35,8 @@ function fixture() {
   Object.assign(record, { status: 'passed', operator: 'Codex via @oai/sky', startedAt: new Date(start).toISOString(), finishedAt: new Date(start + 3000).toISOString() })
   for (const scenario of record.scenarios) for (const check of scenario.checks) {
     Object.assign(check, { status: 'passed', steps: ['sky.click/drag/press_key; observed the refreshed target window'], observed: 'The expected visible result was observed.',
+      executor: { actor: 'automation', tool: profile.tool, version: profile.version }, methods: desktopCheckRequirements[check.id].methods,
+      startedAt: new Date(start).toISOString(), finishedAt: new Date(start + 3000).toISOString(),
       screenshots: [{ path: 'screenshots/observed.png', sha256: sha256(png), screenshotId: 'sky-observation-1', capturedAt: new Date(start + 1000).toISOString() }] })
   }
   const save = () => fs.writeFileSync(full, JSON.stringify(record))
@@ -52,7 +57,7 @@ describe('Computer Use desktop acceptance', () => {
   it('validates complete observations for the exact artifacts and preserves their original observation time', () => {
     const { root, recordPath, record, save, validate } = fixture(); save()
     expect(validate()).toMatchObject({ recordPath, finishedAt: record.finishedAt, scenarios: expect.arrayContaining([
-      { scenario: 'real-dnd', inputMode: 'codex-computer-use', checks: 4, directory: path.dirname(recordPath) },
+      expect.objectContaining({ scenario: 'real-dnd', inputMode: 'os-input', checks: 4, directory: path.dirname(recordPath) }),
     ]) })
     expect(fs.existsSync(path.join(root, path.dirname(recordPath), 'prepared.json'))).toBe(true)
   })
@@ -69,8 +74,8 @@ describe('Computer Use desktop acceptance', () => {
   })
   it('rejects legacy/protocol input claims and unrecorded observations', () => {
     const f = fixture()
-    f.record.inputMode = 'browser-protocol'; f.save(); expect(f.validate).toThrow('Computer Use evidence is required')
-    f.record.inputMode = 'codex-computer-use'; f.record.scenarios[0].checks[0].observed = ''; f.save(); expect(f.validate).toThrow('Unverified')
+    f.record.inputMode = 'browser-protocol'; f.save(); expect(f.validate).toThrow('Per-check native input evidence is required')
+    f.record.inputMode = 'os-input'; f.record.scenarios[0].checks[0].observed = ''; f.save(); expect(f.validate).toThrow('Unverified')
     f.record.scenarios[0].checks[0].observed = 'observed'; f.record.scenarios[0].checks[0].steps = []; f.save(); expect(f.validate).toThrow('Unverified')
   })
   it('rejects a different source, runtime, dirty worktree, or replaced executable', () => {
@@ -112,6 +117,32 @@ describe('Computer Use desktop acceptance', () => {
   it('does not allow filters or reuse to bypass full Computer Use acceptance', () => {
     expect(parseOptions(['desktop', '--evidence=reference-local/run/record.json']).evidence).toBe('reference-local/run/record.json')
     for (const option of ['--reuse', '--project=chromium', '--grep=one', '--suite=functional']) expect(() => parseOptions(['desktop', option])).toThrow('Unsupported')
-    expect(selectChecks(['tools/verification/computer-use-desktop.mjs']).desktop).toBe(true)
+    expect(selectChecks(['tools/verification/computer-use-desktop.mjs']).desktop).toBe(false)
+  })
+  it.each(['human', 'assisted', undefined])('does not turn %s input into automated acceptance through an overall label', actor => {
+    const f = fixture(); f.record.scenarios[2].checks[0].executor.actor = actor; f.save()
+    expect(f.validate).toThrow('not automated acceptance')
+    expect(summarizeDesktopActors(f.record).automation).toBe(12)
+  })
+  it('rejects a per-check protocol substitute, missing assertion, stale scenario or wrong EXE', () => {
+    const f = fixture(), check = f.record.scenarios[2].checks[0], original = structuredClone(check)
+    for (const [property, value, message] of [
+      ['inputMode', 'browser-protocol', 'Native input methods'], ['methods', ['pointer', 'keyboard'], 'Native input methods'],
+      ['expected', undefined, 'Scenario contract'], ['scenarioVersion', 1, 'Scenario contract'], ['artifact', 'corrector', 'Wrong EXE'],
+      ['startedAt', null, 'check observation times'],
+    ] as const) {
+      Object.assign(check, structuredClone(original), { [property]: value }); f.save(); expect(f.validate).toThrow(message)
+    }
+  })
+  it('blocks only unsupported cases before GUI launch and refuses a forged passed result', () => {
+    const limited = { ...profile, capabilities: { ...profile.capabilities, crossWindowFileDrop: false, observeHeldPointer: false } }
+    const assessment = assessDesktopCapabilities(limited)
+    expect(Object.entries(assessment).filter(([, value]) => value.status === 'blocked').map(([id]) => id)).toEqual(['folder-drop', 'multiple-file-drop', 'range-history'])
+    expect(assessDesktopCapabilities(null)['corrector-entry'].status).toBe('blocked')
+    const f = fixture(); f.record.profile = limited; f.save(); expect(f.validate).toThrow('Required input capability unavailable')
+  })
+  it('keeps legacy observations historical and requires an identified version of the input tool', () => {
+    const f = fixture(); f.record.schemaVersion = 1; f.save(); expect(f.validate).toThrow('historical observations')
+    f.record.schemaVersion = 2; f.record.scenarios[0].checks[0].executor.version = ''; f.save(); expect(f.validate).toThrow('executor/version')
   })
 })

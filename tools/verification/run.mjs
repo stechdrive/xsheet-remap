@@ -44,13 +44,16 @@ if (phase === 'plan') {
   if (result && result.status !== 0) throw new Error(result.stderr)
   const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' })
   if (untracked.status !== 0) throw new Error(untracked.stderr)
+  const packageChanges = {}
   const files = result ? [...new Set((result.stdout + untracked.stdout).trim().split(/\r?\n/))].filter(file => {
     if (!file) return false
     const previous = spawnSync('git', ['show', `${base}:${file}`], { encoding: 'utf8' })
     if (previous.status !== 0 || !fs.existsSync(file)) return true
-    return withoutGeneratedVersion(file, previous.stdout) !== withoutGeneratedVersion(file, fs.readFileSync(file, 'utf8'))
-  }) : ['tools/verification/plan.mjs']
-  const plan = selectChecks(files, { release: options.release })
+    const after = fs.readFileSync(file, 'utf8')
+    if (/(?:^|\/)package\.json$/.test(file)) packageChanges[file] = { before: previous.stdout, after }
+    return withoutGeneratedVersion(file, previous.stdout) !== withoutGeneratedVersion(file, after)
+  }) : ['[unknown-baseline]']
+  const plan = selectChecks(files, { release: options.release, packageChanges })
   console.log(JSON.stringify({ ...plan, testPurposes }, null, 2))
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `native=${plan.native}\nimporter=${plan.importer}\nbrowsers=${JSON.stringify(plan.browser)}\n`)
 } else {

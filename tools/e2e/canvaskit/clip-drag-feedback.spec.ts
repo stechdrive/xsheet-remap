@@ -2,9 +2,10 @@ import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
 import { cellRectForHit, standardA3SheetTemplate, timingHitForFrame } from '../../../packages/core/src/index'
 import { waitForPaperPaint } from '../paper-paint-contract'
+import { clipLayerNamed } from '../clip-workspace'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
-const row = (page: Page, name: string) => page.locator('.clipLayerRow').filter({ has: page.locator('.clipLayerName', { hasText: new RegExp(`^${name}$`) }) })
+const row = clipLayerNamed
 const cell = cellRectForHit(standardA3SheetTemplate, timingHitForFrame(standardA3SheetTemplate, 'cell', 'A', 7)!)!
 const event = (page: Page) => page.locator('[data-timeline-event-role="cell"][data-timeline-event-track="A"][data-timeline-event-frame="7"]')
 

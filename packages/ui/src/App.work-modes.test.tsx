@@ -191,6 +191,22 @@ it('keeps imported independent timings and native hierarchy in both modes, after
   expect(result.current.projectDocumentSnapshot).toEqual(saved)
 })
 
+it('keeps document and history unchanged after decoding failure, and accepts the next image in one Undo step', async () => {
+  const { result, switchMode, drop } = setup()
+  switchMode('clip')
+  const before = result.current.projectDocumentSnapshot
+  vi.mocked(clipImageDataUrl).mockRejectedValueOnce(new Error('native image decode failed'))
+  await drop('broken.png')
+  expect(result.current.projectDocumentSnapshot).toEqual(before)
+  expect(result.current.history.past).toHaveLength(0)
+  expect(result.current.statusHintText).toContain('native image decode failed')
+  await drop('valid.png')
+  expect(result.current.project.assets).toHaveLength(1)
+  expect(result.current.history.past).toHaveLength(1)
+  act(() => result.current.handleUndo())
+  expect(result.current.projectDocumentSnapshot).toEqual(before)
+})
+
 it('respects protection enabled while an image is still decoding', async () => {
   const { result, switchMode } = setup()
   switchMode('clip')

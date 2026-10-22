@@ -17,7 +17,7 @@ export const testPurposes = {
   'browser-ci': 'Pages entry points, runtime loading and service-worker lifecycle in Chromium; no gesture or GPU performance acceptance',
   native: 'Windows After Effects export and native boundary behavior',
   importer: 'Direct CLIP container, pixel placement and timeline generation',
-  webview: 'npm run verify:webview: exact EXE native image/IPC/save/reload via CDP, with isolated profile and foreground monitoring. Injected events do not certify OS receipt. Explicit baseline diagnostics do not certify working-tree changes.',
+  webview: 'npm run verify:webview: exact EXE native image/IPC/save/reload via CDP, with isolated profile, unselected Windows desktop and foreground monitoring. Injected events do not certify OS receipt. Explicit baseline diagnostics do not certify working-tree changes.',
   desktop: 'Validate per-case automated OS input observations of the exact current EXEs. Manual/assisted/protocol input cannot be relabelled as automation. This command does not operate the GUI.',
   device: 'Manual device evidence: trusted composition/touch events and operator-observed result',
 }

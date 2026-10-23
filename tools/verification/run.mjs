@@ -81,7 +81,7 @@ if (phase === 'plan') {
       && (!['check', 'importer'].includes(selected) || reusableUnitEvidence(root, previous))
     if (artifactSha256 && (browserPhase || options.reuse && canReuse)) npm('check:pages-artifact')
     // Desktop always revalidates the observed EXE bytes and build sessions.
-    // This command verifies evidence; Computer Use performs the actual input.
+    // This command verifies evidence; the WebView/Explorer runners perform input.
     if (selected !== 'desktop' && options.reuse && canReuse) {
       console.log(`[verification] ${name}: reusing matching passed evidence (${previous.finishedAt})`)
       continue

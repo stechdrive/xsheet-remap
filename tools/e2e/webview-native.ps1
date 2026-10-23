@@ -1,4 +1,4 @@
-param([string]$BaselineCommit = '')
+param([string]$BaselineCommit = '', [switch]$WorkingTreeDiagnostic)
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 Set-Location -LiteralPath $root
@@ -7,6 +7,7 @@ $parent = Join-Path $root 'reference-local/webview-native'
 New-Item -ItemType Directory -Path $parent -Force | Out-Null
 $run = Join-Path $parent ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString() + '-' + [guid]::NewGuid().ToString())
 $runner = Join-Path $PSScriptRoot 'webview-native.ts'
+$env:XSHEET_WORKING_TREE_DIAGNOSTIC = if ($WorkingTreeDiagnostic) { '1' } else { '' }
 $prepareArgs = @('--import', 'tsx', $runner, 'prepare', $run)
 if ($BaselineCommit) { $prepareArgs += $BaselineCommit }
 & $node @prepareArgs
@@ -50,8 +51,8 @@ try {
     [uint32]$owner = 0
     [void][WebviewInputObservation]::GetWindowThreadProcessId([WebviewInputObservation]::GetForegroundWindow(), [ref]$owner)
     $observation.samples++
-    if ([WebviewDesktop]::InputDesktopName() -eq $isolatedDesktop.Name) { throw 'Test desktop became the input desktop; verification stopped' }
-    if ($owner -eq $app.Id) { $observation.foregroundOwned=$true; throw 'The test app acquired OS foreground; background verification stopped' }
+    if ([WebviewDesktop]::InputDesktopName() -ne $observation.inputDesktopBefore) { throw 'Input desktop changed; verification stopped' }
+    if ($isolatedDesktop.OwnsProcess([int]$owner)) { $observation.foregroundOwned=$true; throw 'A test process acquired OS foreground; background verification stopped' }
     if ($app.HasExited) { throw 'Test EXE exited before its driver completed' }
     if ([DateTime]::UtcNow -gt $deadline) { throw 'Bounded WebView diagnostic exceeded 120 seconds' }
     Start-Sleep -Milliseconds 50

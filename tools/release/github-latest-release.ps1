@@ -133,10 +133,10 @@ try {
 
   Assert-CleanWorktree
   Assert-OnMainBranch
-  # Publication requires the actual Computer Use observations of these EXEs,
+  # Publication requires all 11 WebView2 and two Explorer observations of these EXEs,
   # including when this publisher is invoked directly after manual acceptance.
   & npm.cmd run verify:desktop
-  if ($LASTEXITCODE -ne 0) { throw "Current EXEs have no complete Computer Use acceptance evidence." }
+  if ($LASTEXITCODE -ne 0) { throw "Current EXEs have no complete desktop acceptance evidence." }
   $head = (Get-ExternalCommandOutput -FilePath "git" -ArgumentList @("rev-parse", "HEAD")).Text
 
   if (-not $SkipBuildArtifactCheck) {

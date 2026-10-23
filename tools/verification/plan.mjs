@@ -7,7 +7,7 @@ export const checks = {
   native: ['check:after-effects-native', 'check:corrector-native'],
   importer: ['test:clip'],
   pages: ['build:pages', 'check:pages-artifact'],
-  desktop: [], // Native-input checklist; run.mjs verifies its evidence.
+  desktop: [], // Layered EXE acceptance; run.mjs revalidates its evidence.
 }
 export const testPurposes = {
   check: 'Static, type and unit checks; simulated DOM is not real browser layout or IME',
@@ -18,7 +18,7 @@ export const testPurposes = {
   native: 'Windows After Effects export and native boundary behavior',
   importer: 'Direct CLIP container, pixel placement and timeline generation',
   webview: 'npm run verify:webview: exact EXE native image/IPC/save/reload via CDP, with isolated profile, unselected Windows desktop and foreground monitoring. Injected events do not certify OS receipt. Explicit baseline diagnostics do not certify working-tree changes.',
-  desktop: 'Validate per-case automated OS input observations of the exact current EXEs. Manual/assisted/protocol input cannot be relabelled as automation. This command does not operate the GUI.',
+  desktop: 'Validate all 13 exact-EXE observations: 11 isolated WebView2 cases and two automated Explorer/OS drops. Human assistance, injected file events, stale artifacts and diagnostic builds cannot substitute for release acceptance. This command does not operate the GUI.',
   device: 'Manual device evidence: trusted composition/touch events and operator-observed result',
 }
 export function withoutGeneratedVersion(file, source) {
@@ -43,7 +43,7 @@ export function verificationScriptsOnly(beforeSource, afterSource) {
   const changed = [...new Set([...Object.keys(oldScripts), ...Object.keys(newScripts)])].filter(name => oldScripts[name] !== newScripts[name])
   delete before.scripts; delete after.scripts; delete before.version; delete after.version
   return JSON.stringify(before) === JSON.stringify(after) && changed.length > 0
-    && changed.every(name => /^(?:(?:test|check|verify|e2e)(?::|$)|desktop:(?:prepare|capabilities)$)/.test(name))
+    && changed.every(name => /^(?:(?:test|check|verify|e2e)(?::|$)|desktop:(?:prepare|capabilities|collect)$)/.test(name))
 }
 
 export function selectChecks(files, { release = false, packageChanges = {} } = {}) {

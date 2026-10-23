@@ -177,6 +177,7 @@ function Update-DevelopmentLaunchpad {
       version = $version
       commit = $commit
       workingTreeDirty = $workingTreeDirty
+      sourceSha256 = $desktopSourceHash
       buildSessionId = $BuildSessionId
       runtime = $buildRuntime
       builtAtUtc = $builtAtUtc
@@ -275,6 +276,8 @@ try {
   }
 
   Stop-RepositoryExecutables -Apps $selectedApps
+  $desktopSourceHash = (& node --input-type=module -e "import { desktopSourceSha256 } from './tools/verification/evidence.mjs'; console.log(desktopSourceSha256())").Trim()
+  if ($LASTEXITCODE -ne 0 -or $desktopSourceHash -notmatch '^[a-f0-9]{64}$') { throw 'Could not fingerprint desktop build sources' }
   $buildSessionId = [guid]::NewGuid().ToString("N")
   $env:VITE_XSHEET_BUILD_CHANNEL = if ($isDevelopment) { "development" } else { "release" }
   $env:VITE_XSHEET_BUILD_SESSION = $buildSessionId
@@ -307,6 +310,8 @@ try {
     }
   }
 
+  $afterBuildHash = (& node --input-type=module -e "import { desktopSourceSha256 } from './tools/verification/evidence.mjs'; console.log(desktopSourceSha256())").Trim()
+  if ($LASTEXITCODE -ne 0 -or $afterBuildHash -ne $desktopSourceHash) { throw 'Desktop build sources changed during compilation; do not publish this artifact' }
   Update-DevelopmentLaunchpad -Apps $selectedApps -BuildSessionId $buildSessionId
 
   if (-not $isDevelopment) {

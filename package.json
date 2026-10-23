@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.837",
+  "version": "0.1.838",
   "private": true,
   "type": "module",
   "engines": {
@@ -34,6 +34,9 @@
     "dev": "npm run dev -w @xsheet-remap/web",
     "check": "node tools/verification/run.mjs check",
     "verify:webview": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/webview-native.ps1",
+    "verify:webview:interaction": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/webview-interaction.ps1",
+    "verify:webview:faults": "node tools/e2e/webview-faults.mjs",
+    "verify:explorer": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/e2e/explorer-drop.ps1",
     "check:runtime": "node tools/checks/runtime.mjs",
     "check:ci-preflight": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/checks/ci-preflight.ps1",
     "check:dependency-audit": "npm audit --audit-level=high && npm run check:rust-audit",
@@ -118,6 +121,7 @@
     "verify:browser:ci": "node tools/verification/run.mjs browser-ci",
     "verify:desktop": "node tools/verification/run.mjs desktop",
     "desktop:prepare": "node tools/verification/computer-use-desktop.mjs prepare",
+    "desktop:collect": "node tools/verification/computer-use-desktop.mjs collect",
     "desktop:capabilities": "node tools/verification/computer-use-desktop.mjs capabilities",
     "verify:plan": "node tools/verification/run.mjs plan",
     "test:clip": "node tools/verification/run-unit.mjs run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/core/src/clip-document.test.ts packages/core/src/process-timing.test.ts packages/adapters/src/clip",

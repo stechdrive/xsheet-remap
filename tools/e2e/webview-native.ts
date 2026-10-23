@@ -18,7 +18,7 @@ if (!path.resolve(run).startsWith(parent + path.sep) || fs.existsSync(run) && fs
 const write = (name: string, value: unknown) => fs.writeFileSync(path.join(run, name), JSON.stringify(value, null, 2) + '\n')
 const imageBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64')
 if (stage === 'prepare') {
-  const provenance = webviewArtifact(root, sourceIdentity(root), baseline ?? null)
+  const provenance = webviewArtifact(root, sourceIdentity(root), baseline ?? null, 'remap', process.env.XSHEET_WORKING_TREE_DIAGNOSTIC === '1')
   fs.mkdirSync(run, { recursive: false })
   for (const dir of ['assets', 'temp', 'screenshots']) fs.mkdirSync(path.join(run, dir))
   fs.writeFileSync(path.join(run, 'assets', 'native-pixel.png'), imageBytes)
@@ -35,7 +35,7 @@ if (stage === 'prepare') {
   const checks = report.checks as string[], errors: string[] = []
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined, page: Page | undefined
   try {
-    const current = webviewArtifact(root, sourceIdentity(root), prepared.scope === 'baseline-diagnostic' ? prepared.testedSourceCommit : null)
+    const current = webviewArtifact(root, sourceIdentity(root), prepared.scope === 'baseline-diagnostic' ? prepared.testedSourceCommit : null, 'remap', prepared.scope === 'working-tree-diagnostic')
     assert.deepEqual(current, { artifact: prepared.artifact, scope: prepared.scope, testedSourceCommit: prepared.testedSourceCommit, harnessIdentity: prepared.harnessIdentity })
     const port = Number(process.env.XSHEET_WEBVIEW_TEST_PORT)
     assert(Number.isInteger(port) && port > 0)
@@ -80,7 +80,7 @@ if (stage === 'prepare') {
       return { x: (r.x + r.width / 2) * devicePixelRatio, y: (r.y + r.height / 2) * devicePixelRatio }
     })
     // A self-contained JS expression avoids tsx's module-local function-name helpers in the WebView.
-    const boundary = await page.evaluate(`(async () => {
+    const boundary = await page.evaluate<{ url: string; nativeOrigin: string; pageOrigin: string; withoutCors: string; pixels: number[] }>(`(async () => {
       const url = window.__TAURI_INTERNALS__.convertFileSrc(${JSON.stringify(nativeFile)}, 'asset')
       const read = async (cors) => {
         const image = new Image(); if (cors) image.crossOrigin = 'anonymous'; image.src = url; await image.decode()

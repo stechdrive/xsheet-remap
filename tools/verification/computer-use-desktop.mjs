@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { sha256, sourceIdentity, verifyExecutable } from './evidence.mjs'
 import { assertSupportedRuntime, runtimeIdentity } from '../checks/runtime.mjs'
+import { prepareLayeredAcceptance, collectLayeredAcceptance, validateLayeredAcceptance } from './layered-desktop.mjs'
+import { webviewScenarios, explorerScenarios } from './desktop-scenarios.mjs'
 
 // These are acceptance observations, not a script that drives the desktop.
 export const computerUseScenarios = [
@@ -73,6 +75,7 @@ function within(root, relative) {
 export function desktopArtifacts(root, identity) {
   if (identity.platform !== 'win32') throw new Error('Desktop acceptance requires Windows EXEs')
   const buildState = readJson(path.join(root, 'dev-local/build-state.json'))
+  /** @type {Record<string, {executable: string, sha256: string, commit: string, buildSessionId: string, version: string, runtime: unknown}>} */
   const artifacts = {}
   for (const [key, name] of [['remap', 'xsheet-remap.exe'], ['corrector', 'xsheet-corrector.exe']]) {
     const exePath = path.join(root, 'dev-local', name)
@@ -115,6 +118,7 @@ function sameKeys(actual, expected, label) {
 export function validateComputerUseAcceptance(root, recordPath, identity, now = Date.now()) {
   const fullPath = within(root, recordPath)
   const bytes = fs.readFileSync(fullPath), record = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
+  if (record.schemaVersion === 3) return validateLayeredAcceptance(root, recordPath, identity, desktopArtifacts(root, identity), now)
   if (record.schemaVersion !== 2 || record.scenarioVersion !== desktopScenarioVersion || record.inputMode !== 'os-input') throw new Error('Per-check native input evidence is required (schema 2); preserve legacy records as historical observations')
   if (record.status !== 'passed' || !nonempty(record.operator)) throw new Error('Computer Use acceptance is incomplete')
   if (Object.keys(identity).some(key => JSON.stringify(record.identity?.[key]) !== JSON.stringify(identity[key]))) throw new Error('Computer Use evidence does not match the current source and runtime')
@@ -162,20 +166,29 @@ export function validateComputerUseAcceptance(root, recordPath, identity, now = 
 
 export function readComputerUseAcceptance(root, identity, selectedPath = null) {
   const pointer = path.join(root, pointerPath)
-  if (!selectedPath && !fs.existsSync(pointer)) throw new Error('Computer Use evidence is missing. Run npm run desktop:prepare, perform the checklist with Codex Computer Use, then npm run verify:desktop.')
+  if (!selectedPath && !fs.existsSync(pointer)) throw new Error('Desktop evidence is missing. Run desktop:prepare, verify:webview:interaction, verify:explorer, desktop:collect, then verify:desktop.')
   const recordPath = selectedPath ?? readJson(pointer).recordPath
   return validateComputerUseAcceptance(root, recordPath, identity)
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   assertSupportedRuntime(runtimeIdentity())
-  const [command, profilePath, ...extra] = process.argv.slice(2)
-  if (!['prepare', 'capabilities'].includes(command) || extra.length) throw new Error('Usage: computer-use-desktop.mjs prepare|capabilities [capability-profile.json]')
-  const profile = profilePath ? readJson(profilePath) : null
-  if (command === 'capabilities') console.log(JSON.stringify(assessDesktopCapabilities(profile), null, 2))
-  else {
-    const recordPath = prepareComputerUseAcceptance(process.cwd(), sourceIdentity(process.cwd()), profile)
-    console.log(`[desktop] Prepared native-input checklist: ${recordPath}`)
-    console.log('[desktop] No GUI action has been performed. Unsupported capabilities remain blocked; human assistance is not automated acceptance.')
+  const [command, first, second, ...extra] = process.argv.slice(2)
+  if (!['prepare', 'capabilities', 'collect'].includes(command) || extra.length
+    || command !== 'collect' && second || command === 'collect' && (!first || !second)) throw new Error('Usage: computer-use-desktop.mjs prepare|capabilities [profile.json] | collect <webview-result.json> <explorer-result.json>')
+  const root = process.cwd(), identity = sourceIdentity(root)
+  if (command === 'capabilities') {
+    const assessment = assessDesktopCapabilities(first ? readJson(first) : null)
+    console.log(JSON.stringify({ webview: { inputMode: 'cdp', cases: webviewScenarios.map(([id]) => id), occupiesInputDesktop: false },
+      explorer: Object.fromEntries(explorerScenarios.map(([id]) => [id, assessment[id]])),
+      nativeRunner: 'npm run verify:explorer (requires interactive host approval; two bounded OS drops)' }, null, 2))
+  } else if (command === 'prepare') {
+    const recordPath = prepareLayeredAcceptance(root, identity, desktopArtifacts(root, identity))
+    console.log(`[desktop] Prepared layered acceptance: ${recordPath}`)
+    console.log('[desktop] No GUI action performed. Run verify:webview:interaction and verify:explorer, then desktop:collect with both result.json paths. All 13 observations remain required.')
+  } else {
+    const { recordPath } = readJson(path.join(root, pointerPath))
+    const result = collectLayeredAcceptance(root, recordPath, identity, desktopArtifacts(root, identity), first, second)
+    console.log(`[desktop] Verified 11 WebView2 + 2 Explorer observations: ${result.recordPath}`)
   }
 }

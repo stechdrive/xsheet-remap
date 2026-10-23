@@ -21,6 +21,14 @@ export function sourceIdentity(root = process.cwd()) {
   const files = [...new Set(git(['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(Boolean))].sort()
   return { commit: git(['rev-parse', 'HEAD']), workingTreeDirty: !!git(['status', '--porcelain', '--untracked-files=normal']), sourceSha256: hashSourceFiles(root, files), ...runtimeIdentity() }
 }
+
+// Test harness/doc edits do not alter EXE bytes. Unknown paths stay included.
+/** @param {string[] | null} selectedFiles */
+export function desktopSourceSha256(root = process.cwd(), selectedFiles = null) {
+  const files = selectedFiles ?? execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\0').filter(Boolean)
+  return hashSourceFiles(root, files.filter(file => !/^(?:tools\/(?:e2e|verification)\/|\.github\/)/.test(file)
+    && !/\.(?:md|test\.[cm]?[jt]sx?|spec\.[cm]?[jt]sx?)$/.test(file)))
+}
 export function reusableEvidence(record, identity, phase, artifactSha256 = null, execution = null) {
   return record?.schemaVersion === 1 && record.status === 'passed' && record.phase === phase
     && record.artifactSha256 === artifactSha256

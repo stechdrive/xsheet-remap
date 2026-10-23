@@ -15,14 +15,14 @@ export async function prepareNativeClipDrop(run: string) {
 }
 
 /** Real native file read and production routing; event injection is not Explorer OS input. */
-export async function verifyNativeClipDrop(page: Page, run: string, drop: (paths: string[]) => Promise<void>) {
+export async function verifyNativeClipDrop(page: Page, run: string, drop: (paths: string[]) => Promise<void>, reloadFixture: () => Promise<void>) {
   const require = createRequire(import.meta.url)
   const SQL = await initSqlJs({ wasmBinary: new Uint8Array(fs.readFileSync(require.resolve('sql.js/dist/sql-wasm.wasm'))).buffer })
   const file = path.join(run, '日本語 overflow.CLIP')
   const source = await readClip(SQL, new Uint8Array(fs.readFileSync(file)), path.basename(file))
   const columns = suggestClipProcessColumns(source, clipImportFolders(source.nodes).map(node => node.id))
   for (const role of ['action', 'cell'] as const) {
-    await page.reload()
+    await reloadFixture()
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
     await drop([file])
     const dialog = page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true })

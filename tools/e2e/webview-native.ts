@@ -46,7 +46,19 @@ if (stage === 'prepare') {
     page = context.pages().find(p => p.url().includes('app=remap'))!
     page.setDefaultTimeout(10_000)
     page.on('pageerror', error => errors.push(String(error)))
-    page.on('dialog', dialog => { errors.push(`Unexpected browser dialog: ${dialog.message()}`); void dialog.dismiss() })
+    let resettingFixture = false
+    page.on('dialog', dialog => {
+      // Importing a CLIP creates unsaved work. Only the explicit fixture reset
+      // may accept its beforeunload confirmation; other dialogs still fail.
+      if (resettingFixture && dialog.type() === 'beforeunload') {
+        resettingFixture = false
+        void dialog.accept()
+      } else { errors.push(`Unexpected browser dialog: ${dialog.message()}`); void dialog.dismiss() }
+    })
+    async function reloadFixture() {
+      resettingFixture = true
+      try { await page!.reload() } finally { resettingFixture = false }
+    }
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
     report.runtime = { webview2: browser.version(), playwright: JSON.parse(fs.readFileSync('node_modules/playwright/package.json', 'utf8')).version,
       ...(await page.evaluate(() => ({ userAgent: navigator.userAgent, devicePixelRatio, url: location.href, viewport: { width: innerWidth, height: innerHeight } }))) }
@@ -128,7 +140,7 @@ if (stage === 'prepare') {
     await expect(imported).toBeVisible()
     await page.screenshot({ path: path.join(run, 'screenshots/reopened.png') })
     checks.push('fresh document load restores the registered layer in the current CLIP tree')
-    await verifyNativeClipDrop(page, run, drop)
+    await verifyNativeClipDrop(page, run, drop, reloadFixture)
     checks.push('native CLIP paths open through document-drop routing; ACTION/CELL overflow uses its own grid edge')
     assert.deepEqual(errors, [])
     assert.deepEqual(sourceIdentity(root), prepared.harnessIdentity, 'Harness/source changed during the run')

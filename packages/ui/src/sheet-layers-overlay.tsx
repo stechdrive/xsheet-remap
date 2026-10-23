@@ -1,3 +1,4 @@
+import { paperTrackDisplayRole } from '@xsheet-remap/core'
 import { useEffect, useRef } from 'react'
 import { type CutProject, type NormalizedRect, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, updatePaperTrack } from '@xsheet-remap/core'
 import { uiText } from './i18n'
@@ -206,7 +207,7 @@ export function OverlayPaperTrackInteractionLayer({
                   event.preventDefault()
                   event.stopPropagation()
                   event.currentTarget.setPointerCapture?.(event.pointerId)
-                  const sheetRole = track.viewPlacement?.sheetRole ?? 'cell'
+                  const sheetRole = paperTrackDisplayRole(track)
                   const column = overlayColumnRectForPage(template, project, renderedTrack, page)
                   const nextDrag = {
                     paperTrack: track.paperTrack,

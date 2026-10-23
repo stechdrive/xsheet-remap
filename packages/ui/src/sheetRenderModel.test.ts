@@ -30,9 +30,46 @@ import {
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
-import { eventRectsForPages, overlayColumnRectForPage } from './sheet-layers-hit-geometry'
+import { eventRectsForPages, overlayColumnRectForPage, overlayHitFromPoint, projectTimingHitForFrame, rectForHit } from './sheet-layers-hit-geometry'
+import { overlayBandSegments, overlayPaperTracks } from './app-sheet-geometry'
 
 describe('sheet render model', () => {
+  it.each(['action', 'cell'] as const)('places imported %s overflow at its grid edge with matching content and input ownership', role => {
+    const original = createOrSetEvent(updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12)), 'J', 1, role).project
+    const project = { ...original, logicalSheet: { ...original.logicalSheet, paperTracks: original.logicalSheet.paperTracks.map(track => ({ ...track, viewPlacement: { sheetRole: role } })) } }
+    const context = createSheetRenderModelContext(project, standardA3SheetTemplate), page = context.pages[0]
+    const track = context.overlayTracks[0], segment = overlayBandSegments(standardA3SheetTemplate, project, role)[0]
+    const column = overlayColumnRectForPage(standardA3SheetTemplate, project, track, page)!
+    const event = inputTextRenderItemsForPage(context, page).find(item => item.paperTrack === 'J')!
+    const hit = overlayHitFromPoint(standardA3SheetTemplate, project, page, { x: event.rect.x + event.rect.w / 2, y: event.rect.y + event.rect.h / 2 }, 'J')!
+    expect(context.overlayTracks.map(track => track.paperTrack)).toEqual(['J', 'K', 'L'])
+    expect(column.rect.x).toBeCloseTo(segment.rect.x + segment.rect.w)
+    expect(event.rect.x).toBe(column.rect.x)
+    expect(hit).toMatchObject({ role, paperTrack: 'J', frame: 1 })
+    const destination = projectTimingHitForFrame(standardA3SheetTemplate, project, role, 'J', 1)!
+    expect(destination).toMatchObject({ role, paperTrack: 'J' })
+    expect(rectForHit(project, standardA3SheetTemplate, destination)).toEqual(event.rect)
+  })
+
+  it('uses each role capacity and keeps a same-named visible CELL event out of the ACTION overlay', () => {
+    const template = { ...standardA3SheetTemplate, templateId: 'action-six-cell-nine', regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'action' && region.grid.trackProjection
+      ? { ...region, grid: { ...region.grid, columns: region.grid.columns.slice(0, 6) } } : region) }
+    let project = updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12))
+    project = { ...project, logicalSheet: { ...project.logicalSheet, paperTracks: project.logicalSheet.paperTracks.map(track => ({ ...track, viewPlacement: { sheetRole: 'action' as const } })) } }
+    project = createOrSetEvent(createOrSetEvent(project, 'G', 1, 'action').project, 'G', 1, 'cell').project
+    const context = createSheetRenderModelContext(project, template), page = context.pages[0]
+    expect(overlayPaperTracks(project, template).map(track => track.paperTrack)).toEqual(['G', 'H', 'I', 'J', 'K', 'L'])
+    const content = inputTextRenderItemsForPage(context, page)
+    const action = content.find(item => item.sheetRole === 'action')!, cell = content.find(item => item.sheetRole === 'cell')!
+    expect(action.rect.x).not.toBe(cell.rect.x)
+    for (const role of ['action', 'cell'] as const) {
+      const destination = projectTimingHitForFrame(template, project, role, 'G', 1)!
+      expect(rectForHit(project, template, destination)).toEqual(content.find(item => item.sheetRole === role)!.rect)
+    }
+    const events = eventRectsForPages(project, template, [page]).get(page.pageId)!
+    expect(events.find(item => item.event.sheetRole === 'cell')!.rect).toEqual(cell.rect)
+    expect(events.find(item => item.event.sheetRole === 'action')!.rect).toEqual(action.rect)
+  })
   it('keeps imported overflow flags, expanded content and hit geometry together after moving and restoring a paper template', () => {
     const original = createOrSetEvent(updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12)), 'J', 1, 'cell').project
     const positions: number[] = []

@@ -1,5 +1,5 @@
 import {
-  timingEventIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange, timingKeyIndex,
+  paperTrackDisplayRole, timingEventIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange, timingKeyIndex,
   timingReferenceAddress,
   cellRectForHit,
   createSheetPages,
@@ -39,7 +39,7 @@ import {
   type TimelineEvent,
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
-import { overlayBandSegments as buildOverlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayColumnRectForPage as resolveOverlayColumnRectForPage, overlayPaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
@@ -272,7 +272,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
     const sheetRole = sheetTimingRoleForEvent(event)
     const kind = timingEventValueKind(event)
     const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
-    const rect = track && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)
+    const rect = track && paperTrackDisplayRole(track) === sheetRole && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)
       ? overlayCellRectForFrame(context, track, event.frame, page)
       : standardEventRectForPage(context, event, page)
     if (!rect) return []
@@ -779,32 +779,8 @@ function overlayCellRectForFrame(context: SheetRenderModelContext, track: PaperT
   }
 }
 
-function overlayColumnRectForPage(context: SheetRenderModelContext, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect }) | null {
-  const role = track.viewPlacement?.sheetRole ?? 'cell'
-  const segments = overlayBandSegments(context, role)
-  const frameOrigin = frameOriginForPage(context.template, page)
-  const segment = segments.find(item => {
-    const segmentStart = page.frameStart + (item.frames.frameStart - frameOrigin)
-    const segmentEnd = page.frameStart + (item.frames.frameEnd - frameOrigin)
-    return page.frameStart <= segmentEnd && page.frameEnd >= segmentStart
-  })
-  if (!segment) return null
-  const snapIndex = overlayVisibleSnapIndex(context.template, context.project, track, segment)
-  const slot = segment.slots[snapIndex]
-  if (!slot) return null
-  return {
-    ...segment,
-    rect: {
-      x: slot.x,
-      y: segment.rect.y,
-      w: slot.w,
-      h: segment.rect.h,
-    },
-  }
-}
-
-function overlayBandSegments(context: SheetRenderModelContext, role: SheetTimingRole): OverlayBandSegment[] {
-  return buildOverlayBandSegments(context.template, context.project, role)
+function overlayColumnRectForPage(context: SheetRenderModelContext, track: PaperTrack, page: SheetPage) {
+  return resolveOverlayColumnRectForPage(context.template, context.project, track, page)
 }
 
 function standardEventRectForPage(
@@ -837,7 +813,7 @@ function eventRectForTrackFrame(
   page: SheetPage,
 ): NormalizedRect | null {
   const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
-  if (track && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)) return overlayCellRectForFrame(context, track, frame, page)
+  if (track && paperTrackDisplayRole(track) === role && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)) return overlayCellRectForFrame(context, track, frame, page)
   const hit = timingHitForFrame(
     context.template,
     role,
@@ -927,7 +903,7 @@ function createContinuationRectResolver(
     if (!localized || !page) return null
 
     const track = trackByName.get(paperTrack)
-    if (track && overlayTrackNames.has(track.paperTrack)) {
+    if (track && paperTrackDisplayRole(track) === role && overlayTrackNames.has(track.paperTrack)) {
       const column = overlayColumns.get(`${track.paperTrack}\u0000${page.pageId}`)
       if (!column || localized.localFrame < column.frames.frameStart || localized.localFrame > column.frames.frameEnd) return null
       const rowIndex = localized.localFrame - column.frames.frameStart
@@ -956,7 +932,8 @@ function createContinuationRectResolver(
   return Object.assign(resolve, {
     boundaries(role: 'action' | 'cell', paperTrack: string, page: SheetPage) {
       const offset = continuous ? 0 : page.frameStart - context.template.defaults.frameOrigin
-      const overlay = overlayColumns.get(`${paperTrack}\u0000${page.pageId}`)
+      const track = trackByName.get(paperTrack)
+      const overlay = track && paperTrackDisplayRole(track) === role ? overlayColumns.get(`${paperTrack}\u0000${page.pageId}`) : undefined
       const frames = overlay ? [overlay.frames] : (layoutsByRole.get(role) ?? []).map(item => item.layout.frames)
       return frames.flatMap(range => [range.frameStart + offset, range.frameEnd + 1 + offset])
     },
@@ -1029,11 +1006,4 @@ function waveContinuationPath(centerX: number, startY: number, endY: number, cel
 
 function pathNumber(value: number): string {
   return String(Number(value.toFixed(7)))
-}
-
-function frameOriginForPage(template: SheetTemplate, page: SheetPage): number {
-  const layout = getSheetViewLayout(template)
-  return layout.frameAxis?.type === 'continuous' || layout.frameAxis?.type === 'infinite'
-    ? page.frameStart
-    : template.defaults.frameOrigin
 }

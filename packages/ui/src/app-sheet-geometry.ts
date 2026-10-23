@@ -6,6 +6,7 @@ import {
   isTimelineProjectingSheetTemplateGridRegion,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
+  paperTrackDisplayRole,
   resolveSheetTemplateGridLayout,
   timelineLanesForLayout,
   type CutProject,
@@ -14,6 +15,8 @@ import {
   type PaperTrack,
   type SheetTemplate,
   type SheetTimingRole,
+  type SheetPage,
+  type NormalizedRect,
 } from '@xsheet-remap/core'
 import { compareNaturalFileNameText } from './naturalSort'
 import { clampNumber } from './sheetInteraction'
@@ -28,12 +31,13 @@ export function templatePaperTracks(project: { logicalSheet: Pick<CutProject['lo
 export function overlayPaperTracks(project: Pick<SheetGeometryInput, 'logicalSheet'>, template?: SheetTemplate): PaperTrack[] {
   if (template && getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
   const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
-  const hidden = template
-    ? new Set(getSheetTemplateHiddenPaperTracks(template, 'cell', ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)))
-    : new Set<string>()
+  const names = ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)
+  const hidden = new Map((['action', 'cell'] as const).map(role => [role,
+    new Set(template ? getSheetTemplateHiddenPaperTracks(template, role, names) : []),
+  ]))
   return ordered.flatMap(track => {
     if (track.source === 'overlay') return [track]
-    if (!template || !hidden.has(track.paperTrack)) return []
+    if (!template || !hidden.get(paperTrackDisplayRole(track))!.has(track.paperTrack)) return []
     return [track]
   })
 }
@@ -65,7 +69,7 @@ export function paperTrackOrderForRole(project: CutProject, role: SheetTimingRol
   const templateTracks = templatePaperTracks(project)
   const templateOrder = new Map(templateTracks.map((track, index) => [track.paperTrack, index]))
   return project.logicalSheet.paperTracks
-    .filter(track => track.source !== 'overlay' || (track.viewPlacement?.sheetRole ?? 'cell') === role)
+    .filter(track => track.source !== 'overlay' || paperTrackDisplayRole(track) === role)
     .map(track => ({
       track,
       visualOrder: track.source === 'overlay'
@@ -217,7 +221,7 @@ export function overlaySnapIndexFromSegment(x: number, segment: OverlayBandSegme
 
 export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, segment: OverlayBandSegment): number {
   const placement = track.viewPlacement
-  // Imported overflow starts immediately after the cell grid, not at the end of the CAMERA slots.
+  // Unpositioned imported overflow starts at the right edge of its timing grid.
   if (track.source !== 'overlay' && (!Number.isFinite(placement?.snapIndex) || placement?.templateId && placement.templateId !== template.templateId)) {
     return overlaySnapIndexFromSegment(segment.rect.x + segment.rect.w, segment)
   }
@@ -230,4 +234,17 @@ export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetG
   if (anchorSlotIndex >= 0) return clampNumber(anchorSlotIndex + 1, 0, segment.snapCount)
   const trackIndex = templatePaperTracks(project, template).findIndex(candidate => candidate.paperTrack === anchor)
   return clampNumber(trackIndex >= 0 ? trackIndex + 2 : 0, 0, segment.snapCount)
+}
+
+/** Shared by canvas/export rendering, hit testing and column drag handles. */
+export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect; paperTrack: string }) | null {
+  const segments = overlayBandSegments(template, project, paperTrackDisplayRole(track))
+  const frameAxis = getSheetViewLayout(template).frameAxis?.type
+  const origin = frameAxis === 'continuous' || frameAxis === 'infinite' ? page.frameStart : template.defaults.frameOrigin
+  const segment = segments.find(item => page.frameStart <= page.frameStart + item.frames.frameEnd - origin
+    && page.frameEnd >= page.frameStart + item.frames.frameStart - origin)
+  if (!segment) return null
+  const slot = segment.slots[overlayVisibleSnapIndex(template, project, track, segment)]
+  return slot ? { ...segment, paperTrack: track.paperTrack,
+    rect: { x: slot.x, y: segment.rect.y, w: slot.w, h: segment.rect.h } } : null
 }

@@ -64,7 +64,7 @@ export function importClipProcessTimelines(document: CutGroupProjectDocument, da
   const correctionLayers = clipImportProcesses(columns)
   if (!correctionLayers.length) return document
   const trackNames = [...new Set(columns.map(column => column.name))]
-  const paperTracks = trackNames.map((paperTrack, order) => ({ paperTrack, label: paperTrack, order, source: 'template' as const }))
+  const paperTracks = trackNames.map((paperTrack, order) => ({ paperTrack, label: paperTrack, order, source: 'template' as const, viewPlacement: { sheetRole: options.role } }))
   project = { ...project, productionStages: [{ stageId: 'clip_groups', label: 'CLIP', order: 0 }], correctionLayers,
     logicalSheet: { ...project.logicalSheet, baseProcessId: correctionLayers[0]!.layerId, paperTracks, keys: [], events: [], processTimings: timelines.length ? { activeProcessId: correctionLayers[0]!.layerId, inactive: {} } : undefined } }
   project = { ...project, cspTrackSlots: createDefaultCspTrackSlots(paperTracks, project.productionStages, correctionLayers) }

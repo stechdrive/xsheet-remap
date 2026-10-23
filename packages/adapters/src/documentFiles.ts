@@ -3,6 +3,11 @@ import { isTauriHost } from './environment'
 
 export type DocumentFileKind = 'xsr' | 'clip'
 
+export function documentFileKind(nameOrPath: string): DocumentFileKind | null {
+  const extension = nameOrPath.match(/\.(xsr|clip)$/i)?.[1].toLowerCase()
+  return extension === 'xsr' || extension === 'clip' ? extension : null
+}
+
 /** The native location is explicit; browser File objects do not expose paths. */
 export interface DocumentFileSource {
   file: File

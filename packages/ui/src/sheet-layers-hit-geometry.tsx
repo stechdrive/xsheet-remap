@@ -1,11 +1,11 @@
-import { cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
+import { paperTrackDisplayRole, cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { resolveSheetTemplatePageSize, projectSheetLayoutOptions, timingReferenceAddress } from '@xsheet-remap/core'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { timingEventsInRange, timingKeyIndex, type TimelineEvent, type TimingKey } from '@xsheet-remap/core'
 import type { SheetContentInput, SheetGeometryInput } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
-import { overlayBandSegments, overlayPaperTracks, overlayVisibleSnapIndex, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayColumnRectForPage, overlayPaperTracks, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
 export type SheetEventRectRenderItem = {
   event: CutProject['logicalSheet']['events'][number]
@@ -65,7 +65,7 @@ export function eventRectsForPages(
     let page: SheetPage | undefined
     let rect: NormalizedRect | null
 
-    if (track && presentedOverlayTracks.has(track.paperTrack)) {
+    if (track && paperTrackDisplayRole(track) === sheetRole && presentedOverlayTracks.has(track.paperTrack)) {
       const localized = localizeFrameToSheetPage(template, event.frame, displayDurationFrames, displayFrameStart)
       page = localized ? pageById.get(localized.page.pageId) : undefined
       rect = page ? overlayCellRectForFrame(template, project, track, event.frame, page) : null
@@ -118,7 +118,7 @@ export function rectForHit(project: SheetGeometryInput, template: SheetTemplate,
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const track = hit.paperTrack ? project.logicalSheet.paperTracks.find(item => item.paperTrack === hit.paperTrack) : undefined
-  if (track && overlayPaperTracks(project, template).some(candidate => candidate.paperTrack === track.paperTrack)) {
+  if (track && paperTrackDisplayRole(track) === hit.role && overlayPaperTracks(project, template).some(candidate => candidate.paperTrack === track.paperTrack)) {
     const page = hit.pageId ? createSheetPages(template, displayDurationFrames, displayFrameStart).find(item => item.pageId === hit.pageId) : undefined
     return page ? overlayCellRectForFrame(template, project, track, hit.frame, page) : null
   }
@@ -163,7 +163,7 @@ export function projectTimingHitForFrame(template: SheetTemplate, project: Sheet
   const duration = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const origin = logicalSheetDisplayFrameStart(project.logicalSheet)
   const overlay = overlayPaperTracks(project, template).find(track =>
-    track.paperTrack === paperTrack && (track.viewPlacement?.sheetRole ?? 'cell') === role,
+    track.paperTrack === paperTrack && (paperTrackDisplayRole(track)) === role,
   )
   if (overlay) {
     const localized = localizeFrameToSheetPage(template, frame, duration, origin)
@@ -184,7 +184,7 @@ export function overlayHitFromPoint(template: SheetTemplate, project: CutProject
     const localFrame = column.frames.frameStart + rowIndex
     const localHit: SheetHit = {
       regionId: `overlay:${track.paperTrack}:${column.regionId}`,
-      role: track.viewPlacement?.sheetRole ?? 'cell',
+      role: paperTrackDisplayRole(track),
       frame: localFrame,
       localFrame,
       rowIndex,
@@ -252,27 +252,4 @@ export function overlayHitForFrame(template: SheetTemplate, project: SheetGeomet
   }
 }
 
-export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect; paperTrack: string }) | null {
-  const role = track.viewPlacement?.sheetRole ?? 'cell'
-  const segments = overlayBandSegments(template, project, role)
-  const frameOrigin = frameOriginForPageHit(template, page)
-  const segment = segments.find(item => {
-    const segmentStart = page.frameStart + (item.frames.frameStart - frameOrigin)
-    const segmentEnd = page.frameStart + (item.frames.frameEnd - frameOrigin)
-    return page.frameStart <= segmentEnd && page.frameEnd >= segmentStart
-  })
-  if (!segment) return null
-  const snapIndex = overlayVisibleSnapIndex(template, project, track, segment)
-  const slot = segment.slots[snapIndex]
-  if (!slot) return null
-  return {
-    ...segment,
-    paperTrack: track.paperTrack,
-    rect: {
-      x: slot.x,
-      y: segment.rect.y,
-      w: slot.w,
-      h: segment.rect.h,
-    },
-  }
-}
+export { overlayColumnRectForPage } from './app-sheet-geometry'

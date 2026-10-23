@@ -38,7 +38,7 @@ import type { DialogueAudioTrackExportFormat } from './dialogueAudioExport'
 export function AppShellView({ controller }: { controller: AppController }) {
   const {
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange, pendingClipImageDrop, setPendingClipImageDrop, applyClipImageDrop, clipDropContext,
-    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleProjectDrop,
+    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleDocumentDrop,
     template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,
@@ -240,7 +240,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
   ) : null
 
   return (
-    <div className="appShell" onContextMenu={event => event.preventDefault()} onDropCapture={handleProjectDrop}
+    <div className="appShell" onContextMenu={event => event.preventDefault()} onDropCapture={handleDocumentDrop}
       onDragOverCapture={event => { if (Array.from(event.dataTransfer.types ?? []).includes('Files')) event.preventDefault() }}>
       <input hidden type="file" ref={projectInputRef} accept={XSR_PROJECT_FILE_ACCEPT} aria-label="ショートカットからXSRを開く" onChange={event => { handleLoadProject(event.currentTarget.files); event.currentTarget.value = '' }} />
       <header className={`topBar ${appKind === 'remap' && panel === 'sheet' ? 'remapTopBar' : ''}`}>

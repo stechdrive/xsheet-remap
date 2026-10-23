@@ -15,6 +15,7 @@ import { normalizeSheetFormData, normalizeSheetFormFieldValues, normalizeSheetFo
 import { migrateLegacyMemos } from './sheet-memo'
 import { normalizeAssetSourceNativePaths } from './assets'
 import { normalizeNativeFileSystemPath } from './native-paths'
+import { migrateImportedPaperTrackPlacement } from './paper-track-placement'
 
 export function createDefaultProjectDocument(): CutGroupProjectDocument {
   return createProjectDocumentFromCutProject(createDefaultProject(), { sheetTemplate: standardA3SheetTemplate })
@@ -100,7 +101,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
   for (const cut of cuts) for (const revision of cut.revisions) {
     validateProcessTimings({ correctionLayers: document.correctionLayers, logicalSheet: { ...revision.logicalSheet, keys: registeredCells.keys } })
   }
-  return {
+  return migrateImportedPaperTrackPlacement({
     documentKind: PROJECT_DOCUMENT_KIND,
     schemaVersion: PROJECT_DOCUMENT_SCHEMA_VERSION,
     projectId: document.projectId,
@@ -118,7 +119,7 @@ export function parseProjectDocument(input: unknown): CutGroupProjectDocument {
     exportProfiles: document.exportProfiles,
     cuts,
     extensions,
-  }
+  })
 }
 
 function resolveCurrentBuiltInProjectTemplate(

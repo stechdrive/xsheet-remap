@@ -1,3 +1,4 @@
+import { paperTrackDisplayRole } from '@xsheet-remap/core'
 import type { SheetColumnAddContext, SheetColumnAddKind } from './sheetColumnModel'
 import type { TimelineLaneInsertRequest } from './TimelineLaneInsertionOverlay'
 import { stackGuideInsertionTargets } from './stack-guides-geometry'
@@ -2073,7 +2074,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       isOverlay: true,
       paperTrack: track.paperTrack,
       snapIndex: track.viewPlacement?.snapIndex ?? 0,
-      sheetRole: track.viewPlacement?.sheetRole ?? 'cell',
+      sheetRole: paperTrackDisplayRole(track),
       exportAfterPaperTrack: exportPreviousPaperTrackName(props.project.logicalSheet.paperTracks, track.paperTrack),
     })
     setContextMenu(null)
@@ -2084,7 +2085,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   }
 
   function openOverlayPaperTrackMenu(track: PaperTrack, position: { x: number; y: number }) {
-    setColumnMenuContext({ role: track.viewPlacement?.sheetRole ?? 'cell', regionId: '', paperTrack: track.paperTrack })
+    setColumnMenuContext({ role: paperTrackDisplayRole(track), regionId: '', paperTrack: track.paperTrack })
     setOverlayPaperTrackMenu({
       x: position.x,
       y: position.y,

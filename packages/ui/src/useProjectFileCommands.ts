@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type DragEvent } from 'react'
 import { flushSync } from 'react-dom'
-import { isTauriHost, isXsrProjectFileName, openNativeDocumentFile, readNativeDocumentFile, type DocumentFileSource } from '@xsheet-remap/adapters'
+import { documentFileKind, isTauriHost, openNativeDocumentFile, readNativeDocumentFile, type DocumentFileKind, type DocumentFileSource } from '@xsheet-remap/adapters'
 import { isCompositionKey } from './compositionKeyboard'
 import { errorMessage } from './app-foundation'
 
@@ -27,55 +27,61 @@ export function useProjectFileCommands(options: {
     } catch (error) { window.alert(errorMessage(error)) }
   })
   const blocked = () => !latest.current.enabled || Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'))
+  async function loadDocument(source: DocumentFileSource, kind: DocumentFileKind) {
+    if (kind === 'clip') latest.current.loadClip(source)
+    else await latest.current.loadProject(source)
+  }
 
   function handleOpenProject() {
     if (!isTauriHost()) { projectInputRef.current?.click(); return }
     void run(async () => {
       const source = await openNativeDocumentFile('xsr', options.initialDirectory)
-      if (source) await latest.current.loadProject(source)
+      if (source) await loadDocument(source, 'xsr')
     })
   }
   function handleOpenClip() {
     void run(async () => {
       const source = await openNativeDocumentFile('clip', options.initialDirectory)
-      if (source) latest.current.loadClip(source)
+      if (source) await loadDocument(source, 'clip')
     })
   }
   function handleLoadProject(files: FileList | null) {
     const file = files?.[0]
-    if (file) void run(() => latest.current.loadProject({ file, nativePath: null }))
+    if (file) void run(() => loadDocument({ file, nativePath: null }, 'xsr'))
   }
   function handleLoadClip(files: FileList | null) {
     const file = files?.[0]
-    if (file) options.loadClip({ file, nativePath: null })
+    if (file) void run(() => loadDocument({ file, nativePath: null }, 'clip'))
   }
   function handleSaveProjectFile(input?: { saveAs?: boolean }) { return run(() => latest.current.saveProject(input)) }
   function handleResetApp() { return run(() => latest.current.newProject()) }
 
-  function acceptProjectDrop(names: string[]): boolean {
-    if (!names.some(isXsrProjectFileName)) return false
+  function acceptDocumentDrop(names: string[]): boolean {
+    if (blocked()) return false
     if (names.length !== 1) {
-      window.alert('開くXSRプロジェクトを1件だけドロップしてください。')
+      window.alert('開くXSRプロジェクトまたはCLIPを1件だけドロップしてください。')
       return false
     }
-    return !blocked()
+    return true
   }
-  function handleNativeProjectDrop(paths: string[]): boolean {
-    if (!paths.some(isXsrProjectFileName)) return false
-    if (acceptProjectDrop(paths)) void run(async () => {
-      const source = await readNativeDocumentFile(paths[0], 'xsr')
-      await latest.current.loadProject(source)
+  function handleNativeDocumentDrop(paths: string[]): boolean {
+    const kind = paths.map(documentFileKind).find(Boolean)
+    if (!kind) return false
+    if (acceptDocumentDrop(paths)) void run(async () => {
+      const source = await readNativeDocumentFile(paths[0], kind)
+      if (!blocked()) await loadDocument(source, kind)
     })
     return true
   }
-  function handleProjectDrop(event: DragEvent) {
+  function handleDocumentDrop(event: DragEvent) {
     const files = Array.from(event.dataTransfer.files ?? [])
-    if (!files.some(file => isXsrProjectFileName(file.name))) return
+    const kind = files.map(file => documentFileKind(file.name)).find(Boolean)
+    if (!kind) return
     event.preventDefault()
     event.stopPropagation()
     // Native drops must keep the OS path and are handled through Tauri only.
-    if (!isTauriHost() && acceptProjectDrop(files.map(file => file.name))) {
-      void run(() => latest.current.loadProject({ file: files[0], nativePath: null }))
+    if (!isTauriHost() && acceptDocumentDrop(files.map(file => file.name))) {
+      void run(() => loadDocument({ file: files[0], nativePath: null }, kind))
     }
   }
 
@@ -96,5 +102,5 @@ export function useProjectFileCommands(options: {
   })
 
   return { projectInputRef, handleOpenProject, handleOpenClip, handleLoadProject, handleLoadClip,
-    handleSaveProjectFile, handleResetApp, handleNativeProjectDrop, handleProjectDrop }
+    handleSaveProjectFile, handleResetApp, handleNativeDocumentDrop, handleDocumentDrop }
 }

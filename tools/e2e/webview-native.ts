@@ -8,6 +8,7 @@ import { sourceIdentity, sha256 } from '../verification/evidence.mjs'
 import { webviewArtifact } from '../verification/webview-evidence.mjs'
 import { clipLayerNamed, enterClipAssembly } from './clip-workspace'
 import { assertSupportedRuntime, runtimeIdentity } from '../checks/runtime.mjs'
+import { prepareNativeClipDrop, verifyNativeClipDrop } from './webview-clip-drop'
 
 const root = process.cwd(), [stage, run, baseline] = process.argv.slice(2)
 assertSupportedRuntime(runtimeIdentity())
@@ -23,7 +24,8 @@ if (stage === 'prepare') {
   fs.writeFileSync(path.join(run, 'assets', 'native-pixel.png'), imageBytes)
   const project = createDefaultProject(); project.cut.cut = 'WEBVIEW_NATIVE_BOUNDARY'
   fs.writeFileSync(path.join(run, 'document.xsr'), await encodeProjectArchive(createProjectDocumentFromCutProject(project)))
-  write('prepared.json', { schemaVersion: 1, scenarioVersion: 1, preparedAt: new Date().toISOString(), ...provenance })
+  await prepareNativeClipDrop(run)
+  write('prepared.json', { schemaVersion: 1, scenarioVersion: 2, preparedAt: new Date().toISOString(), ...provenance })
   console.log(`[webview] prepared ${provenance.scope}: ${provenance.testedSourceCommit}`)
 } else {
   const prepared = JSON.parse(fs.readFileSync(path.join(run, 'prepared.json'), 'utf8'))
@@ -126,6 +128,8 @@ if (stage === 'prepare') {
     await expect(imported).toBeVisible()
     await page.screenshot({ path: path.join(run, 'screenshots/reopened.png') })
     checks.push('fresh document load restores the registered layer in the current CLIP tree')
+    await verifyNativeClipDrop(page, run, drop)
+    checks.push('native CLIP paths open through document-drop routing; ACTION/CELL overflow uses its own grid edge')
     assert.deepEqual(errors, [])
     assert.deepEqual(sourceIdentity(root), prepared.harnessIdentity, 'Harness/source changed during the run')
     assert.equal(sha256(fs.readFileSync(prepared.artifact.executable)), prepared.artifact.sha256)

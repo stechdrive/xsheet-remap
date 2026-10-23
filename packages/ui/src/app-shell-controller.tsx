@@ -2,7 +2,7 @@ import { useNativeFileDropEvents } from './useNativeFileDropEvents'
 import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { useProjectFileCommands } from './useProjectFileCommands'
 import { emptyProjectFileLocation } from './projectFileLocation'
-import { isXsrProjectFileName, type DocumentFileSource } from '@xsheet-remap/adapters'
+import { documentFileKind, type DocumentFileKind, type DocumentFileSource } from '@xsheet-remap/adapters'
 import { planPaperTranscriptionImport, type PaperTranscriptionImportOptions, type PaperTranscriptionRequest, type PaperTranscriptionResult } from '@xsheet-remap/core'
 import { isCompositionKey } from './compositionKeyboard'
 import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
@@ -104,7 +104,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   if (pendingClipImageDrop && (pendingClipImageDrop.source !== project || workMode !== 'clip')) setPendingClipImageDrop(null)
   useBrowserFileOwnership(pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null)
   const clipImportContext = useRef<object>({})
-  const nativeProjectDrag = useRef(false)
+  const nativeDocumentDrag = useRef<DocumentFileKind | null>(null)
   const workModeRef = useRef(workMode)
   workModeRef.current = workMode
   const valueDraft = timingEditSession?.value ?? ''
@@ -119,7 +119,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setFileLocation, setSavedProjectDocumentSnapshot, runtimeSourceImageUrls, setSheetImageExportDraft,
   })
   const handleSaveDialogueAudioTracks = createAppDialogueAudioExportAction(project, setExportOperationNotice, initialDirectory)
-  const { projectInputRef, handleOpenProject, handleOpenClip, handleLoadProject, handleLoadClip, handleSaveProjectFile, handleResetApp, handleNativeProjectDrop, handleProjectDrop } = useProjectFileCommands({
+  const { projectInputRef, handleOpenProject, handleOpenClip, handleLoadProject, handleLoadClip, handleSaveProjectFile, handleResetApp, handleNativeDocumentDrop, handleDocumentDrop } = useProjectFileCommands({
     run: fileSession.run, initialDirectory, enabled: panel !== 'template',
     loadProject: loadProjectSource, loadClip: source => { commitTimingDraft(false); setClipImportFile(source) },
     saveProject: saveProjectFileAction, newProject: resetApp,
@@ -421,7 +421,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   async function handleNativeFileDrop(paths: string[], position: { x: number; y: number }) {
-    if (handleNativeProjectDrop(paths)) return
+    if (handleNativeDocumentDrop(paths)) return
     const clientPoints = clientPointCandidatesFromNativeDropPosition(position)
     if (projectRef.current.clipDocument) {
       if (!allowClipImageImport()) return
@@ -553,14 +553,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleNativeDragDropPayload(payload: NativeDragDropPayload, source: string) {
     const position = payload.position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    if (payload.type === 'enter') nativeProjectDrag.current = Boolean(payload.paths?.some(isXsrProjectFileName))
-    if (payload.type === 'leave') nativeProjectDrag.current = false
-    if (nativeProjectDrag.current || payload.paths?.some(isXsrProjectFileName)) {
+    const pathKind = payload.paths?.map(documentFileKind).find(Boolean) ?? null
+    const documentKind = payload.type === 'enter' || payload.paths?.length ? pathKind : nativeDocumentDrag.current
+    if (payload.type === 'enter') nativeDocumentDrag.current = documentKind
+    if (payload.type === 'leave' || payload.type === 'drop') nativeDocumentDrag.current = null
+    if (documentKind) {
       clearNativeFileDragPreview()
-      if (payload.type !== 'drop') {
-        setStatusHint('sheet-drop', 'XSRプロジェクトを開きます')
-        return
-      }
+      publishNativeLayerHover(null)
+      setStatusHint('sheet-drop', payload.type === 'drop' || payload.type === 'leave' ? null
+        : documentKind === 'clip' ? 'CLIPを開きます' : 'XSRプロジェクトを開きます')
+      if (payload.type === 'drop' && payload.paths?.length) nativeFileDropHandlerRef.current(payload.paths, position)
+      return
     }
     const clipDocument = projectRef.current.clipDocument
     const points = clientPointCandidatesFromNativeDropPosition(position)
@@ -571,7 +574,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       const row = document.elementFromPoint(point.x, point.y)?.closest('[data-clip-layer-id]')
       if (row) avoidNativeFileDragPreview(row.getBoundingClientRect())
     }
-    if (payload.type === 'leave' || payload.type === 'drop') setStatusHint('sheet-drop', null)
+    if (payload.type === 'enter' || payload.type === 'leave' || payload.type === 'drop') setStatusHint('sheet-drop', null)
     if (clipDocument) publishNativeLayerHover(payload.type === 'enter' || payload.type === 'over'
       ? clientPointCandidatesFromNativeDropPosition(position).map(point => clipLayerDropAtElement(clipDocument, document.elementFromPoint(point.x, point.y), point.y)).find(Boolean) ?? null
       : null)
@@ -2378,7 +2381,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     clipDropContext: clipImportContext.current,
     workMode, handleWorkModeChange, newImageProcessId, handleNewImageProcessChange, baseProcessId, handleBaseProcessChange,
     pendingClipImageDrop: pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null, setPendingClipImageDrop, applyClipImageDrop,
-    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleProjectDrop,
+    appKind, collapseEditorSheetPanes, appProfile, history, paperSheetInputRef, project, projectInputRef, initialDirectory, handleOpenProject, handleOpenClip, handleDocumentDrop,
     template, runtimeSourceImageUrls, autoCalibrationRunning,
     autoCalibrationMessage, autoCalibrationOverlay, calibrationLoupeOpen, panel, editMode, setEditMode,
     zoom, setZoom, zoomMode, showTemplate, setShowTemplate, showTemplateGuides, setShowTemplateGuides,

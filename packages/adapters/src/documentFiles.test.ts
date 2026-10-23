@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { openNativeDocumentFile, readNativeDocumentFile } from './documentFiles'
+import { documentFileKind, openNativeDocumentFile, readNativeDocumentFile } from './documentFiles'
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 afterEach(() => { invoke.mockReset(); Reflect.deleteProperty(window, '__TAURI_INTERNALS__') })
 
 describe('native document files', () => {
+  it('classifies only complete document extensions, including native paths and uppercase CLIP', () => {
+    expect(documentFileKind('D:\\制作\\cut.CLIP')).toBe('clip')
+    expect(documentFileKind('cut.XSR')).toBe('xsr')
+    for (const name of ['clip', 'xsr', 'cut.clip.png', 'cut.xsr.json', 'cut.clip/001.png']) expect(documentFileKind(name)).toBeNull()
+  })
   it('keeps the selected absolute path separate from the File and preserves binary bytes', async () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} })
     invoke.mockResolvedValueOnce('D:\\制作\\cut.xsr').mockResolvedValueOnce(Uint8Array.of(0, 127, 255).buffer)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { useProjectFileCommands } from './useProjectFileCommands'
@@ -10,11 +10,11 @@ vi.mock('@xsheet-remap/adapters', async original => ({ ...await original<typeof 
 }))
 afterEach(() => { cleanup(); vi.resetAllMocks(); vi.restoreAllMocks(); mocks.native = false })
 
-function setup() {
+function setup(enabled = true) {
   const loadProject = vi.fn(), loadClip = vi.fn(), saveProject = vi.fn(), newProject = vi.fn()
   const hook = renderHook(() => {
     const session = useProjectFileSession()
-    return useProjectFileCommands({ run: session.run, enabled: true, initialDirectory: 'D:\\shots', loadProject, loadClip, saveProject, newProject })
+    return useProjectFileCommands({ run: session.run, enabled, initialDirectory: 'D:\\shots', loadProject, loadClip, saveProject, newProject })
   })
   return { ...hook, loadProject, loadClip, saveProject, newProject }
 }
@@ -30,6 +30,74 @@ it('shares file commands across Ctrl and Command shortcuts, retaining workspace 
   fireEvent.keyDown(window, { key: 'n', ctrlKey: true })
   await waitFor(() => expect(state.newProject).toHaveBeenCalledTimes(1))
   expect(fireEvent.keyDown(window, { key: 'z', ctrlKey: true })).toBe(true)
+})
+
+function dropEvent(...names: string[]) {
+  return { dataTransfer: { files: names.map(name => new File(['clip'], name)) }, preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as DragEvent
+}
+
+it('opens a browser CLIP drop through the same loader and consumes it before material handlers', async () => {
+  const state = setup(), event = dropEvent('日本語 cut.CLIP')
+  act(() => state.result.current.handleDocumentDrop(event))
+  await waitFor(() => expect(state.loadClip).toHaveBeenCalledWith({ file: event.dataTransfer.files[0], nativePath: null }))
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(event.stopPropagation).toHaveBeenCalledOnce()
+  expect(state.loadProject).not.toHaveBeenCalled()
+  const material = dropEvent('001.png')
+  act(() => state.result.current.handleDocumentDrop(material))
+  expect(material.stopPropagation).not.toHaveBeenCalled()
+})
+
+it('keeps native CLIP paths and ignores its duplicate DOM drop and concurrent native delivery', async () => {
+  mocks.native = true
+  const state = setup(), path = 'D:\\制作\\cut.CLIP', source = { file: new File([], 'cut.CLIP'), nativePath: path }
+  let resolve!: (value: typeof source) => void
+  mocks.read.mockReturnValue(new Promise(done => { resolve = done }))
+  act(() => {
+    state.result.current.handleDocumentDrop(dropEvent('cut.CLIP'))
+    expect(state.result.current.handleNativeDocumentDrop([path])).toBe(true)
+    expect(state.result.current.handleNativeDocumentDrop([path])).toBe(true)
+  })
+  expect(mocks.read).toHaveBeenCalledExactlyOnceWith(path, 'clip')
+  await act(async () => resolve(source))
+  expect(state.loadClip).toHaveBeenCalledExactlyOnceWith(source)
+})
+
+it.each([['one.clip', 'two.clip'], ['one.clip', 'one.xsr'], ['one.clip', '001.png']])('rejects mixed or multiple document drops: %s, %s', (...names) => {
+  const state = setup()
+  vi.spyOn(window, 'alert').mockImplementation(() => {})
+  act(() => state.result.current.handleDocumentDrop(dropEvent(...names)))
+  expect(state.result.current.handleNativeDocumentDrop(names)).toBe(true)
+  expect(state.loadClip).not.toHaveBeenCalled()
+  expect(state.loadProject).not.toHaveBeenCalled()
+  expect(mocks.read).not.toHaveBeenCalled()
+})
+
+it('consumes documents without opening them while disabled or a modal owns the workspace', async () => {
+  const disabled = setup(false)
+  act(() => disabled.result.current.handleDocumentDrop(dropEvent('cut.clip')))
+  expect(disabled.result.current.handleNativeDocumentDrop(['cut.clip'])).toBe(true)
+  expect(disabled.loadClip).not.toHaveBeenCalled()
+  disabled.unmount()
+  const state = setup(), modal = document.createElement('div')
+  modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); document.body.append(modal)
+  try {
+    act(() => state.result.current.handleDocumentDrop(dropEvent('cut.clip')))
+    expect(state.result.current.handleNativeDocumentDrop(['cut.clip'])).toBe(true)
+    expect(state.loadClip).not.toHaveBeenCalled()
+    expect(mocks.read).not.toHaveBeenCalled()
+  } finally { modal.remove() }
+})
+
+it('retains the current document on a failed native CLIP read and releases its file command lock', async () => {
+  const state = setup()
+  vi.spyOn(window, 'alert').mockImplementation(() => {})
+  mocks.read.mockRejectedValue(new Error('read failed'))
+  act(() => state.result.current.handleNativeDocumentDrop(['cut.clip']))
+  await waitFor(() => expect(window.alert).toHaveBeenCalledWith('read failed'))
+  expect(state.loadClip).not.toHaveBeenCalled()
+  await act(async () => { await state.result.current.handleResetApp() })
+  await waitFor(() => expect(state.newProject).toHaveBeenCalledOnce())
 })
 
 it('commits a focused inline editor before saving even when the editor stops key propagation', async () => {
@@ -82,12 +150,12 @@ it('routes native XSR drops through the path reader and leaves material drops to
   const state = setup()
   const source = { file: new File([], 'cut.xsr'), nativePath: 'D:\\shots\\cut.xsr' }
   mocks.read.mockResolvedValue(source)
-  act(() => expect(state.result.current.handleNativeProjectDrop([source.nativePath])).toBe(true))
+  act(() => expect(state.result.current.handleNativeDocumentDrop([source.nativePath])).toBe(true))
   await waitFor(() => expect(state.loadProject).toHaveBeenCalledWith(source))
   expect(mocks.read).toHaveBeenCalledWith(source.nativePath, 'xsr')
-  expect(state.result.current.handleNativeProjectDrop(['D:\\shots\\image.png'])).toBe(false)
+  expect(state.result.current.handleNativeDocumentDrop(['D:\\shots\\image.png'])).toBe(false)
   vi.spyOn(window, 'alert').mockImplementation(() => {})
-  expect(state.result.current.handleNativeProjectDrop([source.nativePath, 'D:\\shots\\image.png'])).toBe(true)
+  expect(state.result.current.handleNativeDocumentDrop([source.nativePath, 'D:\\shots\\image.png'])).toBe(true)
   expect(mocks.read).toHaveBeenCalledTimes(1)
 })
 

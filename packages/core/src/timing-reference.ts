@@ -1,9 +1,13 @@
-import type { CutProject, PaperTrack, SheetTimingRole, TimingReferenceMark } from './types'
+import type { CutProject, PaperTrack, SheetTimingRole, TimingReferenceMark, TimingEnclosure } from './types'
 import { sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 import { DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
 
 export function timingReferenceAddress(mark: { paperTrack: string; frame: number; sheetRole?: SheetTimingRole }): string {
   return JSON.stringify([mark.sheetRole ?? DEFAULT_SHEET_TIMING_ROLE, mark.paperTrack, mark.frame])
+}
+
+export function timingReferenceMap(marks: readonly TimingReferenceMark[] | undefined): Map<string, TimingEnclosure> {
+  return new Map(marks?.map(mark => [timingReferenceAddress(mark), mark.shape ?? 'triangle']))
 }
 
 export function normalizeTimingReferenceMarks(value: unknown, tracks: readonly PaperTrack[]): TimingReferenceMark[] {
@@ -13,7 +17,8 @@ export function normalizeTimingReferenceMarks(value: unknown, tracks: readonly P
   for (const input of value) {
     if (!input || typeof input !== 'object' || !allowed.has(input.paperTrack)
       || (input.sheetRole !== 'action' && input.sheetRole !== 'cell') || !Number.isSafeInteger(input.frame)) continue
-    const mark: TimingReferenceMark = { paperTrack: input.paperTrack, sheetRole: input.sheetRole, frame: input.frame }
+    const mark: TimingReferenceMark = { paperTrack: input.paperTrack, sheetRole: input.sheetRole, frame: input.frame,
+      ...(input.shape === 'circle' ? { shape: 'circle' } : {}) }
     marks.set(timingReferenceAddress(mark), mark)
   }
   return [...marks.values()]
@@ -22,7 +27,7 @@ export function normalizeTimingReferenceMarks(value: unknown, tracks: readonly P
 export function setTimingReferenceRange(
   project: CutProject,
   range: { role: SheetTimingRole; paperTracks: readonly string[]; frameStart: number; frameEnd: number },
-  enabled: boolean,
+  enabled: boolean | TimingEnclosure,
 ): CutProject {
   const before = project.logicalSheet.referenceMarks ?? []
   const tracks = new Set(range.paperTracks.filter(name => project.logicalSheet.paperTracks.some(track => track.paperTrack === name)))
@@ -33,21 +38,22 @@ export function setTimingReferenceRange(
   if (!enabled) {
     referenceMarks = before.filter(mark => !inRange(mark))
   } else {
-    const occupied = new Set(before.map(timingReferenceAddress))
+    const occupied = new Map(before.map(mark => [timingReferenceAddress(mark), mark]))
     const special = new Set(project.logicalSheet.events.filter(event => timingEventValueKind(event) !== 'cell')
       .map(event => timingReferenceAddress({ ...event, sheetRole: sheetTimingRoleForEvent(event) })))
-    referenceMarks = [...before]
+    const shape = enabled === 'circle' ? 'circle' : 'triangle'
     for (const paperTrack of tracks) for (let frame = start; frame <= end; frame++) {
-      const mark = { paperTrack, sheetRole: range.role, frame }
+      const mark: TimingReferenceMark = { paperTrack, sheetRole: range.role, frame, ...(shape === 'circle' ? { shape } : {}) }
       const key = timingReferenceAddress(mark)
-      if (!occupied.has(key) && !special.has(key)) { referenceMarks.push(mark); occupied.add(key) }
+      if (!special.has(key) && (!occupied.has(key) || (occupied.get(key)?.shape ?? 'triangle') !== shape)) occupied.set(key, mark)
     }
+    referenceMarks = [...occupied.values()]
   }
-  if (referenceMarks.length === before.length) return project
+  if (referenceMarks.length === before.length && referenceMarks.every((mark, index) => mark === before[index])) return project
   return { ...project, logicalSheet: { ...project.logicalSheet, referenceMarks } }
 }
 
-export function setTimingReferenceAt(project: CutProject, paperTrack: string, frame: number, role: SheetTimingRole, enabled: boolean): CutProject {
+export function setTimingReferenceAt(project: CutProject, paperTrack: string, frame: number, role: SheetTimingRole, enabled: boolean | TimingEnclosure): CutProject {
   return setTimingReferenceRange(project, { role, paperTracks: [paperTrack], frameStart: frame, frameEnd: frame }, enabled)
 }
 

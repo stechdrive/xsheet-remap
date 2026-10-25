@@ -117,6 +117,8 @@ export interface CorrectionLayer {
 
 export interface TimingKey {
   keyId: Id
+  /** Generated notation must never acquire an image by an implicit name match. */
+  requiresExplicitBinding?: boolean
   /** Present for independent CLIP process timing; labels are local to this process. */
   processId?: Id
   paperTrack: PaperTrackName
@@ -138,10 +140,13 @@ export interface TimelineEvent {
 }
 
 /** Sheet notation attached to one occurrence, independent of registered cels and holds. */
+export type TimingEnclosure = 'triangle' | 'circle'
 export interface TimingReferenceMark {
   paperTrack: PaperTrackName
   sheetRole: SheetTimingRole
   frame: FrameIndex
+  /** Older documents omit this field for the reference triangle. */
+  shape?: TimingEnclosure
 }
 
 export interface LogicalSheet {

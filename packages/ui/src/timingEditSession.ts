@@ -20,6 +20,7 @@ export function applyTimingEditSession(
       value,
       session.fontSizePx,
       session.correctionLayerId,
+      session.circleOnInput,
     ).project
   }
 
@@ -35,6 +36,7 @@ export function applyTimingEditSession(
         value,
         session.fontSizePx,
         session.correctionLayerId,
+        session.circleOnInput,
       ).project
     }
   }

@@ -140,6 +140,8 @@ export function SheetPanel(props: {
   collapseEditorPanes: boolean
   project: CutProject
   referenceProject: CutProject | null
+  actionCellTransferGhost?: CutProject | null
+  actionCellTransferControls?: ReactNode
   referenceOpacity: number
   exportProfileId: string
   template: SheetTemplate
@@ -248,7 +250,10 @@ export function SheetPanel(props: {
   onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
-  onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean) => void
+  onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean | 'triangle' | 'circle') => void
+  timingInputCircles?: { action: boolean; cell: boolean }
+  onToggleTimingInputCircle?: (hit: SheetHit) => void
+  onOpenActionCellTransfer?: (tracks?: string[]) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onKeySelect: (keyId: string | null) => void
   onStackGuideSelect: (labelId: string) => void
@@ -1058,7 +1063,8 @@ export function SheetPanel(props: {
           onChange={leftWidth => setPaneLayout(current => ({ ...current, leftWidth }))}
         />
         </>}
-        <div className="sheetViewportFrame">
+        <div className="sheetViewportFrame" data-transfer-preview={props.actionCellTransferGhost ? 'true' : undefined}>
+          {props.actionCellTransferControls}
           <SheetHiddenColumnsNotice project={props.project} template={props.template}
             onShowDigital={props.templatePresets.some(preset => preset.sheetTemplate.templateKind === 'digital-native')
               ? () => props.onPresetSelect(props.templatePresets.find(preset => preset.sheetTemplate.templateKind === 'digital-native')!.presetId)

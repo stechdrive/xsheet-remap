@@ -12,6 +12,8 @@ export const PROJECT_ARCHIVE_FEATURE_VERSIONS = {
   'embedded-blobs': 1,
   'clip-document': 1,
   'process-timing': 1,
+  'timing-enclosures': 1,
+  'action-cell-transfer': 1,
 } as const
 
 export interface ProjectArchiveBlobDescriptor {
@@ -52,6 +54,15 @@ export function buildProjectArchiveManifest(
     'sheet-revisions': PROJECT_ARCHIVE_FEATURE_VERSIONS['sheet-revisions'],
   }
   const requiredFeatures = ['project-core', 'sheet-revisions']
+  if (document.registeredCells.keys.some(key => key.requiresExplicitBinding)) {
+    features['action-cell-transfer'] = 1
+    requiredFeatures.push('action-cell-transfer')
+  }
+  if (document.cuts.some(cut => cut.revisions.some(revision => [revision.logicalSheet, ...Object.values(revision.logicalSheet.processTimings?.inactive ?? {})]
+    .some(timing => timing.referenceMarks?.some(mark => mark.shape === 'circle'))))) {
+    features['timing-enclosures'] = 1
+    requiredFeatures.push('timing-enclosures')
+  }
   if (document.cuts.some(cut => cut.revisions.some(revision => revision.logicalSheet.processTimings))) {
     features['process-timing'] = 1
     requiredFeatures.push('process-timing')

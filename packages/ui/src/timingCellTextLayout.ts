@@ -1,7 +1,7 @@
-import type { NormalizedRect } from '@xsheet-remap/core'
+import type { NormalizedRect, TimingEnclosure } from '@xsheet-remap/core'
 import { clampTextFontSizePx } from './sheetTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, splitTextGraphemes, type TextMeasurementProvider } from './textMetrics'
-import { layoutTimingReference, type TimingReferenceGeometry } from './timingReferenceLayout'
+import { layoutTimingReference, layoutTimingCircle, type TimingReferenceGeometry } from './timingReferenceLayout'
 
 export type TimingCellTextLayout = { text: string; fullText: string; fontSizePx: number; overflow: boolean; clipRect: NormalizedRect
   reference?: TimingReferenceGeometry; textPosition?: { x: number; y: number }; baseline?: 'alphabetic'; outlineWidthPx?: number }
@@ -10,7 +10,7 @@ export type TimingCellTextLayout = { text: string; fullText: string; fontSizePx:
 export function layoutTimingCellText(
   text: string, requestedSize: number, minimumSize: number, rect: NormalizedRect,
   pageSize: { widthPx: number; heightPx: number }, measurement: TextMeasurementProvider = sharedTextMeasurementProvider,
-  reference = false,
+  reference: boolean | TimingEnclosure = false,
 ): TimingCellTextLayout {
   const requested = clampTextFontSizePx(requestedSize)
   const minimum = Math.min(requested, clampTextFontSizePx(minimumSize))
@@ -35,5 +35,6 @@ export function layoutTimingCellText(
   // A column-width clip guarantees horizontal containment even with fallback fonts.
   const layout = { text: visible, fullText: text, fontSizePx, overflow,
     clipRect: { x: rect.x, y: 0, w: rect.w, h: 1 } }
-  return reference ? layoutTimingReference(layout, minimum, rect, pageSize, measurement) : layout
+  return reference === 'circle' ? layoutTimingCircle(layout, rect, pageSize)
+    : reference ? layoutTimingReference(layout, minimum, rect, pageSize, measurement) : layout
 }

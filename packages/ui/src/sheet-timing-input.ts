@@ -9,6 +9,9 @@ import {
   NULL_CELL_KEY_ID,
   REVERSE_SHEET_KEY_ID,
   setEvent,
+  setTimingReferenceAt,
+  timingReferenceAddress,
+  timingReferenceMap,
   setTimingSpecialEvent,
   sheetTimingRoleForEvent,
   uniqueCspCellNameForSlot,
@@ -25,10 +28,14 @@ export function setTimingValueAt(
   rawValue: string,
   fontSizePx: number,
   correctionLayerId: string,
+  circleOnInput = false,
 ): { project: CutProject; keyId: string | null } {
   if (!hit.paperTrack) return { project, keyId: null }
   const value = rawValue.trim()
   const sheetRole = sheetRoleForHit(hit)
+  const finish = (next: CutProject, keyId: string) => ({ project: circleOnInput
+    && timingReferenceMap(next.logicalSheet.referenceMarks).get(timingReferenceAddress({ paperTrack: hit.paperTrack!, sheetRole, frame: hit.frame })) !== 'triangle'
+    ? setTimingReferenceAt(next, hit.paperTrack!, hit.frame, sheetRole, 'circle') : next, keyId })
   if (!value) return { project: clearEvent(project, hit.paperTrack, hit.frame, sheetRole), keyId: null }
   if (value === '/') {
     return {
@@ -58,16 +65,16 @@ export function setTimingValueAt(
   const reusableKey = findTimingKeyByDisplayLabel(projectWithLeadingBlank, hit.paperTrack, value, sheetRole)
   if (reusableKey && reusableKey.keyId !== existingKeyId) {
     const withEvent = setEvent(projectWithLeadingBlank, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx })
-    return { project: registerTimingKey(withEvent, reusableKey.keyId, correctionLayerId), keyId: reusableKey.keyId }
+    return finish(registerTimingKey(withEvent, reusableKey.keyId, correctionLayerId), reusableKey.keyId)
   }
   if (existingKeyId && !isSpecialTimingKeyId(existingKeyId)) {
     const updated = updateKey(projectWithLeadingBlank, existingKeyId, { displayLabel: value, paperToken: value })
-    return { project: registerTimingKey(updated, existingKeyId, correctionLayerId), keyId: existingKeyId }
+    return finish(registerTimingKey(updated, existingKeyId, correctionLayerId), existingKeyId)
   }
 
   const created = createKey(projectWithLeadingBlank, hit.paperTrack, value, 'manual', value, sheetRole)
   const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx })
-  return { project: registerTimingKey(withEvent, created.key.keyId, correctionLayerId), keyId: created.key.keyId }
+  return finish(registerTimingKey(withEvent, created.key.keyId, correctionLayerId), created.key.keyId)
 }
 
 function ensureLeadingBlankBeforeFirstKey(
@@ -91,6 +98,7 @@ function registerTimingKey(project: CutProject, keyId: string, correctionLayerId
   if (project.bindings.some(binding => binding.keyId === keyId)) return project
   const key = project.logicalSheet.keys.find(item => item.keyId === keyId)
   if (!key) return project
+  if (key.requiresExplicitBinding) return project
   const slot = project.cspTrackSlots.find(item =>
     item.paperTrack === key.paperTrack && item.correctionLayerId === correctionLayerId,
   )

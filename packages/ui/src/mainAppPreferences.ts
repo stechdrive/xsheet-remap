@@ -53,3 +53,14 @@ function browserStorage(): Storage | null {
   if (typeof window === 'undefined') return null
   return window.localStorage
 }
+
+export type TimingInputCircles = { action: boolean; cell: boolean }
+export function loadTimingInputCircles(): TimingInputCircles {
+  try {
+    const saved = JSON.parse(browserStorage()?.getItem('xsheet:timing-input-circles') ?? '{}')
+    return { action: saved?.action === true, cell: saved?.cell === true }
+  } catch { return { action: false, cell: false } }
+}
+export function saveTimingInputCircles(value: TimingInputCircles): void {
+  try { browserStorage()?.setItem('xsheet:timing-input-circles', JSON.stringify(value)) } catch { /* Optional preference. */ }
+}

@@ -2,6 +2,7 @@ import { activeCutProjectFromDocument, buildExportPlan, stackGuideRegistrations 
 import { NULL_CELL_CSP_CELL_NAME, type CutGroupProjectDocument, type ExportTrackFrame, type SheetTimingRole } from './types'
 import { defaultCorrectionLayerId, sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 import { buildClipDocumentPlan } from './clip-document-plan'
+import { assertExplicitClipRegistrations } from './clip-registration-validation'
 
 export interface ClipCanvasSettings {
   width: number
@@ -81,6 +82,7 @@ export function buildClipRegistrationPlan(document: CutGroupProjectDocument, rol
   for (const cut of [...document.cuts].sort((a, b) => a.order - b.order)) {
     if (cutIds && !cutIds.includes(cut.cutId)) continue
     const project = activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId })
+    assertExplicitClipRegistrations(project, role)
     const markerEvents = project.logicalSheet.events.filter(event => sheetTimingRoleForEvent(event) === role
       && (timingEventValueKind(event) === 'inbetween' || timingEventValueKind(event) === 'reverse'))
     // Remove markers before resolving process exposures: they must not blank a

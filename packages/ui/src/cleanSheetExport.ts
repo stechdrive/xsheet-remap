@@ -735,8 +735,13 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
         if (layout.reference) {
           const points = layout.reference.points
           ctx.beginPath()
-          ctx.moveTo(points[0], offsetY + points[1])
-          for (let index = 2; index < points.length; index += 2) ctx.lineTo(points[index], offsetY + points[index + 1])
+          if (layout.reference.circle) {
+            const circle = layout.reference.circle
+            ctx.arc(circle.cx, offsetY + circle.cy, circle.r, 0, Math.PI * 2)
+          } else {
+            ctx.moveTo(points[0], offsetY + points[1])
+            for (let index = 2; index < points.length; index += 2) ctx.lineTo(points[index], offsetY + points[index + 1])
+          }
           ctx.closePath()
           ctx.strokeStyle = '#113c2d'
           ctx.lineWidth = layout.reference.strokeWidthPx

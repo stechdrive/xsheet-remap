@@ -46,7 +46,7 @@ it('adds an empty reference, preserves it when typing, removes it independently 
     enterTimingValue('123')
     expect(document.querySelector('.eventText')?.textContent).toBe('123')
     expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(1)
-    menu(1, '参考記号を解除')
+    menu(1, '囲み（○・△）を解除')
     expect(document.querySelectorAll('polygon.eventReferenceSymbol')).toHaveLength(0)
     expect(document.querySelector('.eventText')?.textContent).toBe('123')
     clickTemplateFrame(sheet, 'cell', 'A', 2)

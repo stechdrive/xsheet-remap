@@ -117,7 +117,7 @@ export function processTimingDifferences(project: CutProject, options: { include
       const timing = timingForProcess(sheet, process.layerId), events = timing.events.filter(event => event.paperTrack === track.paperTrack && sheetTimingRoleForEvent(event) === role)
       const marks = new Map<number, string>()
       for (const event of events) if (event.valueKind === 'inbetween' || event.valueKind === 'reverse') marks.set(event.frame, event.valueKind === 'inbetween' ? '○' : '●')
-      for (const mark of timing.referenceMarks ?? []) if (mark.paperTrack === track.paperTrack && mark.sheetRole === role) marks.set(mark.frame, `${marks.get(mark.frame) ?? ''}参考`)
+      for (const mark of timing.referenceMarks ?? []) if (mark.paperTrack === track.paperTrack && mark.sheetRole === role) marks.set(mark.frame, `${marks.get(mark.frame) ?? ''}${mark.shape === 'circle' ? '丸囲み' : '参考'}`)
       return { processId: process.layerId, slot, target, marks, events: events.filter(event => ['cell', 'blank'].includes(event.valueKind)).sort((a, b) => a.frame - b.frame) }
     })
     if (!streams.some(stream => stream.events.length || stream.marks.size) || streams.length < 2 || streams.filter(stream => stream.target).length < (options.includeUnmapped ? 1 : 2)) continue

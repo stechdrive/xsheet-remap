@@ -16,6 +16,7 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   project = setTimingSpecialEvent(project, 'D', 1, 'inbetween', 'cell')
   const context = createSheetRenderModelContext(project, template)
   const circleRect = inputTextRenderItemsForPage(context, context.pages[0]).find(item => item.paperTrack === 'D')!.rect
+  const enclosureRect = { ...circleRect, y: circleRect.y + circleRect.h }
   const archive = await encodeProjectArchive(createProjectDocumentFromCutProject(project, { sheetTemplate: template }))
   await page.goto('./')
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
@@ -37,8 +38,10 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     const box = await event(track).locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
     await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2, { button: 'right' })
   }
+  let ordinaryC = 0
   for (const track of ['A', 'B', 'C']) {
     const ordinarySize = Number(await event(track).locator('.eventText').getAttribute('font-size'))
+    if (track === 'C') ordinaryC = ordinarySize
     await contextMenu(track)
     await activateControl(page, page.getByRole('menuitem', { name: '参考記号を付加（△）', exact: true }))
     await expect(event(track).locator('polygon.eventReferenceSymbol')).toHaveCount(1)
@@ -48,11 +51,15 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     await expect(text).toHaveCSS('dominant-baseline', 'alphabetic')
   }
   await contextMenu('C')
-  await activateControl(page, page.getByRole('menuitem', { name: '参考記号を解除', exact: true }))
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み（○・△）を解除', exact: true }))
   await expect(event('C').locator('polygon.eventReferenceSymbol')).toHaveCount(0)
   await expect(event('C').locator('.eventText')).toHaveText('123')
   await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
   await expect(event('C').locator('polygon.eventReferenceSymbol')).toHaveCount(1)
+  await contextMenu('C')
+  await activateControl(page, page.getByRole('menuitem', { name: '丸囲みを付加（○）', exact: true }))
+  await expect(event('C').locator('circle.eventReferenceSymbol')).toHaveCount(1)
+  expect(Number(await event('C').locator('.eventText').getAttribute('font-size'))).toBe(ordinaryC)
   await ready()
   // Empty frame beneath A: uses the grid's ordinary pointer target.
   // SVG's transparent default stroke expands Playwright's boundingBox by a
@@ -61,6 +68,11 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   await page.mouse.click(aBox!.x + aBox!.width / 2, aBox!.y + aBox!.height * 2.5, { button: 'right' })
   await activateControl(page, page.getByRole('menuitem', { name: '参考記号を付加（△）', exact: true }))
   await expect(page.locator('.timingReferenceGraphics')).toHaveAttribute('data-paper-primitive-count', '1')
+  const bBox = await event('D').locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
+  await page.mouse.click(bBox.x + bBox.width / 2, bBox.y + bBox.height * 1.5, { button: 'right' })
+  await activateControl(page, page.getByRole('menuitem', { name: '丸囲みを付加（○）', exact: true }))
+  await expect(page.locator('.timingReferenceGraphics')).toHaveAttribute('data-paper-primitive-count', '2')
+  await page.keyboard.press('Escape')
   await page.mouse.move(5, 5)
   await ready()
   const direct = await page.screenshot({ path: info.outputPath('reference-direct.png') })
@@ -94,6 +106,9 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   const screenInk = await measureInk(direct.toString('base64'), { x: crop!.x, y: crop!.y, w: crop!.width, h: crop!.height }, await page.evaluate(() => devicePixelRatio))
   expect(Math.abs(screenInk.width - screenInk.height)).toBeLessThanOrEqual(2)
   expect(screenInk.width).toBeGreaterThan(2)
+  const screenEnclosure = await measureInk(direct.toString('base64'), { x: bBox.x, y: bBox.y + bBox.height, w: bBox.width, h: bBox.height }, await page.evaluate(() => devicePixelRatio), .02)
+  expect(Math.abs(screenEnclosure.width - screenEnclosure.height)).toBeLessThanOrEqual(2)
+  expect(screenEnclosure.width).toBeGreaterThan(Math.min(bBox.width, bBox.height) * .7 * await page.evaluate(() => devicePixelRatio))
 
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '書き出し ›', exact: true }))
@@ -110,30 +125,37 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   expect(Math.abs(pngInk.width - pngInk.height)).toBeLessThanOrEqual(1)
   expect(pngInk.width).toBeGreaterThan(Math.min(circleRect.w * context.pageSize.widthPx, circleRect.h * context.pageSize.heightPx) * .35)
   expect(pngInk.width).toBeLessThan(Math.min(circleRect.w * context.pageSize.widthPx, circleRect.h * context.pageSize.heightPx) * .55)
+  const pngEnclosure = await measureInk(readFileSync(saved).toString('base64'), { x: enclosureRect.x * context.pageSize.widthPx,
+    y: enclosureRect.y * context.pageSize.heightPx, w: enclosureRect.w * context.pageSize.widthPx, h: enclosureRect.h * context.pageSize.heightPx }, 1, .02)
+  expect(Math.abs(pngEnclosure.width - pngEnclosure.height)).toBeLessThanOrEqual(1)
+  expect(pngEnclosure.width).toBeGreaterThan(Math.min(enclosureRect.w * context.pageSize.widthPx, enclosureRect.h * context.pageSize.heightPx) * .7)
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: 'プロジェクト ›', exact: true }))
   const download = page.waitForEvent('download')
   await activateControl(page, page.getByRole('button', { name: '名前を付けて保存…', exact: true }))
   const savedProject = info.outputPath('reference.xsr'); await (await download).saveAs(savedProject)
   const restored = activeCutProjectFromDocument((await decodeProjectFileBytes(new Uint8Array(readFileSync(savedProject)))).document)
-  expect(restored.logicalSheet.referenceMarks).toHaveLength(4)
+  expect(restored.logicalSheet.referenceMarks).toHaveLength(5)
+  expect(restored.logicalSheet.referenceMarks?.filter(mark => mark.shape === 'circle')).toHaveLength(2)
   expect(restored.logicalSheet.events).toEqual(project.logicalSheet.events)
   expect(restored.logicalSheet.keys).toEqual(project.logicalSheet.keys)
 
-  async function measureInk(base64: string, rect: { x: number; y: number; w: number; h: number }, scale: number) {
-    return page.evaluate(async ({ base64, rect, scale }) => {
+  async function measureInk(base64: string, rect: { x: number; y: number; w: number; h: number }, scale: number, inset = .15) {
+    return page.evaluate(async ({ base64, rect, scale, inset }) => {
       const image = new Image(); image.src = `data:image/png;base64,${base64}`; await image.decode()
       const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height
       const ctx = canvas.getContext('2d')!; ctx.drawImage(image, 0, 0)
-      const x = Math.ceil((rect.x + rect.w * .15) * scale), y = Math.ceil((rect.y + rect.h * .15) * scale)
-      const data = ctx.getImageData(x, y, Math.floor(rect.w * .7 * scale), Math.floor(rect.h * .7 * scale))
+      const x = Math.ceil((rect.x + rect.w * inset) * scale), y = Math.ceil((rect.y + rect.h * inset) * scale)
+      const data = ctx.getImageData(x, y, Math.floor(rect.w * (1 - inset * 2) * scale), Math.floor(rect.h * (1 - inset * 2) * scale))
       const points = []
       for (let py = 0; py < data.height; py++) for (let px = 0; px < data.width; px++) {
         const i = (py * data.width + px) * 4
-        if (data.data[i] < 140 && data.data[i + 1] < 160 && data.data[i + 2] < 140) points.push({ x: px, y: py })
+        // Symbol ink is green; exclude gray ruling when the larger enclosure
+        // approaches a cell edge. Do not count selection or continuation ink.
+        if (data.data[i] < 160 && data.data[i + 1] > data.data[i] + 8 && data.data[i + 1] > data.data[i + 2] + 3) points.push({ x: px, y: py })
       }
       return { width: Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x)) + 1,
         height: Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y)) + 1 }
-    }, { base64, rect, scale })
+    }, { base64, rect, scale, inset })
   }
 })

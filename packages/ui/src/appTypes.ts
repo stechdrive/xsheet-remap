@@ -93,6 +93,7 @@ export type SheetSelection =
   | { kind: 'cue'; cueId: string }
 
 export interface TimingEditSession {
+  circleOnInput?: boolean
   target:
     | { kind: 'cell'; hit: SheetHit }
     | { kind: 'range'; range: SheetRangeSelection }
@@ -174,11 +175,12 @@ export interface TimingClipboard {
     paperTrackOffset: number
     offsetFrames: number
     kind: 'empty' | 'blank' | 'inbetween' | 'reverse' | 'key'
-    reference?: boolean
+    reference?: boolean | 'triangle' | 'circle'
     keyId?: string
     displayLabel?: string
     paperToken?: string
     createdFrom?: TimingKey['createdFrom']
+    requiresExplicitBinding?: boolean
     bindings?: Array<{
       sourceSlotId: string
       sourceSlotPaperTrack: string

@@ -141,6 +141,37 @@
   min-height: 0;
 }
 
+.sheetViewportFrame[data-transfer-preview] { grid-template-rows: auto minmax(0, 1fr); }
+.sheetViewportFrame[data-transfer-preview] > .sheetHistoryRail { grid-row: 2; }
+.sheetViewportFrame[data-transfer-preview] > .sheetViewport { grid-column: 2; grid-row: 2; }
+.actionCellTransferPreview {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #86b1c1;
+  background: #eaf4f8;
+  color: #203c48;
+  font-size: 12px;
+  z-index: 25;
+}
+.actionCellTransferSummary { display: flex; flex: 1 1 240px; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.actionCellTransferSummary span { overflow-wrap: anywhere; }
+.actionCellTransferSummary small { flex-basis: 100%; }
+.actionCellTransferActions { display: flex; gap: 8px; }
+.actionCellTransferActions button { min-height: 36px; min-width: 64px; }
+.actionCellTransferActions .primary { color: #fff; background: #26718a; border-color: #26718a; }
+.actionCellTransferPreview details { flex-basis: 100%; max-height: 120px; overflow: auto; }
+.actionCellTransferPreview summary { cursor: pointer; }
+.actionCellTransferPreview p { margin: 4px 0; }
+.sheetViewport[data-transfer-preview], .sheetViewport[data-transfer-preview] * { touch-action: pan-x pan-y; }
+.actionCellTransferGhost { opacity: 0.58; }
+.actionCellTransferGhost .eventText { fill: #126b96; }
+.actionCellTransferGhost .eventSymbol, .actionCellTransferGhost .timingContinuationLine { stroke: #126b96; }
+.actionCellTransferGhostFill { fill: #48a7d2; fill-opacity: 0.16; stroke: none; }
+
 .templateDock {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);

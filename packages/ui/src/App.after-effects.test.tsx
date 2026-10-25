@@ -31,6 +31,7 @@ it('copies Japanese and English AE Keyframe Data from the cell column header men
     uiText.actions.selectPaperTrackColumn,
     uiText.actions.renamePaperTrack,
     `${uiText.actions.copyAeKeyframeDataMenu}›`,
+    'ACTION→CELLに自動採番して転記…',
     uiText.stackGuides.add,
     uiText.stackGuides.addOverlayTrack,
   ])

@@ -1932,13 +1932,20 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     const sheetRole = hit?.role === 'action' || hit?.role === 'cell' ? sheetRoleForHit(hit) : undefined
     const snapIndex = sheetRole === undefined ? undefined : overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole)
     closeContextMenus()
-    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, snapIndex, sheetRole, insertAfterPaperTrack: hit?.paperTrack })
+    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, snapIndex, sheetRole, insertAfterPaperTrack: hit?.paperTrack, transferTracks: selectedTransferTracks() })
     return true
   }
 
   function handleContextMenu(event: MouseEvent<SVGSVGElement>, page: SheetPage) {
     event.preventDefault(); event.stopPropagation()
     openContextMenuAt(event.clientX, event.clientY, event.target instanceof Element ? event.target : null, page, event.currentTarget)
+  }
+
+  function selectedTransferTracks(): string[] | undefined {
+    const range = props.rangeSelection
+    return range && (range.role === 'action' || range.role === 'cell')
+      && range.frameStart === displayFrameStart && range.frameEnd === displayFrameEnd
+      ? rangePaperTracks(range) : undefined
   }
 
   function openSelectionContextMenu(clientX: number, clientY: number): boolean {
@@ -1949,7 +1956,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     clearHover()
     closeContextMenus()
     setColumnMenuContext(hit)
-    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, sheetRole, insertAfterPaperTrack: hit?.paperTrack })
+    setContextMenu({ x: clientX, y: clientY, hit, timelineMemoIds, sheetRole, insertAfterPaperTrack: hit?.paperTrack, transferTracks: selectedTransferTracks() })
     return true
   }
 

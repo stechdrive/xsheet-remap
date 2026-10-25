@@ -5,6 +5,7 @@ import {
   mapTimingReferenceFrames,
   setTimingReferenceRange,
   timingReferenceAddress,
+  timingReferenceMap,
   logicalSheetDisplayFrameEnd,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
@@ -166,13 +167,14 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
     .map(event => [`${event.paperTrack}\u0000${event.frame}`, event]))
   const keyById = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
   const slotById = new Map(project.cspTrackSlots.map(slot => [slot.slotId, slot]))
-  const references = new Set(project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
+  const references = timingReferenceMap(project.logicalSheet.referenceMarks)
   const items: TimingClipboard['items'] = []
   for (let paperTrackOffset = 0; paperTrackOffset < sourcePaperTracks.length; paperTrackOffset += 1) {
     const paperTrack = sourcePaperTracks[paperTrackOffset]
     for (let frame = range.frameStart; frame <= range.frameEnd; frame += 1) {
       const event = eventByTrackAndFrame.get(`${paperTrack}\u0000${frame}`)
-      const reference = references.has(timingReferenceAddress({ paperTrack, frame, sheetRole: range.role })) || undefined
+      const shape = references.get(timingReferenceAddress({ paperTrack, frame, sheetRole: range.role }))
+      const reference = shape === 'triangle' ? true : shape
       if (!event) {
         items.push({ paperTrackOffset, offsetFrames: frame - range.frameStart, kind: 'empty', reference })
         continue
@@ -192,6 +194,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         displayLabel: key?.displayLabel,
         paperToken: key?.paperToken,
         createdFrom: key?.createdFrom,
+        requiresExplicitBinding: key?.requiresExplicitBinding,
         bindings: key ? timingClipboardBindingSnapshots(project, key.keyId, slotById) : undefined,
         fontSizePx: event.fontSizePx,
         source: event.source,

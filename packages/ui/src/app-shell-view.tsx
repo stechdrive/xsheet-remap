@@ -16,6 +16,7 @@ import { TemplateWorkspace, type TemplateWorkspaceDraftState } from './TemplateW
 import type { TemplateHistoryControls } from './useTemplateDraftHistory'
 import { AssetDropProcessMenu } from './app-sheet-layers';
 import { FrameOperationDialog, SheetImageExportDialog } from './app-registered-cells';
+import { ActionCellTransferPreview } from './ActionCellTransferPreview'
 import { AppNavigationMenu, CutMetadataActionMenu, HelpIcon, PaperSheetIcon, RedoIcon, UndoIcon } from './app-navigation';
 import { SheetPanel } from './app-sheet-panel';
 import { RemapHelpDialog } from './RemapHelpDialog'
@@ -58,6 +59,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
+    timingInputCircles, handleToggleTimingInputCircle, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
@@ -309,6 +311,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
             collapseEditorPanes={collapseEditorSheetPanes}
             project={project}
             referenceProject={referenceProject}
+            actionCellTransferGhost={actionCellTransferGhost}
+            actionCellTransferControls={actionCellTransferPlan && <ActionCellTransferPreview plan={actionCellTransferPlan}
+              onCancel={() => setActionCellTransferPlan(null)} onApply={handleApplyActionCellTransfer} />}
             referenceOpacity={activeSheetRevision.reference?.opacity ?? 0.28}
             exportProfileId={exportProfileId}
             template={template}
@@ -347,7 +352,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             selectedCameraCueId={selectedCameraCueId}
             timingDraftValue={valueDraft}
             timingDraftActive={valueDraftActive}
-            timingInputDisabled={Boolean(activeSheetRevision.protected)}
+            timingInputDisabled={Boolean(activeSheetRevision.protected || actionCellTransferPlan)}
             onTimingInputCharacter={handleTimingCharacterInput}
             onTimingInputBackspace={handleTimingInputBackspace}
             onTimingInputCommit={handleTimingInputCommit}
@@ -420,6 +425,9 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSetNullAtHit={handleSetNullAtHit}
             onSetTimingSpecialAtHit={handleSetTimingSpecialAtHit}
             onSetTimingReferenceAtHit={handleSetTimingReferenceAtHit}
+            timingInputCircles={timingInputCircles}
+            onToggleTimingInputCircle={handleToggleTimingInputCircle}
+            onOpenActionCellTransfer={handleOpenActionCellTransfer}
             onDeleteEventAtHit={handleDeleteEventAtHit}
             onKeySelect={handleKeySelect}
             onStackGuideSelect={handleStackGuideSelect}

@@ -29,6 +29,18 @@ import {
 import { bindAssetToHit } from './sheetAssets'
 
 describe('reference notation editing', () => {
+  it('retains circle shape through cross-role paste, frame moves, insertion and deletion', () => {
+    const source = setTimingReferenceAt(createOrSetEvent(createDefaultProject(), 'A', 1, 'action').project, 'A', 1, 'action', 'circle')
+    const clipboard = buildTimingClipboard(source, testRange('A', 1, 1, 'action'), 'copy')
+    const pasted = pasteTimingClipboardToProject(source, clipboard, { role: 'cell', paperTrack: 'B', frameStart: 4, frameEnd: 4 }, 'overwrite')
+    expect(pasted.logicalSheet.referenceMarks?.find(mark => mark.sheetRole === 'cell')).toEqual({ sheetRole: 'cell', paperTrack: 'B', frame: 4, shape: 'circle' })
+    const moved = moveTimingEventsInRange(pasted, testRange('B', 4, 4, 'cell'), testHit('B', 4, 'cell'), testHit('B', 7, 'cell'), ['A', 'B'])
+    expect(moved.project.logicalSheet.referenceMarks?.find(mark => mark.sheetRole === 'cell')?.frame).toBe(7)
+    const inserted = insertTimelineFrames(moved.project, { scope: 'track', role: 'cell', paperTrack: 'B', atFrame: 7, frameCount: 2, durationPolicy: 'preserve' })
+    expect(inserted.logicalSheet.referenceMarks?.find(mark => mark.sheetRole === 'cell')).toMatchObject({ frame: 9, shape: 'circle' })
+    const deleted = deleteTimelineFrames(inserted, { scope: 'track', role: 'cell', paperTrack: 'B', frameStart: 7, frameCount: 2, durationPolicy: 'preserve' })
+    expect(deleted.logicalSheet.referenceMarks).toEqual(moved.project.logicalSheet.referenceMarks)
+  })
   it('copies numbered and empty marks across roles, repeats and overwrites old marks', () => {
     const source = setTimingReferenceAt(setTimingReferenceAt(createOrSetEvent(createDefaultProject(), 'A', 1, 'cell').project, 'A', 1, 'cell', true), 'A', 2, 'cell', true)
     const clipboard = buildTimingClipboard(source, testRange('A', 1, 3, 'cell'), 'copy')

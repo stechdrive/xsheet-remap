@@ -10,7 +10,7 @@ import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type Shee
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
-import { setTimingReferenceAt, setTimingReferenceRange } from '@xsheet-remap/core'
+import { setTimingReferenceAt, setTimingReferenceRange, buildActionCellTransferPlan, applyActionCellTransferPlan, type ActionCellTransferPlan, type TimingEnclosure } from '@xsheet-remap/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
@@ -62,7 +62,7 @@ import { confirmSheetTemplateImport, loadSheetTemplate } from './app-template-im
 import { useAppSheetHistoryController } from './app-sheet-history-actions'
 import { createAppSharedCutActions } from './app-shared-cut-actions'
 import { openDirectoryInFileManager } from '@xsheet-remap/adapters'
-import { createPreferredProject, rememberSheetTemplatePreset } from './mainAppPreferences'
+import { createPreferredProject, rememberSheetTemplatePreset, loadTimingInputCircles, saveTimingInputCircles } from './mainAppPreferences'
 import { createAppTimelineLaneActions } from './app-timeline-lane-actions'
 import { createAppDialogueAudioActions } from './app-dialogue-audio-actions'
 import { applyTimingEditSession } from './timingEditSession'
@@ -101,6 +101,18 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef,
   } = useAppShellState(appKind)
   const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
+  const [timingInputCircles, setTimingInputCircles] = useState(loadTimingInputCircles)
+  const [actionCellTransferPlan, setActionCellTransferPlan] = useState<ActionCellTransferPlan | null>(null)
+  if (actionCellTransferPlan && (actionCellTransferPlan.source !== project || panel !== 'sheet')) setActionCellTransferPlan(null)
+  const actionCellTransferGhost = useMemo(() => {
+    if (!actionCellTransferPlan) return null
+    const source = actionCellTransferPlan.source
+    const preview = applyActionCellTransferPlan(source, actionCellTransferPlan)
+    return { ...preview, logicalSheet: { ...preview.logicalSheet,
+      events: preview.logicalSheet.events.slice(source.logicalSheet.events.length),
+      referenceMarks: preview.logicalSheet.referenceMarks?.slice(source.logicalSheet.referenceMarks?.length ?? 0),
+    } }
+  }, [actionCellTransferPlan])
   if (pendingClipImageDrop && (pendingClipImageDrop.source !== project || workMode !== 'clip')) setPendingClipImageDrop(null)
   useBrowserFileOwnership(pendingClipImageDrop?.source === project && workMode === 'clip' ? pendingClipImageDrop : null)
   const clipImportContext = useRef<object>({})
@@ -646,6 +658,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function setActivePageIndex(pageIndex: number, sourceProject: CutProject = project) {
+    // Scrolling a preview must not create history or invalidate its source.
+    if (actionCellTransferPlan) return
     const page = sheetPages[pageIndex]
     if (!page || sourceProject.sheetView.activePageId === page.pageId) return
     commitProject(updateSheetViewState(sourceProject, { activePageId: page.pageId }))
@@ -709,7 +723,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function applyTimingValue(hit: SheetHit | null, rawValue: string, advance = false, sourceProject: CutProject = project): CutProject {
     if (!hit?.paperTrack) return sourceProject
     const value = rawValue.trim()
-    const next = setTimingValueAt(sourceProject, hit, value, activeTextFontSizePx, activeCorrectionLayerId)
+    const next = setTimingValueAt(sourceProject, hit, value, activeTextFontSizePx, activeCorrectionLayerId, timingInputCircles[sheetRoleForHit(hit)])
     commitProject(next.project)
     setTimingEditSession(null)
     const nextHit = advance
@@ -769,6 +783,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleTimingCharacterInput(character: string) {
     if (!selection.hit || activeSheetRevision.protected) return
+    const immediate = !timingEditSessionRef.current && (character === '/' || character === '.')
     setTimingEditSession(current => {
       if (current) return { ...current, value: `${current.value}${character}` }
       const sourceProject = projectRef.current
@@ -778,8 +793,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         target, value: character, originalValue: timingKeyDisplayLabel(sourceProject, selection.keyId),
         cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId,
         correctionLayerId: activeCorrectionLayerId, fontSizePx: activeTextFontSizePx,
+        circleOnInput: timingInputCircles[sheetRoleForHit(selection.hit!)],
       }
     })
+    if (immediate) commitTimingDraft(true)
   }
 
   useTimingEditOperationBoundaries({
@@ -822,13 +839,31 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     applyTimingValue(hit, marker === 'blank' ? 'x' : marker === 'inbetween' ? '/' : '.', false, sourceProject)
   }
   const handleSetNullAtHit = (hit: SheetHit) => handleSetTimingSpecialAtHit(hit, 'blank')
-  function handleSetTimingReferenceAtHit(hit: SheetHit, enabled: boolean) {
+  function handleSetTimingReferenceAtHit(hit: SheetHit, enabled: boolean | TimingEnclosure) {
     if (!hit.paperTrack || activeSheetRevision.protected || (hit.role !== 'action' && hit.role !== 'cell')) return
     const sourceProject = commitTimingDraft(false)
     const range = isPointEventRangeForUi(rangeSelection) && rangeContainsHit(rangeSelection, hit)
       ? { ...rangeSelection, paperTracks: rangePaperTracks(rangeSelection) }
       : { role: hit.role, paperTracks: [hit.paperTrack], frameStart: hit.frame, frameEnd: hit.frame }
     commitProject(setTimingReferenceRange(sourceProject, range, enabled))
+  }
+  function handleToggleTimingInputCircle(hit: SheetHit) {
+    if (hit.role !== 'action' && hit.role !== 'cell') return
+    commitTimingDraft(false)
+    const next = { ...timingInputCircles, [hit.role]: !timingInputCircles[hit.role] }
+    setTimingInputCircles(next)
+    saveTimingInputCircles(next)
+  }
+  function handleOpenActionCellTransfer(tracks?: string[]) {
+    if (activeSheetRevision.protected) return
+    commitTimingDraft(false)
+    const source = projectRef.current
+    setActionCellTransferPlan(buildActionCellTransferPlan(source, tracks))
+  }
+  function handleApplyActionCellTransfer() {
+    if (!actionCellTransferPlan || activeSheetRevision.protected) return
+    const next = applyActionCellTransferPlan(projectRef.current, actionCellTransferPlan)
+    if (commitProject(next)) setActionCellTransferPlan(null)
   }
   function handleDeleteEventAtHit(hit: SheetHit) {
     if (!hit.paperTrack) return
@@ -2256,6 +2291,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isCompositionKey(event)) return
+      if (actionCellTransferPlan) {
+        if (event.key === 'Escape') { event.preventDefault(); setActionCellTransferPlan(null) }
+        return
+      }
       const keyboardOwner = resolveWorkspaceKeyboardOwner(event.target, workspaceFocusOwner)
       if (keyboardOwner === 'ignore') return
       if (handleWorkspaceKeyboardBoundary(event, keyboardOwner, { undo: handleUndo, redo: handleRedo })) return
@@ -2313,7 +2352,9 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         }
         if (selection.hit?.paperTrack && isTimingValueCharacter(event.key)) {
           event.preventDefault()
-          handleTimingCharacterInput(event.key)
+          const character = !timingEditSessionRef.current && event.code === 'NumpadDecimal' && event.key === ',' ? '.' : event.key
+          if (event.repeat && !timingEditSessionRef.current && (character === '/' || character === '.')) return
+          handleTimingCharacterInput(character)
           return
         }
         if (event.key === 'Enter' && selection.hit?.paperTrack) {
@@ -2415,6 +2456,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
+    timingInputCircles, handleToggleTimingInputCircle, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

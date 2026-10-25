@@ -31,7 +31,7 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
   return (project: CutProject, paperTrack: string, frame: number, item: ClipboardItem): CutProject => {
     project = setTimingReferenceAt(project, paperTrack, frame, targetRole, false)
     // An empty marked cell carries notation without introducing a timing event.
-    const withReference = (next: CutProject) => item.reference ? setTimingReferenceAt(next, paperTrack, frame, targetRole, true) : next
+    const withReference = (next: CutProject) => item.reference ? setTimingReferenceAt(next, paperTrack, frame, targetRole, item.reference) : next
     if (item.kind === 'empty') return withReference(clearEvent(project, paperTrack, frame, targetRole))
     const eventOptions = { fontSizePx: item.fontSizePx, source: item.source }
     if (item.kind !== 'key') return setTimingSpecialEvent(project, paperTrack, frame, item.kind, targetRole, eventOptions)
@@ -96,6 +96,12 @@ function reusableClipboardKey(project: CutProject, role: SheetTimingRole, paperT
 function createClipboardKey(project: CutProject, role: SheetTimingRole, paperTrack: string, item: ClipboardItem): { project: CutProject; key: TimingKey } {
   const label = item.displayLabel ?? ''
   const created = createKey(project, paperTrack, label.trim() ? label : undefined, item.createdFrom ?? 'manual', item.paperToken, role)
+  if (item.requiresExplicitBinding) {
+    const projectWithPolicy = { ...created.project, logicalSheet: { ...created.project.logicalSheet,
+      keys: created.project.logicalSheet.keys.map(key => key.keyId === created.key.keyId ? { ...key, requiresExplicitBinding: true } : key) } }
+    created.project = projectWithPolicy
+    created.key = projectWithPolicy.logicalSheet.keys.find(key => key.keyId === created.key.keyId)!
+  }
   if (created.key.displayLabel === label && (created.key.paperToken ?? '') === (item.paperToken ?? '')) return created
   const updated = updateKey(created.project, created.key.keyId, { displayLabel: label, paperToken: item.paperToken })
   return { project: updated, key: updated.logicalSheet.keys.find(key => key.keyId === created.key.keyId) ?? created.key }

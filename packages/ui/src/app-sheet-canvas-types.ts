@@ -36,6 +36,7 @@ export type SheetCanvasProps = {
   showBaseProcessReference?: boolean
   project: CutProject
   referenceProject: CutProject | null
+  actionCellTransferGhost?: CutProject | null
   referenceOpacity: number
   template: SheetTemplate
   projectCuts: CutGroupProjectDocument['cuts']
@@ -98,7 +99,10 @@ export type SheetCanvasProps = {
   onCameraCueTransform: (cueId: string, updates: CameraCueTransformUpdates) => void
   onSetNullAtHit: (hit: SheetHit) => void
   onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
-  onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean) => void
+  onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean | 'triangle' | 'circle') => void
+  timingInputCircles?: { action: boolean; cell: boolean }
+  onToggleTimingInputCircle?: (hit: SheetHit) => void
+  onOpenActionCellTransfer?: (tracks?: string[]) => void
   onDeleteEventAtHit: (hit: SheetHit) => void
   onCopyRange: () => void
   onCutRange: () => void

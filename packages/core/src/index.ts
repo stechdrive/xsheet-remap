@@ -1,6 +1,7 @@
 export { timingEventIndex, timingKeyIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange } from './timing-index'
-export { timingReferenceAddress, normalizeTimingReferenceMarks, setTimingReferenceAt, setTimingReferenceRange, mapTimingReferenceFrames } from './timing-reference'
-export type { TimingReferenceMark } from './types'
+export { buildActionCellTransferPlan, applyActionCellTransferPlan, type ActionCellTransferPlan, type ActionCellTransferColumn } from './action-cell-transfer'
+export { timingReferenceAddress, timingReferenceMap, normalizeTimingReferenceMarks, setTimingReferenceAt, setTimingReferenceRange, mapTimingReferenceFrames } from './timing-reference'
+export type { TimingReferenceMark, TimingEnclosure } from './types'
 export type { TimingChange } from './timing-index'
 export type { SheetGeometryInput, SheetContentInput } from './project-model'
 export type {

@@ -2,7 +2,16 @@ import type { NormalizedRect } from '@xsheet-remap/core'
 import type { TimingCellTextLayout } from './timingCellTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, type TextMeasurementProvider } from './textMetrics'
 
-export type TimingReferenceGeometry = { points: number[]; strokeWidthPx: number }
+export type TimingReferenceGeometry = { points: number[]; circle?: { cx: number; cy: number; r: number }; strokeWidthPx: number }
+
+/** Keep ordinary typography; the halo lets long labels cross the circle. */
+export function layoutTimingCircle(base: TimingCellTextLayout, rect: NormalizedRect, page: { widthPx: number; heightPx: number }): TimingCellTextLayout {
+  const short = Math.min(rect.w * page.widthPx, rect.h * page.heightPx)
+  return { ...base, outlineWidthPx: Math.min(2.5, Math.max(.8, base.fontSizePx * .14)),
+    reference: { points: [], strokeWidthPx: Math.min(1.5, short * .045), circle: {
+      cx: (rect.x + rect.w / 2) * page.widthPx, cy: (rect.y + rect.h / 2) * page.heightPx, r: short * .47,
+    } } }
+}
 
 /** Fit the enclosure around readable text, allowing its sides behind the text halo. */
 export function layoutTimingReference(

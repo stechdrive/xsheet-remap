@@ -1,6 +1,6 @@
 import { paperTrackDisplayRole, cellRectForHit, createSheetPages, type CutProject, type NormalizedRect, type NormalizedPoint, type PaperTrack, type SheetHit, type SheetPage, type SheetTemplate, type SheetTimingRole, getSheetViewLayout, sheetTimingRoleForEvent, timelineLanesForLayout, timingHitForFrame, globalizeSheetHit, localizeFrameToSheetPage, isSpecialTimingEvent, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameStart, timingEventValueKind } from '@xsheet-remap/core'
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
-import { resolveSheetTemplatePageSize, projectSheetLayoutOptions, timingReferenceAddress } from '@xsheet-remap/core'
+import { resolveSheetTemplatePageSize, projectSheetLayoutOptions, timingReferenceAddress, timingReferenceMap } from '@xsheet-remap/core'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { timingEventsInRange, timingKeyIndex, type TimelineEvent, type TimingKey } from '@xsheet-remap/core'
 import type { SheetContentInput, SheetGeometryInput } from '@xsheet-remap/core'
@@ -27,7 +27,7 @@ export function eventRectsForPages(
   const result = new Map(pages.map(page => [page.pageId, [] as SheetEventRectRenderItem[]]))
   if (pages.length === 0 || project.logicalSheet.events.length === 0) return result
   const pageSize = resolveSheetTemplatePageSize(template, logicalSheetDisplayDurationFrames(project.logicalSheet), projectSheetLayoutOptions(project, template))
-  const references = new Set(project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
+  const references = timingReferenceMap(project.logicalSheet.referenceMarks)
 
   const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
   const timelineLanes = timelineLanesForLayout(project)
@@ -52,8 +52,10 @@ export function eventRectsForPages(
     const key = keyById.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) continue
     const cached = options.cache?.get(event)
-    const reference = references.has(timingReferenceAddress(event)) && !isSpecialTimingEvent(event)
-    if (cached && cached.key === key && Boolean(cached.item.textLayout.reference) === reference && cached.item.hasAssetBinding === assetBoundKeyIds.has(event.keyId)) {
+    const reference = !isSpecialTimingEvent(event) ? references.get(timingReferenceAddress(event)) : undefined
+    const cachedReference = cached?.item.textLayout.reference
+    const cachedShape = cachedReference ? cachedReference.circle ? 'circle' : 'triangle' : undefined
+    if (cached && cached.key === key && cachedShape === reference && cached.item.hasAssetBinding === assetBoundKeyIds.has(event.keyId)) {
       result.get(cached.pageId)?.push(cached.item)
       continue
     }

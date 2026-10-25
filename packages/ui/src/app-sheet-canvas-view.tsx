@@ -5,7 +5,7 @@ import { uiText } from './i18n';
 import { clampTextFontSizePx } from './sheetTextLayout';
 import { getSheetPageImage } from './sheetImages';
 import { rangeRectsForPage } from './sheetInteraction';
-import { rangePaperTracks, sameSheetHitCell } from './timingEditing';
+import { isPointEventRangeForUi, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
 import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay } from './app-sheet-layers';
@@ -34,6 +34,7 @@ import { SheetPlayheadOverlay } from './SheetPlayheadOverlay'
 import { SheetTimingEventLayer } from './SheetTimingEventLayer'
 import { SheetTimingDragPreview, TimingDragStatus } from './SheetTimingDragPreview'
 import type { SheetInputTextRenderItem } from './sheetRenderModel'
+import { SheetActionCellTransferGhost } from './SheetActionCellTransferGhost'
 
 const EMPTY_REFERENCE_ITEMS: SheetInputTextRenderItem[] = []
 
@@ -193,7 +194,11 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
       data-workspace-keyboard-scope="sheet"
       data-input-modality={props.touchInputActive ? 'touch' : undefined}
       data-touch-range-selection={props.touchRangeSelectionMode ? 'true' : undefined}
-      onPointerDownCapture={handlePointerDownCapture}
+      data-transfer-preview={props.actionCellTransferGhost ? 'true' : undefined}
+      onContextMenuCapture={props.actionCellTransferGhost ? event => { event.preventDefault(); event.stopPropagation() } : undefined}
+      onClickCapture={props.actionCellTransferGhost ? event => event.stopPropagation() : undefined}
+      onDoubleClickCapture={props.actionCellTransferGhost ? event => event.stopPropagation() : undefined}
+      onPointerDownCapture={props.actionCellTransferGhost ? event => event.stopPropagation() : handlePointerDownCapture}
       onPointerMoveCapture={handlePointerMoveCapture}
       onPointerUpCapture={handlePointerUpCapture}
       onPointerCancelCapture={handlePointerCancelCapture}
@@ -505,6 +510,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                 </svg>
                 <svg className="sheetTransientOverlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+                  {props.actionCellTransferGhost && <SheetActionCellTransferGhost project={props.actionCellTransferGhost}
+                    context={sheetRenderModelContext} page={page} activeOverlayPaperTrack={activeOverlayPaperTrack} />}
                   {selectedRect && props.timingDraftActive && (
                     <g className="timingDraftOverlay" aria-label={`入力中: ${props.timingDraftValue}`}>
                       <rect className="timingDraftRect" x={selectedRect.x} y={selectedRect.y} width={selectedRect.w} height={selectedRect.h} />
@@ -738,7 +745,12 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'inbetween'))}>{uiText.actions.setInbetween}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'reverse'))}>{uiText.actions.setReverseSheet}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, true))}>参考記号を付加（△）</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, false))}>参考記号を解除</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, 'circle'))}>丸囲みを付加（○）</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, false))}>囲み（○・△）を解除</button>
+              <button role="menuitemcheckbox" aria-checked={Boolean(props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'])}
+                onClick={() => runContextMenuAction(() => props.onToggleTimingInputCircle?.(contextMenu.hit as SheetHit))}>
+                {props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'] ? '✓ ' : ''}記入時に○を付ける</button>
+              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenActionCellTransfer?.(contextMenu.transferTracks))}>ACTION→CELLに自動採番して転記…</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
           )}
@@ -797,6 +809,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             onCopyJapanese={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
             onCopyEnglish={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
           />
+          <button role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onOpenActionCellTransfer?.(
+            props.rangeSelection && isPointEventRangeForUi(props.rangeSelection) ? rangePaperTracks(props.rangeSelection) : [paperTrackHeaderMenu.hit.paperTrack!],
+          ))}>ACTION→CELLに自動採番して転記…</button>
           {columnAddItems}
         </SheetContextMenu>
       )}

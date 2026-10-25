@@ -5,12 +5,14 @@ import type { ClipRegistrationPlan, ClipTimeline } from './clip-export'
 import { type CutGroupProjectDocument, type SheetTimingRole } from './types'
 import { sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 import { timingForProcess } from './process-timing'
+import { assertExplicitClipRegistrations } from './clip-registration-validation'
 
 export function buildClipDocumentPlan(document: CutGroupProjectDocument, role: SheetTimingRole, cutIds?: string[]): ClipRegistrationPlan {
   const state = document.clipDocument!
   const folders = state.nodes.filter(node => node.kind === 'animation').map(node => ({ id: node.id, name: node.name, path: [], cels: clipChildren(state, node.id).map(cel => ({ name: cel.name, assetId: cel.assetId })) }))
   const timelines: ClipTimeline[] = document.cuts.filter(cut => !cutIds || cutIds.includes(cut.cutId)).map(cut => {
     const project = activeCutProjectFromDocument({ ...document, activeCutId: cut.cutId })
+    assertExplicitClipRegistrations(project, role)
     if (project.logicalSheet.processTimings) for (const process of project.correctionLayers) {
       for (const event of timingForProcess(project.logicalSheet, process.layerId).events.filter(event => sheetTimingRoleForEvent(event) === role)) {
         const slot = project.cspTrackSlots.find(slot => slot.paperTrack === event.paperTrack && slot.correctionLayerId === process.layerId)

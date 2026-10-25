@@ -150,6 +150,8 @@ export interface SheetContextMenuState {
   x: number
   y: number
   hit: SheetHit | null
+  /** Selection before opening the menu; a right-click alone does not restrict transfer. */
+  transferTracks?: string[]
   timelineMemoIds?: string[]
   snapIndex?: number
   sheetRole?: SheetTimingRole

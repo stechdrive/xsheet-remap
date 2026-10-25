@@ -1,6 +1,7 @@
 import {
   paperTrackDisplayRole, timingEventIndex, timingGroupKey, timingFrameLowerBound, timingEventsInRange, timingKeyIndex,
   timingReferenceAddress,
+  timingReferenceMap,
   cellRectForHit,
   createSheetPages,
   formatSheetTemplateCutNumber,
@@ -264,7 +265,7 @@ export function workRangeShadeRenderItemsForPage(
 
 export function inputTextRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {
   const keys = timingKeyIndex(context.project.logicalSheet.keys)
-  const references = new Set(context.project.logicalSheet.referenceMarks?.map(timingReferenceAddress))
+  const references = timingReferenceMap(context.project.logicalSheet.referenceMarks)
   return timingEventsInRange(context.project.logicalSheet.events, page.frameStart, page.frameEnd).flatMap(event => {
     if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) return []
     const key = keys.get(event.keyId)
@@ -287,7 +288,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       kind,
       text,
       fontSizePx,
-      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' && references.has(timingReferenceAddress(event))),
+      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' ? references.get(timingReferenceAddress(event)) : false),
       rect,
     }]
   })
@@ -304,7 +305,7 @@ export function referenceOnlyRenderItemsForPage(context: SheetRenderModelContext
     const fontSizePx = resolveTimingTextFontSizePx(context.template, mark.sheetRole, undefined)
     return [{ eventId: `reference:${timingReferenceAddress(mark)}`, keyId: '', paperTrack: mark.paperTrack, frame: mark.frame, sheetRole: mark.sheetRole,
       kind: 'cell' as const, text: '', fontSizePx, rect,
-      textLayout: layoutTimingCellText('', fontSizePx, defaultTimingTextMinFontSizePx(context.template, mark.sheetRole), rect, context.pageSize, undefined, true) }]
+      textLayout: layoutTimingCellText('', fontSizePx, defaultTimingTextMinFontSizePx(context.template, mark.sheetRole), rect, context.pageSize, undefined, mark.shape ?? 'triangle') }]
   })
 }
 

@@ -2,6 +2,7 @@ import type { SheetTemplate, SheetTemplateUnderlayPlacement } from '@xsheet-rema
 import { useMemo } from 'react'
 import { CanvasKitModelLayer } from './CanvasKitModelLayer'
 import { gridOverlayPaperModel, templateChromePaperModel } from './canvasKitTemplateModel'
+import { SheetBrandingLayer } from './SheetBrandingLayer'
 import { defaultLevelCorrectionSettings, normalizeLevelCorrectionSettings } from './levelCorrection'
 import { LevelCorrectionFilterDefinition } from './LevelCorrectionFilter'
 import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCorrectionFilterModel'
@@ -88,6 +89,7 @@ export function TemplateChromeLayer({
   const directModel = useMemo(() => templateChromePaperModel(model, showLines, showLabels), [model, showLines, showLabels])
   return (
     <CanvasKitModelLayer className="templateChrome" ariaHidden model={directModel} fallback={() => <>
+      {showLabels && model.branding && <SheetBrandingLayer model={model.branding} pageSize={model.pageSize} />}
       {showLines && model.showOuterFrame && <rect className="templateOuterFrame" style={{ stroke: model.theme.ink.lines.outer }} x="0.02" y="0.019" width="0.96" height="0.952" />}
       {showLines && <g>
         {model.referenceRegions.map(region => (

@@ -20,6 +20,18 @@ export function templateChromePaperModel(model: TemplateChromeRenderModel, showL
     column: { tag: 'text', className: 'templateColumnText', style: { fill: model.theme.ink.text } },
   }
   const primitives: PaperPrimitive[] = []
+  if (showLabels && model.branding) {
+    const { qrRect, qrPath, name } = model.branding
+    styles.brandingWhite = { tag: 'rect', className: 'sheetBrandingPaper', style: { fill: '#fff', stroke: 'none' } }
+    styles.brandingBlack = { tag: 'path', className: 'sheetBrandingQr', style: { fill: '#000', stroke: 'none' } }
+    styles.brandingName = { tag: 'text', className: 'sheetBrandingName', style: { fill: name.color } }
+    primitives.push(
+      { style: 'brandingWhite', shape: rect(qrRect) },
+      { style: 'brandingBlack', shape: { kind: 'path', d: qrPath } },
+      { style: 'brandingName', text: { value: name.text, x: name.x, y: name.y, size: name.fontSizePx,
+        weight: 400, anchor: 'end', baseline: 'alphabetic' } },
+    )
+  }
   if (showLines) {
     if (model.showOuterFrame) primitives.push({ style: 'outer', shape: rect({ x: 0.02, y: 0.019, w: 0.96, h: 0.952 }) })
     for (const region of model.referenceRegions) primitives.push({ style: 'reference', shape: rect(region.rect) })

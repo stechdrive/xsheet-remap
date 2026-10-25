@@ -1812,7 +1812,21 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
 
   function handleUpdatePaperTrack(paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) {
     try {
-      commitProject(updatePaperTrack(project, paperTrack, updates))
+      const next = updatePaperTrack(commitTimingDraft(false), paperTrack, updates)
+      if (!commitProject(next)) return
+      const nextName = updates.paperTrack?.trim()
+      if (!nextName || nextName === paperTrack) return
+      const renamedHit = (hit: SheetHit) => hit.paperTrack === paperTrack
+        ? projectTimingHitForFrame(template, next, sheetRoleForHit(hit), nextName, hit.frame)
+        : hit
+      if (isPointEventRange(rangeSelection) && rangePaperTracks(rangeSelection).includes(paperTrack)) {
+        const anchorHit = renamedHit(rangeSelection.anchorHit), focusHit = renamedHit(rangeSelection.focusHit)
+        const range = anchorHit && focusHit && rangeSelectionFromHits(template, anchorHit, focusHit, paperTrackOrderForRole(next, rangeSelection.role, template))
+        if (range) setSelectionFromRange(range, next)
+      } else if (selection.hit?.paperTrack === paperTrack) {
+        const hit = renamedHit(selection.hit)
+        if (hit) setSelectionFromHit(hit, next)
+      }
     } catch (error) {
       window.alert(errorMessage(error))
     }

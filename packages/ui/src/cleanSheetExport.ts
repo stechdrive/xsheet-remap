@@ -555,6 +555,25 @@ function drawTemplateGridHeaderLabels(
   chrome: ReturnType<typeof buildTemplateChromeRenderModel>,
   offsetY: number,
 ) {
+  if (chrome.branding) {
+    const { qrRect, qrPath, name } = chrome.branding
+    ctx.save()
+    ctx.translate(0, offsetY)
+    ctx.scale(context.pageSize.widthPx, context.pageSize.heightPx)
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(qrRect.x, qrRect.y, qrRect.w, qrRect.h)
+    ctx.fillStyle = '#000'
+    ctx.fill(new Path2D(qrPath))
+    ctx.restore()
+    ctx.save()
+    ctx.fillStyle = name.color
+    ctx.font = fontDeclaration(name.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, 400)
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'alphabetic'
+    drawExportLabel(context, ctx, name.text, name.x * context.pageSize.widthPx,
+      offsetY + name.y * context.pageSize.heightPx, name.fontSizePx, 400, offsetY, ['アプリ名'])
+    ctx.restore()
+  }
   ctx.fillStyle = chrome.theme.ink.text
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'

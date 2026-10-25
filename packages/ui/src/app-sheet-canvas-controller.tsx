@@ -1901,6 +1901,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         if (target) setStackGuideHeaderMenu({ ...target, x: clientX, y: clientY })
       } else if (headerHit.paperTrack) {
         const sheetRole = sheetRoleForHit(headerHit)
+        selectPaperTrackColumn(headerHit)
         setPaperTrackHeaderMenu({ x: clientX, y: clientY, hit: headerHit, sheetRole,
           snapIndex: overlaySnapIndexFromPoint(props.template, props.project, point, sheetRole) })
       }

@@ -71,7 +71,7 @@ function selectTemplateInspector(sectionId: string) {
 describe('App: workspace and template', () => {
 it('renders the main workspace shell', () => {
     render(<App />)
-    expect(screen.getByText('xsheet-remap')).toBeTruthy()
+    expect(screen.getByText('xsheet-remap', { selector: '.topBar strong' })).toBeTruthy()
     const appNavigationMenu = openAppNavigationMenu()
     expect(within(appNavigationMenu).getByText(`xsheet-remap v${APP_VERSION}`)).toBeTruthy()
     expect(within(appNavigationMenu).getByRole('button', { name: uiText.nav.sheet })).toBeTruthy()
@@ -277,7 +277,7 @@ it('validates and applies a sheet template loaded from the import menu', async (
 
 it('provides CSP mapping and template authoring in the unified Remap shell', () => {
     render(<RemapApp />)
-    expect(screen.getByText('xsheet-remap')).toBeTruthy()
+    expect(screen.getByText('xsheet-remap', { selector: '.topBar strong' })).toBeTruthy()
     expect(screen.queryByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'CLIP組み立て' }))
     expect(screen.getByRole('tree', { name: 'CLIPレイヤーツリー' })).toBeTruthy()

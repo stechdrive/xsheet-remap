@@ -11,7 +11,7 @@ export function buildTemplateRegionsPreview(template: SheetTemplate, regionIds: 
   return {
     calibrationTargetRect: null,
     chrome: {
-      ...base.chrome, showOuterFrame: false,
+      ...base.chrome, showOuterFrame: false, branding: null,
       referenceRegions: models.flatMap(model => model.chrome.referenceRegions),
       headers: models.flatMap(model => model.chrome.headers),
       formBoxes: models.flatMap(model => model.chrome.formBoxes),

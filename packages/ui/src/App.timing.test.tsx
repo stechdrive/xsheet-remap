@@ -295,6 +295,7 @@ it('cancels BG/BOOK insertion mode before creating a label', async () => {
     await waitFor(() => expect(document.querySelectorAll('.stackGuideGap.insertToolActive')).toHaveLength(1))
     expect(screen.queryByLabelText(uiText.stackGuides.inputLabel)).toBeNull()
 
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('group', { name: 'BG/BOOKの挿入位置を選択' })))
     fireEvent.pointerDown(document.body)
 
     await waitFor(() => expect(document.querySelector('.stackGuideGap.insertToolActive')).toBeNull())

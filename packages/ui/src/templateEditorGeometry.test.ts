@@ -89,6 +89,7 @@ describe('template editor geometry', () => {
         expect(active).not.toBeNull()
         expect(active?.chrome).toEqual({
           ...full.chrome,
+          branding: null,
           showOuterFrame: false,
           referenceRegions: full.chrome.referenceRegions.filter(item => item.regionId === region.regionId),
           headers: full.chrome.headers.filter(item => item.regionId === region.regionId),

@@ -29,6 +29,7 @@ import { gridRoleLabel } from './templateEditing'
 import { columnLabelLayout } from './columnLabelLayout'
 import { sheetGridHeaderGeometry } from './sheetGridHeaderGeometry'
 import { resolveTemplateFormCellMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
+import { buildSheetTemplateBranding, reserveSheetBrandingSpace, type SheetTemplateBranding } from './sheetTemplateBranding'
 
 export type TemplateGridHeaderColumnRenderModel = {
   columnId: string
@@ -100,6 +101,7 @@ export type TemplateReferenceRegionRenderModel = {
 }
 
 export type TemplateChromeRenderModel = {
+  branding: SheetTemplateBranding | null
   pageSize: SheetSvgPageSize
   theme: SheetTemplateTheme
   showOuterFrame: boolean
@@ -333,6 +335,7 @@ export function buildTemplateEditorRegionRenderModel(
   const form = buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions)
   return {
     chrome: {
+      branding: null,
       pageSize: resolveSheetTemplatePageSize(template, durationFrames, resolveOptions),
       theme: template.theme,
       showOuterFrame: false,
@@ -366,6 +369,7 @@ export function buildTemplateChromeRenderModel(
   const forms = template.regions.map(region => buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions))
   return {
     pageSize,
+    branding: buildSheetTemplateBranding(template, pageSize),
     theme: template.theme,
     showOuterFrame: template.templateKind !== 'digital-native' && template.style?.outerFrame?.visible !== false,
     referenceRegions: template.regions
@@ -401,8 +405,9 @@ export function buildTemplateFormRenderModels(
   const form = region.form
   const capabilities = resolveSheetTemplateRegionCapabilities(region)
   if (!form || !capabilities.rendersForm) return { boxes: [], labels: [], fields: [], annotationTargets: [] }
-  const regionRect = resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks })
   const pageSize = resolveSheetTemplatePageSize(template, durationFrames, { ...options, paperTracks })
+  const regionRect = reserveSheetBrandingSpace(template, region.regionId,
+    resolveSheetTemplateRegionRect(template, region, durationFrames, { ...options, paperTracks }), pageSize)
   const borderStyle = normalizeTemplateLineStyle(form.borderStyle, template.theme)
   const cells = form.projection
     ? projectedTrackCountCells(template, region.regionId, form.projection, paperTracks)

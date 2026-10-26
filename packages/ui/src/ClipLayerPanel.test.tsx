@@ -12,7 +12,8 @@ function setup(locked = false, extras: ClipLayerNode[] = []) {
   const folder = createClipNode('素材', 'folder', null, 'materials')
   const first = { ...createClipNode('first', 'raster', folder.id, 'first'), locked }
   const second = createClipNode('second', 'raster', folder.id, 'second')
-  let current = addClipLayers(ensureClipDocument(createDefaultProject()), [folder, first, second, ...extras])
+  let current = addClipLayers(ensureClipDocument(createDefaultProject()), [folder, first, second])
+  current = { ...current, clipDocument: { ...current.clipDocument!, nodes: [...current.clipDocument!.nodes, ...extras] } }
   const changes = vi.fn(), files = vi.fn()
   function Harness() {
     const [project, setProject] = useState(current)
@@ -24,6 +25,31 @@ function setup(locked = false, extras: ClipLayerNode[] = []) {
 }
 
 describe('CSP-style layer palette controls', () => {
+  it('offers folder-wide name sorting from a cel or its inner layer, but not from ordinary materials', () => {
+    const { row, project, changes } = setup(false, [createClipNode('A', 'animation', null, 'animation'),
+      createClipNode('10', 'folder', 'animation', 'ten'), createClipNode('色', 'raster', 'ten', 'color'), createClipNode('2', 'raster', 'animation', 'two')])
+    fireEvent.click(row('materials')); fireEvent.click(screen.getByLabelText('レイヤーメニュー'))
+    expect(screen.queryByRole('button', { name: '上から昇順（1→2→10）' })).toBeNull()
+    fireEvent.click(row('color'))
+    expect(screen.getByText('「A」のセル名で並べ替え')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '上から昇順（1→2→10）' }))
+    expect(project().clipDocument!.nodes.filter(node => node.parentId === 'animation').map(node => node.id)).toEqual(['two', 'ten'])
+    expect(project().clipDocument!.nodes.find(node => node.id === 'color')?.parentId).toBe('ten')
+    fireEvent.click(screen.getByRole('button', { name: '上から昇順（1→2→10）' }))
+    expect(changes).toHaveBeenCalledTimes(1)
+    fireEvent.click(row('two'))
+    fireEvent.click(screen.getByRole('button', { name: '上から降順（10→2→1）' }))
+    expect(project().clipDocument!.nodes.filter(node => node.parentId === 'animation').map(node => node.id)).toEqual(['ten', 'two'])
+  })
+  it.each(['folder', 'cel'])('disables name sorting when the %s is protected', protection => {
+    const { row, changes } = setup(false, [{ ...createClipNode('A', 'animation', null, 'animation'), locked: protection === 'folder' },
+      { ...createClipNode('2', 'raster', 'animation', 'two'), locked: protection === 'cel' }, createClipNode('1', 'raster', 'animation', 'one')])
+    fireEvent.click(row('animation')); fireEvent.click(screen.getByLabelText('レイヤーメニュー'))
+    const button = screen.getByRole('button', { name: '上から昇順（1→2→10）' }) as HTMLButtonElement
+    expect(button.closest('fieldset')?.disabled).toBe(true)
+    expect(changes).not.toHaveBeenCalled()
+  })
+
   it('respects imported folder disclosure independently of visibility and keeps user disclosure across edits', () => {
     const folder = { ...createClipNode('閉じたフォルダー', 'folder', null, 'closed'), expanded: false }
     const child = createClipNode('内側', 'raster', folder.id, 'child')

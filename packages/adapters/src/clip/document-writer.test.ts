@@ -11,7 +11,7 @@ import { readLayerPixels } from './layers'
 import { readClipLayerPreview } from './preview'
 import { ensureTrackLabelStorage } from './track-labels'
 import { addClipImages, addOverlayPaperTrack, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
-import { remapClipTracks, selectTimingProcess, suggestClipProcessColumns } from '@xsheet-remap/core'
+import { remapClipTracks, selectTimingProcess, sortClipCelsByName, suggestClipProcessColumns } from '@xsheet-remap/core'
 
 const require = createRequire(import.meta.url)
 const seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
@@ -32,6 +32,30 @@ function save(document: CutGroupProjectDocument, images = {}) { return writeClip
 function change(document: CutGroupProjectDocument, fn: (project: ReturnType<typeof activeCutProjectFromDocument>) => ReturnType<typeof activeCutProjectFromDocument>) { return updateActiveCutProjectInDocument(document, fn(activeCutProjectFromDocument(document))) }
 
 describe('editable CLIP document preservation', () => {
+  it('writes natural cel order without changing source pixels, bindings or any timeline, and retains it on reopen', async () => {
+    const { original, document, folder, data } = await setup()
+    const withTen = change(document, project => addClipLayers(project, [createClipNode('010', 'folder', folder.id, 'ten'),
+      createClipNode('線', 'raster', 'ten', 'line'), createClipNode('色', 'raster', 'ten', 'color')]))
+    const sorted = change(withTen, project => sortClipCelsByName(project, folder.id, 'descending'))
+    const result = await save(sorted), parsed = await readClip(SQL, result.bytes, 'sorted.clip')
+    expect(parsed.layers!.filter(node => node.parentId === folder.id).map(node => node.name)).toEqual(['010', '002', '001'])
+    const ten = parsed.layers!.find(node => node.name === '010')!
+    expect(parsed.layers!.filter(node => node.parentId === ten.id).map(node => node.name)).toEqual(['線', '色'])
+    expect(parsed.timelines).toEqual(data.timelines)
+    const before = new ClipContainer(SQL, original.bytes), after = new ClipContainer(SQL, result.bytes)
+    try {
+      expect(after.rows('Track')).toEqual(before.rows('Track'))
+      const raster = before.rows('Layer').find(row => row.LayerName === '001')!
+      expect(readLayerPixels(after, after.row('Layer', raster.MainId))).toEqual(readLayerPixels(before, raster))
+    } finally { before.close(); after.close() }
+    const reopened = openClipDocument(parsed, clipSourceDataUrl(result.bytes), { role: 'action', timelineIds: [parsed.timelines[0].id], columns: [{ layerId: folder.id, name: 'A' }] })
+    expect((await save(reopened)).bytes).toEqual(result.bytes)
+    const ascending = await save(change(reopened, project => sortClipCelsByName(project, folder.id, 'ascending')))
+    const asc = await readClip(SQL, ascending.bytes, 'ascending.clip')
+    expect(asc.layers!.filter(node => node.parentId === folder.id).map(node => node.name)).toEqual(['001', '002', '010'])
+    expect(asc.timelines).toEqual(data.timelines)
+  })
+
   it('writes only assigned correction images on the common sheet and reopens their sparse exposures', async () => {
     let project = ensureClipDocument(createDefaultProject())
     const base = project.correctionLayers[0].layerId, correction = project.correctionLayers[1].layerId
@@ -40,6 +64,8 @@ describe('editable CLIP document preservation', () => {
     project = { ...project, clipDocument: { ...project.clipDocument!, canvas } }
     const result = await save(createProjectDocumentFromCutProject(project), { red: pixels })
     const data = await readClip(SQL, result.bytes, 'sparse.clip')
+    const baseFolder = clipImportFolders(data.nodes).find(folder => folder.name === 'A' && folder.path.includes('作画'))!
+    expect(data.layers!.filter(node => node.parentId === baseFolder.id).map(node => node.name)).toEqual(['scan-3', 'scan-2', 'scan-1'])
     const folder = clipImportFolders(data.nodes).find(folder => folder.name === 'A' && folder.path.includes('演出'))!
     expect(data.layers!.filter(node => node.parentId === folder.id).map(node => node.name)).toEqual(['fix'])
     expect(data.timelines[0].tracks.find(track => track.layerId === folder.id)!.frames).toEqual([{ frame: 0, value: null }, { frame: 4, value: 'fix' }, { frame: 8, value: null }])

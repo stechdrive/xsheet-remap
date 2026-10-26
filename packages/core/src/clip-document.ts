@@ -72,6 +72,34 @@ export function clipChildren(document: ClipDocumentState, parentId: string | nul
   return document.nodes.filter(node => node.parentId === parentId)
 }
 
+/** Add only the new sibling; imported and manually arranged nodes retain order. */
+function withTopClipNode(nodes: ClipLayerNode[], node: ClipLayerNode): ClipLayerNode[] {
+  const first = nodes.findIndex(item => item.parentId === node.parentId)
+  const index = first < 0 ? nodes.length : first
+  return [...nodes.slice(0, index), node, ...nodes.slice(index)]
+}
+
+const celNameCollator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' })
+export type ClipCelSortDirection = 'ascending' | 'descending'
+
+/** Sort direct cels as units. Equal names keep their order in both directions,
+ * preserving CSP's bottommost-name resolution and each cel's internal stack.
+ */
+export function sortClipCelsByName(project: CutProject, folderId: string, direction: ClipCelSortDirection): CutProject {
+  const document = project.clipDocument
+  if (!document || document.nodes.find(node => node.id === folderId)?.kind !== 'animation') throw new Error('アニメーションフォルダーを選択してください。')
+  requireEditableParent(document, folderId)
+  const cels = clipChildren(document, folderId).filter(node => node.kind !== 'audio' && node.kind !== 'video')
+  if (cels.some(node => node.locked)) throw new Error('保護されたセルを含むため並べ替えできません。')
+  const sign = direction === 'ascending' ? 1 : -1
+  const sorted = [...cels].sort((a, b) => sign * celNameCollator.compare(a.name, b.name))
+  if (sorted.every((node, index) => node === cels[index])) return project
+  const ids = new Set(cels.map(node => node.id))
+  let index = 0
+  const nodes = document.nodes.map(node => ids.has(node.id) ? sorted[index++] : node)
+  return { ...project, clipDocument: { ...document, nodes } }
+}
+
 export function clipEffectiveCel(document: ClipDocumentState, folderId: string, name: string): ClipLayerNode | undefined {
   return clipChildren(document, folderId).reverse().find(node => node.name === name)
 }
@@ -105,7 +133,8 @@ const defaultProcessLabelColors: Record<string, string> = {
 /** Upgrade legacy registration without discarding unused cels or static material. */
 export function ensureClipDocument(project: CutProject): CutProject {
   if (project.clipDocument) return project
-  const nodes: ClipLayerNode[] = [], targets: ClipLayerTarget[] = []
+  let nodes: ClipLayerNode[] = []
+  const targets: ClipLayerTarget[] = []
   for (const stage of [...project.productionStages].sort((a, b) => b.order - a.order)) {
     nodes.push(createClipNode(stage.label, 'folder', null, `stage:${stage.stageId}`))
     for (const process of project.correctionLayers.filter(item => item.stageId === stage.stageId).sort((a, b) => b.order - a.order)) {
@@ -118,7 +147,7 @@ export function ensureClipDocument(project: CutProject): CutProject {
         targets.push({ slotId: slot.slotId, folderId })
         for (const binding of project.bindings.filter(item => item.slotId === slot.slotId)) {
           if (!nodes.some(node => node.parentId === folderId && node.name === binding.cspCellName)) {
-            nodes.push({ ...createClipNode(binding.cspCellName, 'raster', folderId, `binding:${binding.bindingId}`), assetId: binding.assetId })
+            nodes = withTopClipNode(nodes, { ...createClipNode(binding.cspCellName, 'raster', folderId, `binding:${binding.bindingId}`), assetId: binding.assetId })
           }
         }
       }
@@ -352,14 +381,15 @@ export function addClipImages(project: CutProject, parentId: string | null, imag
   if (sheet && images.length !== 1) throw new Error('シートには画像を1枚ずつ配置してください。複数画像はレイヤーツリーへ追加できます。')
   for (const image of images) {
     const destination = target?.folderId ?? parentId
+    const insertion = sheet ? clipChildren(next.clipDocument!, destination)[0]?.id : beforeId
     const name = image.name.replace(/\.[^.]+$/, '') || '画像'
     let cel = createClipNode(name, target?.cellPath?.length ? 'folder' : 'raster', destination)
     if (target?.cellPath?.length) {
-      next = addClipLayers(next, [cel], beforeId)
+      next = addClipLayers(next, [cel], insertion)
       let parent = cel.id
       for (const path of target.cellPath) { const folder = createClipNode(path, 'folder', parent); next = addClipLayers(next, [folder]); parent = folder.id }
       next = addClipLayers(next, [{ ...createClipNode(name, 'raster', parent), assetId: image.assetId, imageDataUrl: image.imageDataUrl }])
-    } else { cel = { ...cel, assetId: image.assetId, imageDataUrl: image.imageDataUrl }; next = addClipLayers(next, [cel], beforeId) }
+    } else { cel = { ...cel, assetId: image.assetId, imageDataUrl: image.imageDataUrl }; next = addClipLayers(next, [cel], insertion) }
     if (sheet) next = sheet.keyId
       ? assignClipCelToKey(next, cel.id, sheet.keyId, sheet.processId)
       : bindClipCel(next, cel.id, sheet.paperTrack, sheet.frame, sheet.role, sheet.processId, sheet.newKey)
@@ -380,7 +410,7 @@ export function synchronizeClipBindings(project: CutProject): CutProject {
     if (!node) {
       if (document.source && project.logicalSheet.keys.find(key => key.keyId === binding.keyId)?.createdFrom === 'import') return binding
       node = { ...createClipNode(binding.cspCellName, 'raster', target.folderId, `binding:${binding.bindingId}`), assetId: binding.assetId }
-      document = { ...document, nodes: [...document.nodes, node] }
+      document = { ...document, nodes: withTopClipNode(document.nodes, node) }
     } else if (!node.sourceLayerId && binding.assetId && binding.assetId !== node.assetId) {
       node = { ...node, assetId: binding.assetId }; document = { ...document, nodes: document.nodes.map(item => item.id === node!.id ? node! : item) }
     }

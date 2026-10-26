@@ -2,7 +2,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-l
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RemapApp } from './App'
 import { clipImageDataUrl } from './clipImageImport'
-import { dragInternalPointer, openAppNavigationMenu, setSheetRect, templateFramePoint } from './App.test-support'
+import { clickTemplateFrame, dragInternalPointer, enterTimingValue, openAppNavigationMenu, setSheetRect, templateFramePoint } from './App.test-support'
 import { uiText } from './i18n'
 import { dispatchInternalDrag } from './internalDrag'
 import { browserFileForObjectUrl } from '@xsheet-remap/adapters'
@@ -23,6 +23,29 @@ const file = (name: string) => new File(['pixels'], name, { type: 'image/png' })
 const layer = (name: string) => Array.from(document.querySelectorAll<HTMLElement>('.clipLayerRow')).find(row => row.querySelector('.clipLayerName')?.textContent === name)
 
 describe('Remap CLIP layer workspace', () => {
+  it('stacks sheet-created cels at the top and sorts the folder with one Undo without changing sheet exposures', () => {
+    const { sheet, folder } = setup()
+    const names = () => Array.from(document.querySelectorAll('[data-clip-layer-id^="binding:"][data-clip-layer-parent="slot:slot_A"] .clipLayerName'), node => node.textContent)
+    for (const [frame, name] of [[1, '1'], [9, '10'], [5, '2'], [13, '1']] as const) {
+      clickTemplateFrame(sheet, 'cell', 'A', frame); enterTimingValue(name)
+    }
+    expect(names()).toEqual(['2', '10', '1'])
+    const exposures = () => Array.from(document.querySelectorAll('[data-timeline-event-role="cell"]'), node => [node.getAttribute('data-timeline-event-frame'), node.querySelector('.eventText')?.textContent])
+    const before = exposures()
+    fireEvent.click(folder)
+    fireEvent.click(screen.getByLabelText('レイヤーメニュー'))
+    fireEvent.click(screen.getByRole('button', { name: '上から昇順（1→2→10）' }))
+    expect(names()).toEqual(['1', '2', '10'])
+    expect(exposures()).toEqual(before)
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+    expect(names()).toEqual(['2', '10', '1'])
+    fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+    expect(names()).toEqual(['1', '2', '10'])
+    fireEvent.click(screen.getByRole('button', { name: '上から降順（10→2→1）' }))
+    expect(names()).toEqual(['10', '2', '1'])
+    expect(exposures()).toEqual(before)
+  })
+
   it('rejects oversized image batches before reading or registering any file', async () => {
     const { input } = setup()
     const oversized = file('oversized.png')

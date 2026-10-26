@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, unsetClipTarget, updateClipLayer, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
+import { addClipLayers, allProcessEvents, clipCelRoot, clipEffectiveCel, clipNodePath, createClipNode, deleteClipLayer, moveClipLayer, setClipTarget, sortClipCelsByName, unsetClipTarget, updateClipLayer, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
 import { isTauriHost } from '@xsheet-remap/adapters'
 import { collectAssetFilesFromDrop } from './assetFiles'
 import { createStackGuideLabel } from '@xsheet-remap/core'
@@ -77,10 +77,15 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     for (const node of document.nodes) { const siblings = result.get(node.parentId) ?? []; siblings.push(node); result.set(node.parentId, siblings) }
     return result
   }, [document.nodes])
+  const selectedCel = selected && clipCelRoot(document, selected.id)
+  const sortFolder = selected?.kind === 'animation' ? selected : selectedCel
+    ? document.nodes.find(node => node.kind === 'animation' && node.id === selectedCel.parentId) : undefined
+  const sortCels = sortFolder ? (children.get(sortFolder.id) ?? []).filter(node => node.kind !== 'audio' && node.kind !== 'video') : []
+  const sortDisabled = !sortFolder || sortFolder.locked || sortCels.length < 2 || sortCels.some(node => node.locked)
 
   function apply(action: () => CutProject) {
     if (props.disabled) return false
-    try { props.onChange(action()); setNotice(''); return true } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); return false }
+    try { const next = action(); if (next !== project) props.onChange(next); setNotice(''); return true } catch (error) { setNotice(error instanceof Error ? error.message : String(error)); return false }
   }
 
   function select(node: ClipLayerNode) {
@@ -211,6 +216,11 @@ export function ClipLayerPanel(props: ClipLayerPanelProps) {
     <header className="clipPaletteTitle"><strong>レイヤー</strong><TooltipTarget label={selected ? clipNodePath(document, selected.id) : 'レイヤーを選択'}>{tooltip => <span {...tooltip}>{selected?.name ?? ''}</span>}</TooltipTarget>{selected && <details className="clipLayerMenu"><TooltipTarget label="レイヤーメニュー">{tooltip => <summary {...tooltip} aria-label="レイヤーメニュー">≡</summary>}</TooltipTarget><fieldset className="clipLayerProperties" disabled={props.disabled || selected.locked}>
         <label>名前<input aria-label="選択レイヤー名" key={selected.id + selected.name} defaultValue={selected.name} onBlur={event => { if (event.target.value !== selected.name) apply(() => updateClipLayer(project, selected.id, { name: event.target.value })) }} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.currentTarget.blur() }} /></label>
         <label>移動先<select aria-label="レイヤーの移動先" value={selected.parentId ?? ''} onChange={event => apply(() => moveClipLayer(project, selected.id, event.target.value || null))}><option value="">最上位</option>{document.nodes.filter(node => node.id !== selected.id && ['folder', 'animation'].includes(node.kind)).map(node => <option key={node.id} value={node.id}>{clipNodePath(document, node.id)}</option>)}</select></label>
+        {sortFolder && <fieldset className="clipCelSort" disabled={sortDisabled}>
+          <legend>「{sortFolder.name}」のセル名で並べ替え</legend>
+          <button type="button" onClick={() => apply(() => sortClipCelsByName(project, sortFolder.id, 'ascending'))}>上から昇順（1→2→10）</button>
+          <button type="button" onClick={() => apply(() => sortClipCelsByName(project, sortFolder.id, 'descending'))}>上から降順（10→2→1）</button>
+        </fieldset>}
       </fieldset></details>}</header>
     <ClipLayerAppearance key={`${selected?.id}:${selected?.opacity}`} node={selected} disabled={props.disabled} onChange={updates => { if (selected) apply(() => updateClipLayer(project, selected.id, updates)) }} />
     <div className="clipLayerCommandBar" role="toolbar" aria-label="レイヤー操作">

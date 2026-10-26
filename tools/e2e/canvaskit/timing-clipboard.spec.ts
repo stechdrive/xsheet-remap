@@ -55,8 +55,40 @@ for (const role of ['action', 'cell'] as const) test(`sheet input selects only o
   await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
   const names = page.locator('[data-clip-layer-id^="binding:"][data-clip-layer-parent="slot:slot_A"] .clipLayerName')
   await expect(names).toHaveCount(4)
-  expect((await names.allTextContents()).sort()).toEqual(['001', '002', '003', '004'])
+  await expect(names).toHaveText(['004', '003', '002', '001'])
   await page.screenshot({ path: info.outputPath(`timing-cell-selection-${role}.png`) })
+})
+
+test('CLIP cel name sorting keeps sheet exposures and restores the whole order with Undo', async ({ page }, info) => {
+  await page.goto('./')
+  await ready(page)
+  for (const [frame, value] of [[1, '1'], [9, '10'], [5, '2'], [13, '1']] as const) {
+    await clickCell(page, 'cell', frame)
+    await page.keyboard.type(value); await page.keyboard.press('Enter')
+    await expect(event(page, 'cell', frame)).toHaveText(value)
+  }
+  await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
+  const rows = page.locator('[data-clip-layer-id^="binding:"][data-clip-layer-parent="slot:slot_A"]')
+  const names = rows.locator('.clipLayerName')
+  await expect(names).toHaveText(['2', '10', '1'])
+  await activateControl(page, rows.first())
+  await activateControl(page, page.getByLabel('レイヤーメニュー', { exact: true }))
+  await expect(page.getByText('「A」のセル名で並べ替え', { exact: true })).toBeVisible()
+  await activateControl(page, page.getByRole('button', { name: '上から昇順（1→2→10）', exact: true }))
+  await expect(names).toHaveText(['1', '2', '10'])
+  const geometry = await page.locator('.clipCelSort').evaluate(element => {
+    const box = element.getBoundingClientRect(), panel = element.closest('.clipLayerPanel')!.getBoundingClientRect()
+    return { overflow: element.scrollWidth > element.clientWidth, left: box.left >= panel.left, right: box.right <= panel.right }
+  })
+  expect(geometry).toEqual({ overflow: false, left: true, right: true })
+  await page.screenshot({ path: info.outputPath('clip-cel-name-sort.png') })
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(names).toHaveText(['2', '10', '1'])
+  await activateControl(page, page.getByRole('button', { name: 'やり直し', exact: true }))
+  await expect(names).toHaveText(['1', '2', '10'])
+  await activateControl(page, page.getByRole('button', { name: '上から降順（10→2→1）', exact: true }))
+  await expect(names).toHaveText(['10', '2', '1'])
+  for (const [frame, value] of [[1, '1'], [5, '2'], [9, '10'], [13, '1']] as const) await expect(event(page, 'cell', frame)).toHaveText(value)
 })
 
 test('copies ACTION to CELL and back with independent numbering and undo', async ({ page }, info) => {

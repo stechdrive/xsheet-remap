@@ -79,6 +79,8 @@
 .clipLayerTargets label, .clipLayerProperties label { display: flex; align-items: center; gap: 5px; }
 .clipLayerTargets input, .clipLayerProperties input, .clipLayerProperties select { flex: 1; width: 80px; }
 .clipLayerTools { display: flex; flex-wrap: wrap; gap: 4px; }
+.clipCelSort { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 6px; }
+.clipCelSort legend { max-width: 100%; overflow-wrap: anywhere; }
 .clipLayerMenu > summary { list-style: none; cursor: pointer; font-size: 20px; line-height: 20px; }
 .clipLayerMenu > summary::-webkit-details-marker { display: none; }
 .clipLayerPanel .clipLayerMenu .clipLayerProperties { position: absolute; right: 0; top: 27px; width: min(280px, 100%); z-index: 10; padding: 10px; border: 1px solid #a8b5ac; background: #f6f8f5; box-shadow: 0 4px 12px #0003; }

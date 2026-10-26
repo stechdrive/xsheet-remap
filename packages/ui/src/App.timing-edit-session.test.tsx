@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import { activeCutProjectFromDocument, buildClipRegistrationPlan, parseProjectDocument, timingHitForFrame } from '@xsheet-remap/core'
 import { App } from './App'
+import { useAppController } from './app-shell-controller'
 import { uiText } from './i18n'
 import {
   clickTemplateFrame,
@@ -13,6 +15,43 @@ import {
 } from './App.test-support'
 
 describe('App: timing edit operation boundaries', () => {
+  it.each(['action', 'cell'] as const)('selects a different %s cell locally and preserves literal names through save, CLIP planning and undo', role => {
+    const { result } = renderHook(() => useAppController({ appKind: 'remap' }))
+    const select = (frame: number) => act(() => result.current.handleCellClick(timingHitForFrame(result.current.template, role, 'A', frame)!))
+    const type = (value: string) => { for (const character of value) fireEvent.keyDown(window, { key: character }) }
+    const enter = () => fireEvent.keyDown(window, { key: 'Enter' })
+    const labels = () => result.current.project.logicalSheet.events.map(event => result.current.project.logicalSheet.keys.find(key => key.keyId === event.keyId)?.displayLabel)
+    expect(result.current.workMode).toBe('sheet')
+    for (const [frame, value] of [[1, '001'], [5, '002'], [9, '001'], [13, '003'], [17, '001']] as const) {
+      select(frame); type(value); enter()
+    }
+    const before = result.current.projectDocumentSnapshot
+    const historyDepth = result.current.history.past.length
+    select(9); type('004')
+    expect(labels()).toEqual(['001', '002', '001', '003', '001'])
+    enter()
+    expect(labels()).toEqual(['001', '002', '004', '003', '001'])
+    expect(result.current.history.past).toHaveLength(historyDepth + 1)
+    expect(result.current.project.assets).toHaveLength(0)
+    expect(result.current.project.clipDocument!.nodes.filter(node => node.kind === 'raster').map(node => node.name).sort()).toEqual(['001', '002', '003', '004'])
+    const saved = parseProjectDocument(JSON.parse(JSON.stringify(result.current.projectDocumentSnapshot)))
+    const savedProject = activeCutProjectFromDocument(saved)
+    const slot = savedProject.cspTrackSlots.find(item => item.paperTrack === 'A' && item.correctionLayerId === result.current.activeCorrectionLayerId)!
+    const folderId = saved.clipDocument!.targets.find(target => target.slotId === slot.slotId)!.folderId
+    const plan = buildClipRegistrationPlan(saved, role)
+    expect(plan.timelines[0].tracks.find(track => track.folderId === folderId)?.frames).toEqual([
+      { frame: 0, value: '001' }, { frame: 4, value: '002' }, { frame: 8, value: '004' },
+      { frame: 12, value: '003' }, { frame: 16, value: '001' },
+    ])
+    act(() => result.current.handleUndo())
+    expect(result.current.projectDocumentSnapshot).toEqual(before)
+    act(() => result.current.handleRedo())
+    expect(result.current.projectDocumentSnapshot).toEqual(saved)
+    select(9); type('009'); fireEvent.keyDown(window, { key: 'Escape' })
+    expect(result.current.projectDocumentSnapshot).toEqual(saved)
+    expect(result.current.history.past).toHaveLength(historyDepth + 1)
+  })
+
   it('commits an out-of-range timing draft before shortening the cut duration', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)

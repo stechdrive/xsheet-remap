@@ -64,7 +64,8 @@ describe('timing clipboard across ACTION, CELL and additional columns', () => {
     expect(copied[0].keyId).not.toBe(first.key.keyId)
     const edited = setTimingValueAt(pasted, hit(targetRole), '5', 24, 'layer_sakuga').project
     expect(edited.logicalSheet.keys.find(key => key.keyId === first.key.keyId)?.displayLabel).toBe('1')
-    expect(edited.logicalSheet.keys.find(key => key.keyId === copied[0].keyId)?.displayLabel).toBe('5')
+    expect(edited.logicalSheet.keys.find(key => key.keyId === events(edited, targetRole)[0].keyId)?.displayLabel).toBe('5')
+    expect(edited.logicalSheet.keys.find(key => key.keyId === copied[0].keyId)?.displayLabel).toBe('1')
     expect(events(edited, sourceRole)).toEqual(events(project, sourceRole))
   })
 

@@ -424,7 +424,7 @@ it('legacy Editor: registers a sheet-first key at the active CSP destination and
       ?.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     if (!registeredCard) throw new Error('registered CSP card not found')
     expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
-    expect(registeredCard.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(registeredCard.querySelector('.cspTreeCelName')?.textContent).toBe('1')
     expect(registeredCard.querySelector('.cspTreeCelFrame')).toBeNull()
 
     const file = new File(['fix'], 'scan_001.png', { type: 'image/png', lastModified: 1 })
@@ -437,7 +437,7 @@ it('legacy Editor: registers a sheet-first key at the active CSP destination and
       expect(document.querySelector('.cspTreeCel.unregistered')).toBeNull()
       const track = screen.getByLabelText('A（演出）にカードを追加').closest('.cspTreeTrack')
       expect(track?.querySelector('.cspTreeCel.assigned')).toBeTruthy()
-      expect(track?.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+      expect(track?.querySelector('.cspTreeCelName')?.textContent).toBe('1')
     })
 
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
@@ -1508,7 +1508,7 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
     expect(registeredCell?.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(registeredCell?.querySelectorAll('input')).toHaveLength(0)
-    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('1')
     fireEvent.click(screen.getByRole('button', { name: uiText.nameNormalization.open }))
     expect(screen.getByRole('dialog', { name: uiText.nameNormalization.title })).toBeTruthy()
     expect((screen.getByLabelText(uiText.nameNormalization.target) as HTMLSelectElement).value).toBe('action')
@@ -1644,7 +1644,7 @@ it('reuses a registered cell when typing the same value in the same CELL column'
     expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
     expect(registeredCell.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(registeredCell.querySelectorAll('input')).toHaveLength(0)
-    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('1')
   })
 
 it('jumps to the first timeline use when selecting a CSP cell card', () => {

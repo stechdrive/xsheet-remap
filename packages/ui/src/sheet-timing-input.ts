@@ -1,9 +1,6 @@
 import {
   clearEvent,
   createKey,
-  defaultCspCellName,
-  findTimingKeyByDisplayLabel,
-  isSpecialTimingKeyId,
   isNullLabel,
   INBETWEEN_KEY_ID,
   NULL_CELL_KEY_ID,
@@ -15,7 +12,6 @@ import {
   setTimingSpecialEvent,
   sheetTimingRoleForEvent,
   uniqueCspCellNameForSlot,
-  updateKey,
   upsertBinding,
   type CutProject,
   type SheetHit,
@@ -57,21 +53,7 @@ export function setTimingValueAt(
   }
 
   const projectWithLeadingBlank = ensureLeadingBlankBeforeFirstKey(project, hit.paperTrack, hit.frame, sheetRole)
-  const existingKeyId = projectWithLeadingBlank.logicalSheet.events.find(event =>
-    event.paperTrack === hit.paperTrack
-    && event.frame === hit.frame
-    && sheetTimingRoleForEvent(event) === sheetRole,
-  )?.keyId ?? null
-  const reusableKey = findTimingKeyByDisplayLabel(projectWithLeadingBlank, hit.paperTrack, value, sheetRole)
-  if (reusableKey && reusableKey.keyId !== existingKeyId) {
-    const withEvent = setEvent(projectWithLeadingBlank, hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx })
-    return finish(registerTimingKey(withEvent, reusableKey.keyId, correctionLayerId), reusableKey.keyId)
-  }
-  if (existingKeyId && !isSpecialTimingKeyId(existingKeyId)) {
-    const updated = updateKey(projectWithLeadingBlank, existingKeyId, { displayLabel: value, paperToken: value })
-    return finish(registerTimingKey(updated, existingKeyId, correctionLayerId), existingKeyId)
-  }
-
+  // Sheet entry selects a cell for this frame; renaming a shared key belongs to the cell editor.
   const created = createKey(projectWithLeadingBlank, hit.paperTrack, value, 'manual', value, sheetRole)
   const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx })
   return finish(registerTimingKey(withEvent, created.key.keyId, correctionLayerId), created.key.keyId)
@@ -106,7 +88,7 @@ function registerTimingKey(project: CutProject, keyId: string, correctionLayerId
   return upsertBinding(project, {
     slotId: slot.slotId,
     keyId,
-    cspCellName: uniqueCspCellNameForSlot(project, slot.slotId, defaultCspCellName(key.displayLabel, slot.paperTrack)),
+    cspCellName: uniqueCspCellNameForSlot(project, slot.slotId, key.displayLabel),
     materialState: 'unassigned',
   })
 }

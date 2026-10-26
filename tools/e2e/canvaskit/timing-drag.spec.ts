@@ -28,7 +28,7 @@ test('a registered-card drop transfers keyboard focus for immediate Undo and Red
   await page.keyboard.press('1')
   await page.keyboard.press('Enter')
   await expect(event(page, 'A', 1).locator('.eventText')).toHaveText('1')
-  const source = page.locator('.cspTreeCel[data-csp-paper-track="A"] .cspTreeCelName').filter({ hasText: /^A1$/ })
+  const source = page.locator('.cspTreeCel[data-csp-paper-track="A"] .cspTreeCelName').filter({ hasText: /^1$/ })
   await source.scrollIntoViewIfNeeded()
   const box = await source.boundingBox()
   if (!box) throw new Error('Registered card has no visible drag surface')

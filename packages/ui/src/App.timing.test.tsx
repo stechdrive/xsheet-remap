@@ -265,7 +265,7 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     expect(document.activeElement).toBe(registeredCellName)
     fireEvent.pointerMove(window, { pointerId: 71, pointerType: 'mouse', buttons: 1, clientX: target.x, clientY: target.y })
     expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeTruthy()
-    expect(document.querySelector('.internalDragPreview')?.textContent).toContain('A1')
+    expect(document.querySelector('.internalDragPreviewText strong')?.textContent).toBe('1')
     expect(registeredCell.dataset.internalDragSource).toBe('true')
     expect(document.body.dataset.internalDragValidity).toBe('valid')
     expectStatusHint(uiText.statusHints.dropRegisteredCell(`CELL B ${formatTestFramePosition(1)}`))
@@ -405,7 +405,7 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     if (!registeredCell) throw new Error('registered cell card not found')
     expect(registeredCell.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(registeredCell.querySelectorAll('input')).toHaveLength(0)
-    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('A1')
+    expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('1')
 
     const assetInput = screen.getByLabelText(uiText.actions.addAssets)
     const file = new File(['asset'], 'A1_ref.png', { type: 'image/png', lastModified: 1 })
@@ -1011,7 +1011,7 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     const registeredCells = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(registeredCells).toHaveLength(2)
     expect(registeredCells.map(registeredCellIdentityText)).toEqual(['CELL A', 'ACTION A'])
-    expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['A1_2', 'A1'])
+    expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['1_2', '1'])
     expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
   })
 

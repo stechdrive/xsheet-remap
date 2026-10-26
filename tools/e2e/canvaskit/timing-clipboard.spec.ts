@@ -35,6 +35,30 @@ async function copyRange(page: Page, role: SheetTimingRole, start: number, end: 
   await page.keyboard.press('ControlOrMeta+c')
 }
 
+for (const role of ['action', 'cell'] as const) test(`sheet input selects only one ${role} event and uses literal CLIP cell names`, async ({ page }, info) => {
+  await page.goto('./')
+  await ready(page)
+  for (const [frame, value] of [[1, '001'], [5, '002'], [9, '001'], [13, '003'], [17, '001']] as const) {
+    await clickCell(page, role, frame)
+    await page.keyboard.type(value); await page.keyboard.press('Enter')
+    await expect(event(page, role, frame)).toHaveText(value)
+  }
+  await clickCell(page, role, 9)
+  await page.keyboard.type('004'); await page.keyboard.press('Enter')
+  await expect(event(page, role, 9)).toHaveText('004')
+  await expect(event(page, role, 1)).toHaveText('001')
+  await expect(event(page, role, 17)).toHaveText('001')
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(event(page, role, 9)).toHaveText('001')
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(event(page, role, 9)).toHaveText('004')
+  await activateControl(page, page.getByRole('button', { name: 'CLIP組み立て', exact: true }))
+  const names = page.locator('[data-clip-layer-id^="binding:"][data-clip-layer-parent="slot:slot_A"] .clipLayerName')
+  await expect(names).toHaveCount(4)
+  expect((await names.allTextContents()).sort()).toEqual(['001', '002', '003', '004'])
+  await page.screenshot({ path: info.outputPath(`timing-cell-selection-${role}.png`) })
+})
+
 test('copies ACTION to CELL and back with independent numbering and undo', async ({ page }, info) => {
   await page.goto('./')
   await ready(page)

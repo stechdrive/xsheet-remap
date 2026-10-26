@@ -29,7 +29,7 @@ describe('ACTION to CELL numbering', () => {
     for (const frame of [1, 5, 10, 14, 17]) source = setTimingReferenceAt(source, 'A', frame, 'action', 'circle')
     for (const frame of [7, 8]) source = setTimingReferenceAt(source, 'A', frame, 'action', true)
     const result = convert(source)
-    expect(numbers(result)).toEqual('1 2 3 4 5 6 7 8 9 10 11 12 13 5 14 15 1'.split(' '))
+    expect(numbers(result)).toEqual('1 8 9 10 2 3 4 5 6 7 11 12 13 2 14 15 1'.split(' '))
     expect(result.logicalSheet.referenceMarks?.filter(mark => mark.sheetRole === 'cell')).toEqual(source.logicalSheet.referenceMarks?.map(mark => ({ ...mark, sheetRole: 'cell' })).sort((a, b) => a.frame - b.frame))
     expect(result.logicalSheet.events.filter(event => event.sheetRole === 'action')).toEqual(source.logicalSheet.events)
     expect(result.logicalSheet.keys.slice(0, source.logicalSheet.keys.length)).toEqual(source.logicalSheet.keys)
@@ -37,7 +37,7 @@ describe('ACTION to CELL numbering', () => {
     expect(buildProjectArchiveManifest(createProjectDocumentFromCutProject(result)).requiredFeatures).toEqual(expect.arrayContaining(['action-cell-transfer', 'timing-enclosures']))
     const ae = buildAeRemapPlan(result, { paperTracks: ['A'], sheetRole: 'cell' })
     expect(ae.diagnostics).toEqual([])
-    expect(ae.columns[0].keys.map(key => key.cellNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 5, 14, 15, 1])
+    expect(ae.columns[0].keys.map(key => key.cellNumber)).toEqual([1, 8, 9, 10, 2, 3, 4, 5, 6, 7, 11, 12, 13, 2, 14, 15, 1])
     expect(() => buildClipRegistrationPlan(createProjectDocumentFromCutProject(result), 'cell')).toThrow('素材未登録')
     expect(result.assets).toBe(source.assets)
     const targetIds = new Set(result.logicalSheet.events.filter(event => event.sheetRole === 'cell').map(event => event.keyId))
@@ -50,20 +50,20 @@ describe('ACTION to CELL numbering', () => {
     expect(restored.logicalSheet.referenceMarks).toEqual(result.logicalSheet.referenceMarks)
     expect(restored.logicalSheet.keys.filter(key => targetIds.has(key.keyId)).every(key => key.requiresExplicitBinding)).toBe(true)
   })
-  it('matches the official successive examples, including standalone ticks and mixed reusable slots', () => {
+  it('preserves the official drawing reuse examples while ordering numeric originals first', () => {
     const examples = [
-      ['1 ○ ○ 2', '1 2 3 4'], ['2 ○ ○ 1', '4 3 2 1'], ['1 ● ○ 2', '1 5 3 4'], ['2 ○ ● 1', '4 3 6 1'],
-      ['1 ○ 2', '1 7 4'], ['1 3', '1 8'], ['●', '9'], ['○', '10'], ['○ ●', '11 12'], ['● ○', '13 14'], ['○ ○', '11 14'],
+      ['1 ○ ○ 2', '1 4 5 2'], ['2 ○ ○ 1', '2 5 4 1'], ['1 ● ○ 2', '1 6 5 2'], ['2 ○ ● 1', '2 5 7 1'],
+      ['1 ○ 2', '1 8 2'], ['1 3', '1 3'], ['●', '9'], ['○', '10'], ['○ ●', '11 12'], ['● ○', '13 14'], ['○ ○', '11 14'],
     ]
     const source = write(createDefaultProject(), examples.flatMap(([input]) => [...input.split(' '), '×']))
     expect(numbers(convert(source))).toEqual(examples.flatMap(([, output]) => [...output.split(' '), '×']))
   })
-  it('handles identical endpoints, longer holds and independent columns without numeric-label sorting', () => {
+  it('handles identical endpoints, longer holds and independent column numbering', () => {
     let source = write(createDefaultProject(), ['15', '○', '○', '15', '○', '○', '15'], 1, 'A', 3)
     source = write(source, ['9', '7', '9'], 1, 'B')
     const result = convert(source)
     expect(numbers(result)).toEqual(['1', '2', '3', '1', '2', '3', '1'])
-    expect(numbers(result, 'B')).toEqual(['1', '2', '1'])
+    expect(numbers(result, 'B')).toEqual(['2', '1', '2'])
     expect(result.logicalSheet.events.filter(event => event.sheetRole === 'cell' && event.paperTrack === 'A').map(event => event.frame)).toEqual([1, 4, 7, 10, 13, 16, 19])
   })
   it('includes hidden pre/post-roll drawings, holds and interval endpoints in one numbering pass', () => {
@@ -74,10 +74,74 @@ describe('ACTION to CELL numbering', () => {
     let source = write(initial, ['8', '○', '○', '2'], -2)
     source = write(source, ['○', '○', '8'], 4)
     const hidden = convert(source)
-    expect(numbers(hidden)).toEqual(['1', '2', '3', '4', '3', '2', '1'])
+    expect(numbers(hidden)).toEqual(['4', '3', '2', '1', '2', '3', '4'])
     const visible = convert({ ...source, logicalSheet: { ...source.logicalSheet, workRange: { ...source.logicalSheet.workRange, showPreRoll: true, showPostRoll: true } } })
     expect(visible.logicalSheet.events).toEqual(hidden.logicalSheet.events)
     expect(visible.logicalSheet.keys).toEqual(hidden.logicalSheet.keys)
+  })
+  it.each([
+    ['3 2 3 1 2', '3 2 3 1 2'],
+    ['2 ○ 1 ○ 2', '3 2 1 2 3'],
+    ['3 ○ 2 ○ 1', '5 4 3 2 1'],
+    ['7 5 6 7', '3 1 2 3'],
+    ['10 2 1', '3 2 1'],
+    ['2 ○ 1 2 1', '3 2 1 3 1'],
+    ['2 ● 1', '3 2 1'],
+    ['2 ● 1 ○ 2', '3 4 1 2 3'],
+    ['1 ● ○ 2 × 1 ○ ● 2', '1 5 3 4 × 1 2 6 4'],
+    ['3 ○ い あ ○ 2 1', '7 6 5 4 3 2 1'],
+    ['2 あ い 1', '4 3 2 1'],
+    ['3 2 3', '2 1 2'],
+  ])('numbers %s as %s independently of playback direction', (input, expected) => {
+    const source = write(createDefaultProject(), input.split(' '))
+    const plan = buildActionCellTransferPlan(source)
+    const result = applyActionCellTransferPlan(source, plan)
+    expect(numbers(result)).toEqual(expected.split(' '))
+    const unique = [...new Set(numbers(result).filter(value => value !== '×').map(Number))].sort((a, b) => a - b)
+    expect(unique).toEqual(Array.from({ length: plan.columns[0].drawingCount }, (_, index) => index + 1))
+  })
+  it.each([
+    ['1 ○ 2 × 1 ○ ○ 2', '1 3 2 × 1 4 5 2', [2, 6, 7]],
+    ['1 あ 2 あ 3', '1 4 2 4 3', [2]],
+    ['1 あ い 2 × 1 い あ 2', '1 3 4 2 × 1 4 3 2', [2, 3]],
+    ['1 あ ○ あ 2', '1 3 4 3 2', [2, 3]],
+    ['1 ○ 3 × 2', '1 4 3 × 2', [2]],
+    ['○ 2 × 1', '3 2 × 1', [1]],
+    ['1 あ × い 2', '1 3 × 4 2', [2, 4]],
+    ['1 ● 2 ● 1', '1 3 2 4 1', [2, 4]],
+  ])('defers ambiguous or unanchored drawings in %s without merging them', (input, expected, frames) => {
+    const source = write(createDefaultProject(), input.split(' '))
+    const plan = buildActionCellTransferPlan(source)
+    expect(numbers(applyActionCellTransferPlan(source, plan))).toEqual(expected.split(' '))
+    expect(plan.columns[0].additionalFrames).toEqual(frames)
+  })
+  it('keeps numeric order when exposures, source key ids and key-array order change', () => {
+    const sequences = ['3 2 1', '2 3 1', '1 3 2', '3 1 2', '2 1 3', '1 2 3']
+    for (const sequence of sequences) {
+      const source = write(createDefaultProject(), sequence.split(' '))
+      const ids = new Map(source.logicalSheet.keys.map((key, index) => [key.keyId, `opaque-${99 - index}`]))
+      const rewritten = { ...source, logicalSheet: { ...source.logicalSheet,
+        keys: source.logicalSheet.keys.map(key => ({ ...key, keyId: ids.get(key.keyId)! })).reverse(),
+        events: source.logicalSheet.events.map(event => ({ ...event, keyId: ids.get(event.keyId)! })).reverse(),
+      } }
+      expect(numbers(convert(rewritten))).toEqual(sequence.split(' '))
+    }
+  })
+  it('normalizes digits only for sorting, retains distinct keys and compares huge integers exactly', () => {
+    const source = write(createDefaultProject(), ['9007199254740993', '9007199254740992', '１０', '02', '1', '01'])
+    const plan = buildActionCellTransferPlan(source), result = applyActionCellTransferPlan(source, plan)
+    expect(numbers(result)).toEqual(['6', '5', '4', '3', '2', '1'])
+    expect(plan.columns[0].drawingCount).toBe(6)
+    expect(plan.columns[0].duplicateNumberFrames).toEqual([5, 6])
+    expect(new Set(result.logicalSheet.events.filter(event => event.sheetRole === 'cell').map(event => event.keyId)).size).toBe(6)
+  })
+  it('uses appearance order without numeric anchors and never invents unused drawings', () => {
+    let source = write(createDefaultProject(), ['い', '○', 'あ', '○', 'い', '0', '-1', '1.5'])
+    source = createKey(source, 'A', '1', 'manual', undefined, 'action').project
+    const plan = buildActionCellTransferPlan(source)
+    expect(numbers(applyActionCellTransferPlan(source, plan))).toEqual(['1', '2', '3', '2', '1', '4', '5', '6'])
+    expect(plan.columns[0].usesNumericOrder).toBe(false)
+    expect(plan.columns[0].additionalFrames).toEqual([])
   })
   it('skips occupied/registered target columns including hidden marks, and rejects stale previews', () => {
     let source = write(createDefaultProject(), ['1', '○', '2'])

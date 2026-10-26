@@ -111,6 +111,45 @@ it('defaults to all ACTION columns for no selection, a cell or partial range, an
   expect(document.querySelector('[data-timeline-event-role="cell"][data-timeline-event-track="B"]')).toBeNull()
 })
 
+it('previews lip-sync numbers and reverse inbetweens in numeric order, then applies and undoes together', () => {
+  const { sheet, menu } = setup()
+  clickTemplateFrame(sheet, 'action', 'A', 1)
+  for (const value of ['3', '2', '3', '1']) enterTimingValue(value)
+  clickTemplateFrame(sheet, 'action', 'B', 1)
+  enterTimingValue('2'); fireEvent.keyDown(window, { key: '/', code: 'Slash' })
+  enterTimingValue('1'); fireEvent.keyDown(window, { key: '/', code: 'Slash' }); enterTimingValue('2')
+  menu('action', 1); openTransfer()
+  expect([1, 2, 3, 4].map(frame => ghost('A', frame)?.querySelector('.eventText')?.textContent)).toEqual(['3', '2', '3', '1'])
+  expect([1, 2, 3, 4, 5].map(frame => ghost('B', frame)?.querySelector('.eventText')?.textContent)).toEqual(['3', '2', '1', '2', '3'])
+  expect(cell('cell', 1)).toBeNull()
+  expect(screen.queryByText('採番についての確認事項')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'OK' }))
+  expect(cell('cell', 1)?.querySelector('.eventText')?.textContent).toBe('3')
+  expect(cell('action', 1)?.querySelector('.eventText')?.textContent).toBe('3')
+  fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+  expect(document.querySelectorAll('[data-timeline-event-role="cell"]')).toHaveLength(0)
+  fireEvent.click(screen.getByRole('button', { name: uiText.actions.redo }))
+  expect(cell('cell', 4)?.querySelector('.eventText')?.textContent).toBe('1')
+})
+
+it('explains additional numbering in the ghost preview without blocking confirmation or mutating on cancel', () => {
+  const { sheet, menu } = setup()
+  clickTemplateFrame(sheet, 'action', 'A', 1)
+  for (const value of ['1', '/', '2', 'x', '1', '/', '/', '2']) {
+    if (value === '/') fireEvent.keyDown(window, { key: '/', code: 'Slash' })
+    else enterTimingValue(value)
+  }
+  menu('action', 1); openTransfer()
+  expect(screen.getByText('採番についての確認事項')).toBeTruthy()
+  expect(screen.getByText(/A：2、6、7コマの絵は、原画番号の間へ一意に並べられない/)).toBeTruthy()
+  expect((screen.getByRole('button', { name: 'OK' }) as HTMLButtonElement).disabled).toBe(false)
+  expect(ghost('A', 3)?.querySelector('.eventText')?.textContent).toBe('2')
+  expect(ghost('A', 6)?.querySelector('.eventText')?.textContent).toBe('4')
+  fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+  expect(ghost('A', 1)).toBeNull()
+  expect(cell('cell', 1)).toBeNull()
+})
+
 it('accepts main/numpad ticks in one press with stepped selection, while respecting drafts and composition', () => {
   const { sheet } = setup()
   clickTemplateFrame(sheet, 'action', 'A', 1)

@@ -2,6 +2,8 @@ import type { CutProject, TimelineEvent, TimingKey, TimingReferenceMark } from '
 import { keyInActiveProcess } from './process-timing'
 import { sheetTimingRoleForEvent, sheetTimingRoleForKey, timingEventValueKind } from './project-shared'
 import { timingReferenceAddress, timingReferenceMap } from './timing-reference'
+import { collectActionDrawings } from './action-cell-drawings'
+import { numberActionDrawings } from './action-cell-numbering'
 
 export interface ActionCellTransferEvent {
   source: TimelineEvent
@@ -16,6 +18,9 @@ export interface ActionCellTransferColumn {
   events: ActionCellTransferEvent[]
   drawingCount: number
   openIntervals: number[]
+  additionalFrames: number[]
+  duplicateNumberFrames: number[]
+  usesNumericOrder: boolean
 }
 export interface ActionCellTransferPlan {
   /** An immutable preview applies only to the project it was computed from. */
@@ -23,16 +28,16 @@ export interface ActionCellTransferPlan {
   columns: ActionCellTransferColumn[]
 }
 
-/** Toei-style numbering, local to each column of the current cut and process.
- * Holds never allocate. A filled tick always allocates and never replaces the
- * reusable hollow-tick slot. Enclosures belong to occurrences, not identities.
+/** Preserve Toei-style drawing reuse, then number numeric originals in ascending
+ * order with unambiguous intervening drawings. Enclosures belong to occurrences.
  */
 export function buildActionCellTransferPlan(project: CutProject, tracks = project.logicalSheet.paperTracks.map(track => track.paperTrack)): ActionCellTransferPlan {
   const keys = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
   const references = timingReferenceMap(project.logicalSheet.referenceMarks)
   const bound = new Set(project.bindings.map(binding => binding.keyId))
   const columns = [...new Set(tracks)].map((paperTrack): ActionCellTransferColumn => {
-    const column: ActionCellTransferColumn = { paperTrack, status: 'empty', events: [], drawingCount: 0, openIntervals: [] }
+    const column: ActionCellTransferColumn = { paperTrack, status: 'empty', events: [], drawingCount: 0, openIntervals: [],
+      additionalFrames: [], duplicateNumberFrames: [], usesNumericOrder: false }
     const stream = project.logicalSheet.events.filter(event => event.paperTrack === paperTrack && sheetTimingRoleForEvent(event) === 'action').sort((a, b) => a.frame - b.frame)
     if (!stream.length) return column
     if (!project.logicalSheet.paperTracks.some(track => track.paperTrack === paperTrack)
@@ -48,37 +53,13 @@ export function buildActionCellTransferPlan(project: CutProject, tracks = projec
       || project.logicalSheet.referenceMarks?.some(mark => mark.paperTrack === paperTrack && mark.sheetRole === 'cell')) {
       return { ...column, status: 'occupied', reason: 'CELLに記入があります。' }
     }
-    column.status = 'ready'
-    const originals = new Map<string, number>(), intervals = new Map<string, Map<number, number>>()
-    const allocate = () => ++column.drawingCount
-    for (let index = 0; index < stream.length;) {
-      const event = stream[index], kind = timingEventValueKind(event)
-      if (kind === 'blank') { column.events.push({ source: event, sourceLabel: '×', number: null }); index++; continue }
-      if (kind === 'cell') {
-        let number = originals.get(event.keyId)
-        if (number === undefined) { number = allocate(); originals.set(event.keyId, number) }
-        column.events.push({ source: event, sourceLabel: keys.get(event.keyId)!.displayLabel, number, enclosure: references.get(timingReferenceAddress(event)) })
-        index++; continue
-      }
-      let end = index
-      while (end < stream.length && ['inbetween', 'reverse'].includes(timingEventValueKind(stream[end]))) end++
-      const left = index > 0 && timingEventValueKind(stream[index - 1]) === 'cell' ? stream[index - 1].keyId : null
-      const right = end < stream.length && timingEventValueKind(stream[end]) === 'cell' ? stream[end].keyId : null
-      const count = end - index, reversed = left !== null && right !== null && left > right
-      const identity = JSON.stringify([reversed ? right : left, reversed ? left : right, count])
-      const slots = intervals.get(identity) ?? new Map<number, number>()
-      intervals.set(identity, slots)
-      if (left === null || right === null) column.openIntervals.push(event.frame)
-      for (let offset = 0; index + offset < end; offset++) {
-        const source = stream[index + offset], hollow = timingEventValueKind(source) === 'inbetween'
-        const position = reversed ? count - 1 - offset : offset
-        const number = hollow ? slots.get(position) ?? allocate() : allocate()
-        if (hollow) slots.set(position, number)
-        column.events.push({ source, sourceLabel: hollow ? '○' : '●', number })
-      }
-      index = end
-    }
-    return column
+    const drawings = collectActionDrawings(stream, keys)
+    const { numbers, ...notes } = numberActionDrawings(drawings)
+    return { ...column, ...notes, status: 'ready', drawingCount: numbers.size, openIntervals: drawings.openIntervals,
+      events: drawings.occurrences.map(({ source, sourceLabel, drawingId }) => ({ source, sourceLabel,
+        number: drawingId === null ? null : numbers.get(drawingId)!,
+        ...(timingEventValueKind(source) === 'cell' ? { enclosure: references.get(timingReferenceAddress(source)) } : {}),
+      })) }
   })
   return { source: project, columns }
 }

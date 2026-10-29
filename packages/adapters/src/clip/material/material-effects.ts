@@ -11,14 +11,8 @@ export function hasDrawableMaterialEffects(effects: MaterialEffects | undefined)
 }
 
 /** CSP's saved layer-color ramps; alpha is independent of the drawing color. */
-export function applyLayerColor(data: Uint8ClampedArray, color: NonNullable<MaterialEffects['layerColor']>): void {
-  for (let i = 0; i < data.length; i += 4) {
-    if (!data[i + 3]) continue
-    // Coefficients recovered from native gray/R/G/B ramps and mixed-color pixels.
-    const gray = Math.min(255, Math.floor((298912 * data[i] + 586611 * data[i + 1] + 114478 * data[i + 2]) / 1000000))
-    for (let c = 0; c < 3; c++) data[i + c] = Math.round((color.main[c] * (255 - gray) + color.sub[c] * gray) / 255)
-  }
-}
+export { applyLayerColor } from 'celcodec/canvas'
+import { applyLayerColor } from 'celcodec/canvas'
 
 /** Apply effects to the selected material, never to a cached composite of other cels. */
 export function applyMaterialEffects(canvas: OffscreenCanvas, left: number, top: number, effects: MaterialEffects | undefined, width: number, height: number): OffscreenCanvas {

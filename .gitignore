@@ -47,6 +47,10 @@ apps/csp-import-helper/
 # Keep only synthetic, public-safe fixtures trackable under fixtures/ when needed.
 reference-local/
 docs/
+# Only this reviewed integration note is public; other docs remain local.
+!/docs/
+/docs/*
+!/docs/celcodec.md
 local/
 private/
 scratch/

@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/adapters",
-  "version": "0.1.851",
+  "version": "0.1.852",
   "private": true,
   "type": "module",
   "main": "src/index.ts",

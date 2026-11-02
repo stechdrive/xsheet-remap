@@ -256,7 +256,7 @@
 }
 
 .timingTextRailMenu.actionMenuContent {
-  width: min(190px, calc(100vw - 24px));
+  width: min(250px, calc(100vw - 24px));
 }
 
 .sheetHistoryTabs > .appTooltipTrigger {
@@ -872,6 +872,19 @@
   background: #fbfbf8;
   font-weight: 800;
 }
+
+.sheetTextSizeSettings { display: grid; gap: 8px; min-width: 0; }
+.sheetTextSizeTarget { font-weight: 700; font-size: 12px; color: #475149; }
+.sheetTextSizeRow, .sheetTextSizeActions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.sheetTextSizeRow > span:first-child, .sheetTextSizeRow > label { margin-right: auto; }
+.sheetTextSizeRow .fontSizeNumericInput { width: 54px; }
+.timingTextRailMenu .sheetTextSizeRow button { width: 26px; min-width: 26px; flex: 0 0 26px; justify-content: center; padding: 3px; }
+.sheetTextSizeActions { font-size: 11px; }
+.sheetTextSizeActions > span { width: 100%; color: #59635c; }
+.timingTextRailMenu .sheetTextSizeActions button { width: auto; font-size: 11px; padding: 4px 6px; }
+.sheetTextSizeSettings details > summary { font-size: 12px; cursor: pointer; }
+.sheetTextSizeSettings details > label { margin-top: 6px; justify-content: space-between; font-size: 12px; }
+.sheetTextSizeNotice { margin: 0; color: #795725; font-size: 11px; line-height: 1.5; }
 
 .fontSizeUnit {
   color: #59635c;

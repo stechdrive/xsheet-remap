@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { CueTextSizeStyle } from './cueTextSizing'
 import {
   createTimedRangeCue,
   deleteTimedRangeCue,
@@ -30,6 +31,7 @@ export interface CameraCueTransformUpdates {
 interface CameraCueControllerOptions {
   project: CutProject
   getProject: () => CutProject
+  getNewTextSize?: (role: 'sound' | 'camera') => CueTextSizeStyle | undefined
   template: SheetTemplate
   rangeSelection: SheetRangeSelection | null
   selectedCueId: string | null
@@ -84,7 +86,7 @@ export function createCameraCueController(options: CameraCueControllerOptions) {
       if (next !== sourceProject) options.commitProject(next)
       options.setSheetSelection({ kind: 'cue', cueId: input.cueId })
     } else {
-      const created = createTimedRangeCue(sourceProject, { role: 'camera', ...input })
+      const created = createTimedRangeCue(sourceProject, { role: 'camera', ...options.getNewTextSize?.('camera'), ...input })
       options.commitProject(created.project)
       options.setSheetSelection({ kind: 'cue', cueId: created.cue.cueId })
     }

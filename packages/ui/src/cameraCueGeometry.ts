@@ -12,7 +12,7 @@ import type {
 } from '@xsheet-remap/core'
 import { CAMERA_INSTRUCTION_CUE_END_POINT_ID, clampCameraOverlapPivotAnchorFrame, defaultCameraOverlapPivotAnchorFrame, resolveCameraInstructionPoints, resolveCameraInstructionSegments } from '@xsheet-remap/core'
 import { timedRangeCueSegmentsForPage, type TimedRangeCueSegment } from './timedRangeCueGeometry'
-import { defaultTimingTextFontSizePx } from './sheetTextLayout'
+import { cueTextSizes } from './cueTextSizing'
 import { timedCueIndex } from './timedCueIndex'
 import {
   SHEET_TEXT_FONT_FAMILY,
@@ -55,6 +55,7 @@ export interface CameraCuePointLayout {
   fontSizePx: number
   textXpx: number
   textYpx: number
+  overflow: boolean
 }
 
 export interface CameraCueHorizontalMark {
@@ -233,8 +234,7 @@ export function cameraCuePointLayoutsForPage(
   segments: CameraCueSegment[],
   pageSize: { widthPx: number; heightPx: number },
 ): CameraCuePointLayout[] {
-  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
-  const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
+  const requestedSize = cueTextSizes(template, cue, pageSize).secondary
   const occupiedRects: NormalizedRect[] = []
   return resolveCameraInstructionPoints(cue.camera, cue.frameStart, cue.frameEnd).flatMap(point => {
     const frame = cue.frameStart + point.frameOffset
@@ -250,9 +250,16 @@ export function cameraCuePointLayoutsForPage(
       : undefined
     const protectedRect = cameraCuePointProtectedRect(cue, point, segment, anchor, mark, pageSize)
     const hasLabel = Boolean(point.label.trim())
+    const requestedFont: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: requestedSize, weight: 850 }
+    const requestedWidth = sharedTextMeasurementProvider.measure(point.label, requestedFont).widthPx
+    const fontSizePx = cue.fontSizeMode === 'fit'
+      ? Math.max(6, Math.min(requestedSize, requestedSize * Math.max(1, segment.regionRect.w * pageSize.widthPx - 8) / Math.max(1, requestedWidth), segment.rowHeight * pageSize.heightPx / 1.35))
+      : requestedSize
+    const font = { ...requestedFont, sizePx: fontSizePx }
     const measured = sharedTextMeasurementProvider.measure(point.label, font)
     const width = Math.min(segment.regionRect.w, (measured.widthPx + 8) / pageSize.widthPx)
-    const height = Math.min(segment.rowHeight, Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx)
+    const height = cue.fontSizeMode === 'fixed' ? Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx
+      : Math.min(segment.rowHeight, Math.max(fontSizePx * 1.35, 12) / pageSize.heightPx)
     const horizontalGap = Math.max(segment.rect.w * 0.1, 3 / pageSize.widthPx)
     const verticalGap = Math.max(segment.rowHeight * 0.15, 2 / pageSize.heightPx)
     const sideY = anchor.y - height / 2
@@ -293,6 +300,7 @@ export function cameraCuePointLayoutsForPage(
       rect,
       regionRect: segment.regionRect,
       fontSizePx,
+      overflow: hasLabel && (measured.widthPx + 8 > rect.w * pageSize.widthPx + .01 || fontSizePx > rect.h * pageSize.heightPx + .01),
       textXpx: (rect.x + rect.w / 2) * pageSize.widthPx,
       textYpx: (rect.y + rect.h / 2) * pageSize.heightPx + fontSizePx * 0.34,
     }]
@@ -336,16 +344,35 @@ export function buildCameraCuePageLayouts(
 }
 
 export function cameraCueLabelLayoutForPage(
+  template: SheetTemplate, page: SheetPage, cue: TimedRangeCue,
+  pageSize: { widthPx: number; heightPx: number }, segments: CameraCueSegment[], obstacles: NormalizedRect[] = [],
+): CameraCueLabelLayout | null {
+  const size = cueTextSizes(template, cue, pageSize).primary
+  const layoutAt = (fontSize: number) => cameraCueLabelLayoutAtSize(template, page, cue, pageSize, segments, obstacles, fontSize)
+  let result = layoutAt(size)
+  if (cue.fontSizeMode !== 'fit' || !result?.overflow) return result
+  let low = 6, high = Math.floor(size) - 1
+  result = layoutAt(low)
+  // Integer pixel sizes bound this search to eight layouts, regardless of text length.
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2), candidate = layoutAt(middle)
+    if (candidate?.overflow) high = middle - 1
+    else { low = middle; result = candidate }
+  }
+  return result
+}
+
+function cameraCueLabelLayoutAtSize(
   template: SheetTemplate,
   page: SheetPage,
   cue: TimedRangeCue,
   pageSize: { widthPx: number; heightPx: number },
   segments: CameraCueSegment[],
-  obstacles: NormalizedRect[] = [],
+  obstacles: NormalizedRect[],
+  fontSizePx: number,
 ): CameraCueLabelLayout | null {
   if (cue.role !== 'camera' || !cue.label.trim() || segments.length === 0) return null
   const camera = cue.camera
-  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
   const font: TextFontSpec = { family: SHEET_TEXT_FONT_FAMILY, sizePx: fontSizePx, weight: 850 }
   const label = cue.label.trim()
   const values = splitTextGraphemes(label)
@@ -604,7 +631,6 @@ export function cameraCueSemanticLandmarksForPage(
   segments: CameraCueSegment[],
   pageSize: { widthPx: number; heightPx: number },
 ): CameraCueSemanticLandmark[] {
-  const fontSizePx = defaultTimingTextFontSizePx(template, 'cell')
   const instructionSpans = cameraInstructionSpans(cue)
   const startKind = instructionSpans[0]?.kind
   const endKind = instructionSpans.at(-1)?.kind
@@ -703,6 +729,7 @@ export function cameraCueSemanticLandmarksForPage(
         })
       : [])
     : []
+  const fontSizePx = cueTextSizes(template, cue, pageSize).primary
   const overlapSpans = instructionSpans.filter(span => span.kind === 'overlap')
   const crossingLandmarks = overlapSpans.flatMap(span => segments.flatMap(segment => {
     if (span.frameEndExclusive <= segment.frameStart || span.frameStart >= segment.frameEnd + 1) return []

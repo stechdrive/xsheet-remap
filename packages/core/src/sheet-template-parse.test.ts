@@ -55,7 +55,7 @@ describe('parseSheetTemplate', () => {
   })
 
   it('validates responsive form spans and column flex definitions', () => {
-    expect(parseSheetTemplate(structuredClone(digitalStandardSheetTemplate)).templateId).toBe('digital-standard-v2')
+    expect(parseSheetTemplate(structuredClone(digitalStandardSheetTemplate)).templateId).toBe('digital-standard-v3')
 
     const invalid = structuredClone(digitalStandardSheetTemplate)
     invalid.regions.find(region => region.regionId === 'digital_metadata_form')!.form!.columnFlex!.pop()

@@ -261,8 +261,9 @@ function validateViewLayout(input: unknown): boolean {
   if (input.frameAxis !== undefined && !validateFrameAxis(input.frameAxis)) return false
   if (input.trackAxis !== undefined && !validateTrackAxis(input.trackAxis)) return false
   if (input.surface !== undefined && (!isRecord(input.surface)
-    || !hasOnlyKeys(input.surface, ['type'])
-    || !sheetViewSurfaceTypes.has(String(input.surface.type)))) return false
+    || !hasOnlyKeys(input.surface, ['type', 'heightMode'])
+    || !sheetViewSurfaceTypes.has(String(input.surface.type))
+    || (input.surface.heightMode !== undefined && input.surface.heightMode !== 'at-least-page' && input.surface.heightMode !== 'content'))) return false
   return input.workRange === undefined || validateWorkRange(input.workRange)
 }
 

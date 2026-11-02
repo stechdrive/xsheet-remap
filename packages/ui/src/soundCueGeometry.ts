@@ -13,7 +13,7 @@ import {
   splitTextGraphemes,
   type TextMeasurementProvider,
 } from './textMetrics'
-import { resolveGridTypographyFontSizes } from './sheetTextLayout'
+import { cueTextSizes } from './cueTextSizing'
 import { timedCueIndex } from './timedCueIndex'
 
 export type SoundCueSegment = TimedRangeCueSegment
@@ -33,6 +33,9 @@ export interface SoundCueTextBounds {
 
 export interface SoundCueTextLayoutOptions {
   fontSizePx?: number
+  textFontSizePx?: number
+  fit?: boolean
+  fitWidth?: boolean
   minFontSizePx?: number
   regionRect?: NormalizedRect
   occupiedRects?: NormalizedRect[]
@@ -97,7 +100,7 @@ export function buildSoundCuePageTextLayouts(
       key: `${page.pageId}:${cue.cueId}:${segment.regionId}:${segment.frameStart}`,
     }))))
   const textLayouts = new Map<string, SoundCueTextLayout>()
-  const typographyByKey = new Map<string, { fontSizePx: number; minFontSizePx: number }>()
+  const typographyByKey = new Map<string, { fontSizePx: number; textFontSizePx: number; minFontSizePx: number; fit: boolean; fitWidth: boolean }>()
   const entriesByPage = new Map<string, typeof entries>(), entriesByCue = new Map<string, typeof entries>()
   for (const entry of entries) {
     const pageEntries = entriesByPage.get(entry.page.pageId) ?? [], cueEntries = entriesByCue.get(entry.cue.cueId) ?? []
@@ -109,8 +112,9 @@ export function buildSoundCuePageTextLayouts(
     const pageEntries = (entriesByPage.get(page.pageId) ?? []).sort(compareSoundCuePageEntries)
     const occupiedLabelBoundsPx: SoundCueTextBounds[] = []
     for (const entry of pageEntries) {
-      const typography = template.regions.find(region => region.regionId === entry.segment.regionId)?.grid?.typography
-      const resolvedTypography = resolveGridTypographyFontSizes(template, pageSize, typography, { fontSizePx: 14, minFontSizePx: 6 })
+      const region = template.regions.find(region => region.regionId === entry.segment.regionId)!
+      const sizes = cueTextSizes({ ...template, regions: [region] }, entry.cue, pageSize)
+      const resolvedTypography = { fontSizePx: sizes.primary, textFontSizePx: sizes.secondary, minFontSizePx: sizes.minimum, fit: sizes.fit, fitWidth: entry.cue.fontSizeMode === 'fit' }
       typographyByKey.set(entry.key, resolvedTypography)
       const textLayout = buildSoundCueTextLayout(
         entry.segment.rect,
@@ -118,8 +122,7 @@ export function buildSoundCuePageTextLayouts(
         entry.segment.startsCue ? entry.cue.label : '',
         '',
         {
-          fontSizePx: resolvedTypography.fontSizePx,
-          minFontSizePx: resolvedTypography.minFontSizePx,
+          ...resolvedTypography,
           regionRect: entry.segment.regionRect,
           occupiedRects: pageEntries.filter(item => item.key !== entry.key).map(item => item.segment.rect),
           occupiedLabelBoundsPx,
@@ -163,6 +166,8 @@ export function buildSoundCueTextLayout(
   const widthPx = Math.max(1, rect.w * pageSize.widthPx)
   const heightPx = Math.max(1, rect.h * pageSize.heightPx)
   const baseFontSizePx = Math.max(6, options.fontSizePx ?? 14)
+  const fit = options.fit !== false
+  const requestedTextSize = options.textFontSizePx ?? baseFontSizePx * .9
   const minFontSizePx = Math.max(5, Math.min(baseFontSizePx, options.minFontSizePx ?? 6))
   const textMeasurement = options.textMeasurement ?? sharedTextMeasurementProvider
   const fontFamily = options.fontFamily ?? SHEET_TEXT_FONT_FAMILY
@@ -175,7 +180,7 @@ export function buildSoundCueTextLayout(
   const insideLabelOrientation = horizontalLabelWidth <= Math.max(0, widthPx - 4) ? 'horizontal' : 'vertical'
   let labelOrientation: SoundCueTextLayout['labelOrientation'] = insideLabelOrientation
   let labelPlacement: SoundCueTextLayout['labelPlacement'] = 'inside'
-  let labelFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
+  let labelFontSizePx = fit ? Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72)) : baseFontSizePx
   const labelValues = splitTextGraphemes(label)
   const labelGlyphs: SoundCueTextGlyph[] = []
   let contentTopPx = topPx + 2
@@ -210,7 +215,7 @@ export function buildSoundCueTextLayout(
       }
     }
     if (labelPlacement === 'inside') {
-      const verticalFontSizePx = Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72))
+      const verticalFontSizePx = fit ? Math.max(minFontSizePx, Math.min(baseFontSizePx, widthPx * 0.72)) : baseFontSizePx
       const verticalStepPx = verticalFontSizePx * 1.02
       const verticalHeightPx = verticalFontSizePx + Math.max(0, labelValues.length - 1) * verticalStepPx + 2
       const verticalWidthPx = verticalFontSizePx + 4
@@ -248,17 +253,17 @@ export function buildSoundCueTextLayout(
       })
       contentTopPx = topPx + labelValues.length * stepPx + 2
     }
-    overflowLabel = contentTopPx > topPx + heightPx
+    overflowLabel = contentTopPx > topPx + heightPx || labelFontSizePx > widthPx
   }
 
   const textValues = splitTextGraphemes(text.replace(/\r?\n/g, ''))
   const textGlyphs: SoundCueTextGlyph[] = []
   const availableHeightPx = Math.max(0, topPx + heightPx - contentTopPx - 2)
-  const capacity = Math.max(0, Math.floor(availableHeightPx / minFontSizePx))
+  const capacity = Math.max(0, Math.floor(availableHeightPx / (fit ? minFontSizePx : requestedTextSize)))
   const shownText = compactMiddle(textValues, capacity)
   const truncatedText = shownText.length !== textValues.length || shownText.some(value => value === '…')
-  const textFontSizePx = shownText.length > 0
-    ? Math.max(minFontSizePx, Math.min(baseFontSizePx * 0.9, availableHeightPx / shownText.length))
+  const textFontSizePx = !fit ? requestedTextSize : shownText.length > 0
+    ? Math.max(minFontSizePx, Math.min(requestedTextSize, availableHeightPx / shownText.length))
     : minFontSizePx
   if (shownText.length > 0 && availableHeightPx >= minFontSizePx) {
     const stepPx = shownText.length === 1
@@ -289,11 +294,13 @@ export function buildSoundCueTextLayout(
 
 export function flowSoundCueTextAcrossLayouts(
   text: string,
-  inputs: Array<{ layout: SoundCueTextLayout; fontSizePx: number; minFontSizePx: number }>,
+  inputs: Array<{ layout: SoundCueTextLayout; fontSizePx: number; textFontSizePx?: number; minFontSizePx: number; fit?: boolean; fitWidth?: boolean }>,
 ): SoundCueTextLayout[] {
   if (inputs.length === 0) return []
   const textValues = splitTextGraphemes(text.replace(/\r?\n/g, ''))
-  const capacities = inputs.map(input => Math.max(0, Math.floor(input.layout.textBoundsPx.heightPx / Math.max(1, input.minFontSizePx))))
+  const requested = (input: typeof inputs[number]) => input.textFontSizePx ?? input.fontSizePx * .9
+  const fixedSize = inputs.find(input => input.fit === false)
+  const capacities = inputs.map(input => Math.max(0, Math.floor(input.layout.textBoundsPx.heightPx / Math.max(1, fixedSize ? requested(fixedSize) : input.minFontSizePx))))
   const totalCapacity = capacities.reduce((total, value) => total + value, 0)
   const shownText = compactMiddle(textValues, totalCapacity)
   const truncatedText = shownText.length !== textValues.length || shownText.some(value => value === '…')
@@ -303,10 +310,11 @@ export function flowSoundCueTextAcrossLayouts(
   const sharedMinFontSizePx = usedIndexes.length > 0
     ? Math.max(...usedIndexes.map(index => inputs[index]!.minFontSizePx))
     : Math.max(...inputs.map(input => input.minFontSizePx))
-  const sharedFontSizePx = usedIndexes.length > 0
+  const sharedFontSizePx = fixedSize ? requested(fixedSize) : usedIndexes.length > 0
     ? Math.max(sharedMinFontSizePx, Math.min(
-        ...usedIndexes.map(index => inputs[index]!.fontSizePx * 0.9),
+        ...usedIndexes.map(index => requested(inputs[index]!)),
         ...usedIndexes.map(index => heights[index]! / counts[index]!),
+        ...usedIndexes.map(index => inputs[index]!.fitWidth ? inputs[index]!.layout.textBoundsPx.widthPx : Number.POSITIVE_INFINITY),
       ))
     : sharedMinFontSizePx
   const lastUsedIndex = usedIndexes.at(-1)
@@ -329,7 +337,7 @@ export function flowSoundCueTextAcrossLayouts(
       ...input.layout,
       textFontSizePx: sharedFontSizePx,
       textGlyphs,
-      truncatedText: truncatedText && index === lastUsedIndex,
+      truncatedText: (truncatedText && index === (lastUsedIndex ?? 0)) || (values.length > 0 && sharedFontSizePx > bounds.widthPx),
     }
   })
 }

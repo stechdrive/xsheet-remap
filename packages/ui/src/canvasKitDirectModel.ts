@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { SceneMatrix, SceneNode, ScenePaint, SceneShape, SceneText } from './canvasKitScene'
+import { stableTextMatrix } from './canvasKitScene'
 
 export type PaperStyleSample = { tag: 'rect' | 'path' | 'text'; className: string; style?: CSSProperties; contextClassName?: string
   strokeWidth?: number; baseline?: string; textSpan?: boolean }
@@ -60,6 +61,7 @@ export function compileDirectPaperModel(model: DirectPaperModel, matrix: SceneMa
       const [p, q, r, s, x, y] = primitive.transform
       node.matrix = [a * p + c * q, b * p + d * q, a * r + c * s, b * r + d * s, a * x + c * y + e, b * x + d * y + f]
     }
+    if (node.text) node.matrix = stableTextMatrix(node.matrix)
     nodes.push(node)
   }
   return nodes

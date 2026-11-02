@@ -33,7 +33,7 @@ export function createTimingClipboardWriter(clipboard: TimingClipboard, targetRo
     // An empty marked cell carries notation without introducing a timing event.
     const withReference = (next: CutProject) => item.reference ? setTimingReferenceAt(next, paperTrack, frame, targetRole, item.reference) : next
     if (item.kind === 'empty') return withReference(clearEvent(project, paperTrack, frame, targetRole))
-    const eventOptions = { fontSizePx: item.fontSizePx, source: item.source }
+    const eventOptions = { fontSizePx: item.fontSizePx, fontSizeMode: item.fontSizeMode, source: item.source }
     if (item.kind !== 'key') return setTimingSpecialEvent(project, paperTrack, frame, item.kind, targetRole, eventOptions)
 
     const trackKeys = mappedKeys.get(paperTrack) ?? new Map<string | ClipboardItem, string>()

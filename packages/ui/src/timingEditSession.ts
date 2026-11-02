@@ -21,6 +21,7 @@ export function applyTimingEditSession(
       session.fontSizePx,
       session.correctionLayerId,
       session.circleOnInput,
+      session.fontSizeMode,
     ).project
   }
 
@@ -37,6 +38,7 @@ export function applyTimingEditSession(
         session.fontSizePx,
         session.correctionLayerId,
         session.circleOnInput,
+        session.fontSizeMode,
       ).project
     }
   }

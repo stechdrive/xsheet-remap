@@ -67,7 +67,7 @@ export function timingDragGhostCellsForPage(
     if (!rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeColumn)) continue
     const fontSize = resolveTimingTextFontSizePx(template, source.range.role, item.fontSizePx)
     cells.push({ paperTrack, frame, item, rect,
-      textLayout: layoutTimingCellText(item.displayLabel ?? '', fontSize, defaultTimingTextMinFontSizePx(template, source.range.role), rect, pageSize, undefined, item.reference),
+      textLayout: layoutTimingCellText(item.displayLabel ?? '', fontSize, defaultTimingTextMinFontSizePx(template, source.range.role), rect, pageSize, undefined, item.reference, item.fontSizeMode !== 'fixed', item.fontSizeMode === 'fit'),
       collision: collisions.has(`${paperTrack}\u0000${frame}`),
     })
   }

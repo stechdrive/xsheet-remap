@@ -103,6 +103,7 @@ export interface TimingEditSession {
   revisionId: string
   correctionLayerId: string
   fontSizePx: number
+  fontSizeMode?: TimelineEvent['fontSizeMode']
 }
 
 export interface TemplateRegionAnnotationTarget {
@@ -130,6 +131,9 @@ export interface TimedRangeCueClipboard<Role extends 'sound' | 'camera'> {
     label: string
     text: string
     camera?: TimedRangeCue['camera']
+    fontSizePx?: number
+    secondaryFontSizePx?: number
+    fontSizeMode?: TimedRangeCue['fontSizeMode']
     source?: TimedRangeCue['source']
   }>
 }
@@ -193,6 +197,7 @@ export interface TimingClipboard {
       materialState: MaterialState
     }>
     fontSizePx?: number
+    fontSizeMode?: TimelineEvent['fontSizeMode']
     source?: TimelineEvent['source']
   }>
 }

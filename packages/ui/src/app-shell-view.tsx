@@ -402,6 +402,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             hasSelectedTextTarget={hasSelectedTextTarget}
             textFontSizeDisabled={isTextFontSizeDisabled}
             onTextFontSizeChange={handleTextFontSizeChange}
+            textSizeControl={controller.textSizeControl}
             onMemoTextFontSizeChange={handleMemoTextFontSizeChange}
             onUpsertTimelineMemoText={handleUpsertTimelineMemoText}
             onUpdateTimelineMemoAppearance={handleUpdateTimelineMemoAppearance}

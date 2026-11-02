@@ -206,7 +206,7 @@ export function CameraCueLayer({ cues, template, page, paperTracks, timelineLane
                 <rect x={layout.regionRect.x} y={layout.regionRect.y} width={layout.regionRect.w} height={layout.regionRect.h} />
               </clipPath>
             </defs>
-            {layout.overflow && <title>CAMERA欄に指示全文を表示できません。指示を短くするか、アンカー付きメモで補足してください。</title>}
+            {layout.overflow && <title>CAMERA欄に指示全文を表示できません。入力文字設定でサイズを下げるか「枠に収める」で調整してください。収まらない場合はアンカー付きメモで補足できます。</title>}
             {layout.connector && <line className="cameraCueLabelConnector" x1={layout.connector.from.x} y1={layout.connector.from.y} x2={layout.connector.to.x} y2={layout.connector.to.y} />}
             <rect className="cameraCueLabelBody" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} />
             <rect className="cameraCueLabelHit" x={layout.rect.x} y={layout.rect.y} width={layout.rect.w} height={layout.rect.h} onPointerDown={event => onPointerDown(event, cue, 'move-label', { labelLayout: layout })} onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); onDoubleClick(cueId) }} />

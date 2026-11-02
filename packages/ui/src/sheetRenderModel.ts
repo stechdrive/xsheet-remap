@@ -288,7 +288,7 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
       kind,
       text,
       fontSizePx,
-      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' ? references.get(timingReferenceAddress(event)) : false),
+      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' ? references.get(timingReferenceAddress(event)) : false, event.fontSizeMode !== 'fixed', event.fontSizeMode === 'fit'),
       rect,
     }]
   })

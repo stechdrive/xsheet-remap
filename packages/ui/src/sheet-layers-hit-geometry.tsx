@@ -91,7 +91,7 @@ export function eventRectsForPages(
       fontSizePx,
       rect,
       hasAssetBinding: assetBoundKeyIds.has(event.keyId),
-      textLayout: layoutTimingCellText(displayLabel, fontSizePx, defaultTimingTextMinFontSizePx(template, sheetRole), rect, pageSize, undefined, reference),
+      textLayout: layoutTimingCellText(displayLabel, fontSizePx, defaultTimingTextMinFontSizePx(template, sheetRole), rect, pageSize, undefined, reference, event.fontSizeMode !== 'fixed', event.fontSizeMode === 'fit'),
     }
     result.get(page.pageId)?.push(item)
     options.cache?.set(event, { item, key, pageId: page.pageId })

@@ -4,18 +4,6 @@ import { resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { clampNumber } from './sheetInteraction'
 import { TextAnnotationUpdate } from './app-foundation'
 
-export function updateTimelineEventFontSize(project: CutProject, eventId: string, fontSizePx: number): CutProject {
-  let changed = false
-  const events = project.logicalSheet.events.map(event => {
-    if (event.eventId !== eventId) return event
-    const nextFontSizePx = clampTextFontSizePx(fontSizePx)
-    if (event.fontSizePx === nextFontSizePx) return event
-    changed = true
-    return { ...event, fontSizePx: nextFontSizePx }
-  })
-  return changed ? { ...project, logicalSheet: { ...project.logicalSheet, events } } : project
-}
-
 export function updateTextAnnotation(
   project: CutProject,
   annotationId: string,

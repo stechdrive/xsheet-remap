@@ -46,7 +46,10 @@ export function resolveSheetTemplatePageSize(
   if (viewLayout.surface?.type !== 'continuous-canvas') return baseSize
 
   let widthPx = template.page.widthPx
-  let heightPx = template.page.heightPx
+  let heightPx = viewLayout.surface.heightMode === 'content'
+    ? Math.max(1, ...template.regions.filter(region => !isTimelineProjectingSheetTemplateGridRegion(region))
+      .map(region => Math.ceil((region.rect.y + region.rect.h) * template.page.heightPx)))
+    : template.page.heightPx
   const horizontalFlow = resolveSheetTemplateHorizontalFlow(template, options)
   if (horizontalFlow) widthPx = Math.max(widthPx, horizontalFlow.widthPx)
   for (const region of template.regions) {
@@ -58,7 +61,7 @@ export function resolveSheetTemplatePageSize(
     const rowHeightPx = gridFixedRowHeightPx(region.grid, options.layoutOverrides?.grids?.[region.regionId])
     const projectedHeight = rowHeightPx
       ? rowHeightPx * frames.rowCount
-      : baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames)
+      : baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames, getSheetViewLayout(template).surface?.heightMode === 'content')
     heightPx = Math.max(heightPx, Math.ceil(baseY + projectedHeight + baseBottomMargin))
 
     if (horizontalFlow?.regions.has(region.regionId)) continue
@@ -110,7 +113,7 @@ function regionRectOnResolvedPage(template: SheetTemplate, region: SheetTemplate
   const height = rowHeightPx && frames
     ? rowHeightPx * frames.rowCount
     : region.grid?.frameProjection?.source === 'logical-frames'
-      ? baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames)
+      ? baseHeight * logicalFrameScaleForGrid(region.grid, durationFrames, getSheetViewLayout(template).surface?.heightMode === 'content')
       : baseHeight
 
   const flowed = horizontalFlow?.regions.get(region.regionId)
@@ -748,9 +751,10 @@ function usesPaperTracks(role: SheetTemplateGrid['role']): role is Extract<Sheet
   return role === 'action' || role === 'cell'
 }
 
-function logicalFrameScaleForGrid(grid: SheetTemplateGrid, durationFrames: number): number {
+function logicalFrameScaleForGrid(grid: SheetTemplateGrid, durationFrames: number, fitContent = false): number {
   if (grid.frameProjection?.source !== 'logical-frames') return 1
-  return Math.max(1, Math.max(1, Math.floor(durationFrames)) / Math.max(1, Math.floor(grid.rowCount)))
+  const scale = Math.max(1, Math.floor(durationFrames)) / Math.max(1, Math.floor(grid.rowCount))
+  return fitContent ? scale : Math.max(1, scale)
 }
 
 function normalizePaperTrackNames(labels: PaperTrackName[]): PaperTrackName[] {

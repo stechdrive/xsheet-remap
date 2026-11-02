@@ -25,6 +25,7 @@ export function setTimingValueAt(
   fontSizePx: number,
   correctionLayerId: string,
   circleOnInput = false,
+  fontSizeMode?: import('@xsheet-remap/core').TimelineEvent['fontSizeMode'],
 ): { project: CutProject; keyId: string | null } {
   if (!hit.paperTrack) return { project, keyId: null }
   const value = rawValue.trim()
@@ -55,7 +56,7 @@ export function setTimingValueAt(
   const projectWithLeadingBlank = ensureLeadingBlankBeforeFirstKey(project, hit.paperTrack, hit.frame, sheetRole)
   // Sheet entry selects a cell for this frame; renaming a shared key belongs to the cell editor.
   const created = createKey(projectWithLeadingBlank, hit.paperTrack, value, 'manual', value, sheetRole)
-  const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx })
+  const withEvent = setEvent(created.project, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx, fontSizeMode })
   return finish(registerTimingKey(withEvent, created.key.keyId, correctionLayerId), created.key.keyId)
 }
 

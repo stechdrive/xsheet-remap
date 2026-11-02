@@ -3,7 +3,7 @@ import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
 import {
   activeCutProjectFromDocument, addAnnotation, addTimelineMemo, createProjectDocumentFromCutProject, createProjectFromTemplate,
-  digitalStandardSheetTemplate, normalizeMemoAppearance, sheetAnnotations, standardA3SheetTemplate, timelineMemos,
+  createDefaultSheetTemplateTheme, digitalStandardSheetTemplate, normalizeMemoAppearance, sheetAnnotations, standardA3SheetTemplate, timelineMemos,
   timedRangeCuePaint, updateLogicalSheetSettings, type AnnotationText, type SheetTemplate, type TimelineInkMemo,
 } from '../../../packages/core/src/index'
 import { decodeProjectFileBytes, encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
@@ -101,10 +101,13 @@ test('memo direction switches preserve drafts, Undo, new memo defaults and saved
   await page.screenshot({ path: info.outputPath('vertical-memos-reopened.png') })
 })
 
-for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) {
-  test(`vertical memo, SOUND and CAMERA glyph pixels survive GPU, SVG, print, PNG and PSD (${original.templateId})`, async ({ page }, info) => {
+for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) for (const sized of [false, true]) {
+  test(`vertical memo, SOUND and CAMERA glyph pixels survive GPU, SVG, print, PNG and PSD (${original.templateId}, ${sized ? 'manual sizes' : 'legacy sizes'})`, async ({ page }, info) => {
     // A renamed SOUND heading still uses its semantic role.
-    const template: SheetTemplate = { ...original, regions: original.regions.map(region => region.grid?.role === 'sound'
+    // Isolate the glyph pixels from the label border even at large manual sizes.
+    const theme = structuredClone(original.theme ?? createDefaultSheetTemplateTheme())
+    theme.timedRangeCues.camera.textColor = '#7040b0'
+    const template: SheetTemplate = { ...original, theme, regions: original.regions.map(region => region.grid?.role === 'sound'
       ? { ...region, label: 'セリフ' } : region) }
     let project = updateLogicalSheetSettings(createProjectFromTemplate(template), { durationFrames: 48 })
     const annotation: AnnotationText = { kind: 'text', annotationId: 'vertical-page', pageId: 'page_1',
@@ -115,6 +118,7 @@ for (const original of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       // Keep the automatically placed label in the initial viewport of both templates.
       { cueId: 'camera-vertical', role: 'camera', laneId: 'camera_lane_1', frameStart: 3, frameEnd: 9,
         label: 'ー', text: '', camera: { shape: 'range' }, source: 'manual' }]
+    if (sized) project.timedRangeCues = project.timedRangeCues.map(cue => ({ ...cue, fontSizePx: 28, secondaryFontSizePx: 24, fontSizeMode: 'fixed' }))
     const context = createSheetRenderModelContext(project, template)
     const segment = timelineMemoSegmentsForPage(template, context.pages[0], memo, context)[0]
     const timeline = buildTimelineMemoTextLayout(segment, memo.texts![0], appearance.text.fontSizeUnits, context.pageSize, undefined, 'vertical')

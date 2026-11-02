@@ -136,6 +136,8 @@ export interface TimelineEvent {
   keyId: Id
   valueKind: TimelineEventValueKind
   fontSizePx?: number
+  /** Omitted in legacy projects: retain automatic fitting. */
+  fontSizeMode?: 'fixed' | 'fit'
   source?: 'manual' | 'recognition' | 'import'
 }
 
@@ -569,6 +571,10 @@ export interface TimedRangeCue {
   laneId: Id
   label: string
   text: string
+  /** Display-only sizes in sheet pixels; independent of the cue's timing. */
+  fontSizePx?: number
+  secondaryFontSizePx?: number
+  fontSizeMode?: 'fixed' | 'fit'
   camera?: CameraInstruction
   source?: 'manual' | 'recognition' | 'import'
 }

@@ -28,6 +28,7 @@ import { DeleteIconButton, TrashIcon } from './DeleteIconButton'
 import { FloatingHoverPalette } from './FloatingHoverPalette'
 import { SheetCanvas, type SheetCanvasHandle } from './app-sheet-canvas'
 import { clampAutoFitSheetZoom, fitSheetZoomForViewport } from './sheet-panel-viewport'
+import { SheetTextSizeControl, type SheetTextSizeControlModel } from './SheetTextSizeControl'
 import { FontSizeControl } from './sheet-panel-annotation'
 import { templateMemoTargetLabel } from './templateMemoTargets'
 import {
@@ -220,6 +221,7 @@ export function SheetPanel(props: {
   memoWritingMode?: import('@xsheet-remap/core').TextWritingMode
   textFontSizePx: number
   timingTextFontSizePx: number
+  textSizeControl?: SheetTextSizeControlModel
   selectedTextAnnotationId: string | null
   editingTextAnnotationId: string | null
   hasSelectedTextTarget: boolean
@@ -1269,14 +1271,14 @@ export function SheetPanel(props: {
                   placement="right-start"
                 >
                   <div className="timingTextRailMenuBody">
-                    <FontSizeControl
+                    {props.textSizeControl ? <SheetTextSizeControl model={props.textSizeControl} /> : <FontSizeControl
                       value={props.timingTextFontSizePx}
                       active={props.hasSelectedTextTarget}
                       disabled={props.textFontSizeDisabled}
                       onChange={props.onTextFontSizeChange}
                       label={uiText.sheet.timingTextFontSize}
                       tooltip={uiText.sheet.timingTextFontSizeTitle}
-                    />
+                    />}
                   </div>
                 </ActionMenu>
                 {activePage && (

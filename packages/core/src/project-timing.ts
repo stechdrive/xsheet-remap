@@ -61,7 +61,7 @@ export function setEvent(
   frame: number,
   keyId: string,
   sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
-  options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
+  options: { fontSizePx?: number; fontSizeMode?: TimelineEvent['fontSizeMode']; source?: TimelineEvent['source'] } = {},
 ): CutProject {
   ensurePaperTrack(project, paperTrack)
   if (!isSpecialTimingKeyId(keyId)) {
@@ -79,6 +79,7 @@ export function setEvent(
     keyId,
     valueKind: timingEventValueKindForKeyId(keyId),
     ...(typeof options.fontSizePx === 'number' && Number.isFinite(options.fontSizePx) ? { fontSizePx: options.fontSizePx } : {}),
+    ...(options.fontSizeMode ? { fontSizeMode: options.fontSizeMode } : {}),
     source: options.source ?? 'manual',
   }
   const events = replaceTimingEvent(project.logicalSheet.events, event)
@@ -95,7 +96,7 @@ export function setTimingSpecialEvent(
   frame: number,
   marker: TimingSpecialMarker,
   sheetRole: SheetTimingRole = DEFAULT_SHEET_TIMING_ROLE,
-  options: { fontSizePx?: number; source?: TimelineEvent['source'] } = {},
+  options: { fontSizePx?: number; fontSizeMode?: TimelineEvent['fontSizeMode']; source?: TimelineEvent['source'] } = {},
 ): CutProject {
   return setEvent(setTimingReferenceAt(project, paperTrack, frame, sheetRole, false), paperTrack, frame, timingSpecialMarkerKeyId(marker), sheetRole, options)
 }

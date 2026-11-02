@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { checkPinnedCelcodec } from './vendor-celcodec.mjs'
 
 const OCR_IDENTIFIER = /(?:@paddleocr|PaddleOCR|PP-OCRv5)/i
 
@@ -45,5 +46,6 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
   if (args.length && (args.length !== 2 || args[0] !== '--artifact-root')) throw new Error('Expected --artifact-root <directory>')
   const result = checkEmbeddedDependencies(root, args[1])
+  checkPinnedCelcodec(root)
   console.log(`[embedded-dependencies] passed: OCR dependencies/assets removed; js-yaml ${result.externalVersion}`)
 }

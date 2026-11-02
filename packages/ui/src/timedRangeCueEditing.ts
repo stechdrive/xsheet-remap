@@ -73,6 +73,9 @@ export function buildTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
         label: cue.label,
         text: cue.text,
         camera: cue.camera,
+        fontSizePx: cue.fontSizePx,
+        secondaryFontSizePx: cue.secondaryFontSizePx,
+        fontSizeMode: cue.fontSizeMode,
         source: cue.source,
       })),
   }
@@ -128,6 +131,9 @@ export function pasteTimedRangeCueClipboard<Role extends EditableTimedRangeRole>
       label: item.label,
       text: item.text,
       camera,
+      fontSizePx: item.fontSizePx,
+      secondaryFontSizePx: item.secondaryFontSizePx,
+      fontSizeMode: item.fontSizeMode,
       source: item.source,
     })
     next = result.project

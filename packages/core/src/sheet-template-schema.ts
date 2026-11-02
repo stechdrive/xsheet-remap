@@ -533,6 +533,8 @@ export type SheetViewSurfaceLayoutType = 'fixed-page' | 'continuous-canvas'
 
 export interface SheetViewSurfaceLayout {
   type: SheetViewSurfaceLayoutType
+  /** Omitted templates retain their original minimum page height. */
+  heightMode?: 'at-least-page' | 'content'
 }
 
 export interface SheetViewWorkRangeDefaults {

@@ -2005,6 +2005,10 @@
                 "fixed-page",
                 "continuous-canvas"
               ]
+            },
+            "heightMode": {
+              "type": "string",
+              "enum": ["at-least-page", "content"]
             }
           }
         },

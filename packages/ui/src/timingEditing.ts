@@ -197,6 +197,7 @@ export function buildTimingClipboard(project: CutProject, range: SheetRangeSelec
         requiresExplicitBinding: key?.requiresExplicitBinding,
         bindings: key ? timingClipboardBindingSnapshots(project, key.keyId, slotById) : undefined,
         fontSizePx: event.fontSizePx,
+        fontSizeMode: event.fontSizeMode,
         source: event.source,
       })
     }

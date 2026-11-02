@@ -32,6 +32,7 @@ import { compareAssetNames, compareFileNames, isImageAssetFile, sheetImageRefFro
 import { bindAssetToHit, isCellMaterialAsset } from './sheetAssets';
 import { runDesktopE2EIfRequested } from './desktopE2E';
 import { clampTextFontSizePx, defaultTimingTextFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout';
+import { useSheetTextSizing, type NextCueTextSizes } from './useSheetTextSizing'
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage } from './sheetImages';
 import { clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
@@ -41,7 +42,7 @@ import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
 import { createTemplateDraft, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
-import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation, updateTimelineEventFontSize } from './app-sheet-layers';
+import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation } from './app-sheet-layers';
 import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
@@ -101,6 +102,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef,
   } = useAppShellState(appKind)
   const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
+  const nextCueTextSizes = useRef<NextCueTextSizes>({})
   const [timingInputCircles, setTimingInputCircles] = useState(loadTimingInputCircles)
   const [actionCellTransferPlan, setActionCellTransferPlan] = useState<ActionCellTransferPlan | null>(null)
   if (actionCellTransferPlan && (actionCellTransferPlan.source !== project || panel !== 'sheet')) setActionCellTransferPlan(null)
@@ -227,6 +229,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue, copySelectedCameraCueRange, pasteSelectedCameraCueRange,
   } = createAppTimedRangeControllers({
     project, getProject: () => projectRef.current, template, rangeSelection, selectedCueId: selectedTimedRangeCueId,
+    getNewTextSize: role => nextCueTextSizes.current[role],
     soundClipboard: soundCueClipboard, cameraClipboard: cameraCueClipboard,
     frameMin: sheetDisplayFrameStart, frameMax: sheetDisplayFrameEnd, commitProject, commitTimingDraft, cancelTimingDraft,
     clearSelection: clearSelectionState, selectRange: setSelectionFromRange,
@@ -315,8 +318,10 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       ? { kind: 'timingEvent', eventId: selectedTimelineEvent.eventId, fontSizePx: selectedTimelineEventFontSizePx }
       : { kind: 'nextTimingInput', fontSizePx: textFontSizePx }
   const activeTextFontSizePx = activeTextTarget.fontSizePx
-  const hasSelectedTextTarget = activeTextTarget.kind === 'timingEvent'
-  const isTextFontSizeDisabled = activeTextTarget.kind === 'timingRange'
+  const hasSelectedTextTarget = sheetSelection.kind === 'cue' || Boolean(rangeSelection) || activeTextTarget.kind === 'timingEvent'
+  const textSizing = useSheetTextSizing({ project, template, selection: sheetSelection, nextSize: textFontSizePx, setNextSize: setTextFontSizePx,
+    scopeKey: `${projectDocumentSnapshot.activeCutId}:${activeSheetRevision.revisionId}`, pageSize: activeSheetPageSize, nextCueSizesRef: nextCueTextSizes, protectedSheet: Boolean(activeSheetRevision.protected), commitProject, commitDraft: () => commitTimingDraft(false) })
+  const isTextFontSizeDisabled = textSizing.model.disabled
   const activeMemoTextFontSizePx = selectedTextAnnotation
     ? resolveAnnotationTextFontSizePx(selectedTextAnnotation, activeSheetPageSize)
     : memoTextFontSizePx
@@ -723,7 +728,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function applyTimingValue(hit: SheetHit | null, rawValue: string, advance = false, sourceProject: CutProject = project): CutProject {
     if (!hit?.paperTrack) return sourceProject
     const value = rawValue.trim()
-    const next = setTimingValueAt(sourceProject, hit, value, activeTextFontSizePx, activeCorrectionLayerId, timingInputCircles[sheetRoleForHit(hit)])
+    const next = setTimingValueAt(sourceProject, hit, value, activeTextFontSizePx, activeCorrectionLayerId, timingInputCircles[sheetRoleForHit(hit)], textSizing.inputMode)
     commitProject(next.project)
     setTimingEditSession(null)
     const nextHit = advance
@@ -792,7 +797,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       return {
         target, value: character, originalValue: timingKeyDisplayLabel(sourceProject, selection.keyId),
         cutId: projectDocumentSnapshot.activeCutId, revisionId: activeSheetRevision.revisionId,
-        correctionLayerId: activeCorrectionLayerId, fontSizePx: activeTextFontSizePx,
+        correctionLayerId: activeCorrectionLayerId, fontSizePx: activeTextFontSizePx, fontSizeMode: textSizing.inputMode,
         circleOnInput: timingInputCircles[sheetRoleForHit(selection.hit!)],
       }
     })
@@ -1529,7 +1534,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   function handleAssignRegisteredCell(keyId: string, targetHit: SheetHit | null) {
     if (!targetHit?.paperTrack) return
     const sourceProject = commitTimingDraft(false)
-    const assigned = assignRegisteredCellKeyToHit(sourceProject, keyId, targetHit, activeTextFontSizePx)
+    const assigned = assignRegisteredCellKeyToHit(sourceProject, keyId, targetHit, activeTextFontSizePx, textSizing.inputMode)
     if (!assigned.keyId) return
     commitProject(assigned.project)
     setSelectionFromHit(targetHit, assigned.project, assigned.keyId)
@@ -2248,13 +2253,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function handleTextFontSizeChange(value: number) {
-    const nextSize = clampTextFontSizePx(value)
-    if (activeTextTarget.kind === 'timingRange') return
-    setTextFontSizePx(nextSize)
-    if (activeTextTarget.kind === 'timingEvent') {
-      const nextProject = updateTimelineEventFontSize(project, activeTextTarget.eventId, nextSize)
-      if (nextProject !== project) commitProject(nextProject)
-    }
+    textSizing.apply({ kind: 'set', value })
   }
 
   function handleMemoTextFontSizeChange(value: number) {
@@ -2452,7 +2451,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     projectDocumentSnapshot, projectCuts, sheetRevisions, activeSheetRevision, referenceProject, timingExportPlan, timingExportIssues, sheetPages, clampedActivePageIndex,
     activePage, activePageImage, activeCorrectionLayerId, activeCorrectionLayer, materialAssets,
     issueErrorCount, issueWarningCount, activeCalibrationPoints, activeCalibrationPointsKey, selectedKeySummary,
-    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, hasSelectedTextTarget, isTextFontSizeDisabled,
+    selectedFrameSummary, selectedTextAnnotation, editingTextAnnotation, activeTextFontSizePx, activeMemoTextFontSizePx, textSizeControl: textSizing.model, hasSelectedTextTarget, isTextFontSizeDisabled,
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,

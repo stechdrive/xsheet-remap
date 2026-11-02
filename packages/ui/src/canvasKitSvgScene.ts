@@ -1,6 +1,6 @@
 import {
   type CanvasKitScene, type SceneFilter, type SceneMatrix, type SceneNode,
-  type ScenePaint, type SceneShape, identitySceneMatrix,
+  type ScenePaint, type SceneShape, identitySceneMatrix, stableTextMatrix,
 } from './canvasKitScene'
 import type { CanvasKitSceneCache } from './canvasKitSceneCache'
 import { compileDirectPaperModel, directPaperModel, paperStyle } from './canvasKitDirectModel'
@@ -106,6 +106,7 @@ export function captureSvgScene(root: SVGSVGElement, cache?: CanvasKitSceneCache
     } else if (!node.shape && !['g', 'svg', 'a'].includes(element.localName)) {
       throw new Error(`Unsupported paper primitive: ${element.localName}`)
     }
+    if (node.text) node.matrix = stableTextMatrix(matrix)
     const direct = directPaperModel(element)
     const samples = direct ? new Map(Array.from(element.querySelectorAll('[data-paper-style]'))
       .map(sample => [sample.getAttribute('data-paper-style'), sample])) : null

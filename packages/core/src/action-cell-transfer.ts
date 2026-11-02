@@ -86,7 +86,7 @@ export function applyActionCellTransferPlan(project: CutProject, plan: ActionCel
       }
       const eventId = nextEventId()
       events.push({ eventId, paperTrack: column.paperTrack, sheetRole: 'cell', frame: item.source.frame, keyId,
-        valueKind: item.number === null ? 'blank' : 'cell', fontSizePx: item.source.fontSizePx, source: 'manual' })
+        valueKind: item.number === null ? 'blank' : 'cell', fontSizePx: item.source.fontSizePx, fontSizeMode: item.source.fontSizeMode, source: 'manual' })
       if (item.enclosure) marks.push({ paperTrack: column.paperTrack, sheetRole: 'cell', frame: item.source.frame,
         ...(item.enclosure === 'circle' ? { shape: 'circle' } : {}) })
     }

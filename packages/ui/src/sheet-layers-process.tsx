@@ -227,7 +227,7 @@ type BindingCloneSpec = {
   materialState: CellBinding['materialState']
 }
 
-export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string, hit: SheetHit, fontSizePx?: number): { project: CutProject; keyId: string | null } {
+export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string, hit: SheetHit, fontSizePx?: number, fontSizeMode?: 'fixed' | 'fit'): { project: CutProject; keyId: string | null } {
   if (!hit.paperTrack) return { project, keyId: null }
   let sourceProject = project
   let sourceKey = sourceProject.logicalSheet.keys.find(key => key.keyId === keyId)
@@ -251,14 +251,14 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   if (!sourceKey.displayLabel.trim() && targetKey && targetKey.keyId !== sourceKey.keyId) {
     const merged = mergeTimingKeys(sourceProject, sourceKey.keyId, targetKey.keyId)
     return {
-      project: setEvent(ensureAssetSheetLabel(merged, targetKey.keyId), hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(merged, targetKey.keyId), hit.paperTrack, hit.frame, targetKey.keyId, sheetRole, { fontSizePx, fontSizeMode }),
       keyId: targetKey.keyId,
     }
   }
 
   if (sourceKey.paperTrack === hit.paperTrack) {
     return {
-      project: setEvent(ensureAssetSheetLabel(sourceProject, sourceKey.keyId), hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(sourceProject, sourceKey.keyId), hit.paperTrack, hit.frame, sourceKey.keyId, sheetRole, { fontSizePx, fontSizeMode }),
       keyId: sourceKey.keyId,
     }
   }
@@ -266,7 +266,7 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
   const reusableKey = findReusableRegisteredCellClone(sourceProject, sourceKey, hit.paperTrack, sheetRole)
   if (reusableKey) {
     return {
-      project: setEvent(ensureAssetSheetLabel(sourceProject, reusableKey.keyId), hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx }),
+      project: setEvent(ensureAssetSheetLabel(sourceProject, reusableKey.keyId), hit.paperTrack, hit.frame, reusableKey.keyId, sheetRole, { fontSizePx, fontSizeMode }),
       keyId: reusableKey.keyId,
     }
   }
@@ -281,7 +281,7 @@ export function assignRegisteredCellKeyToHit(project: CutProject, keyId: string,
     })
   }
   return {
-    project: setEvent(next, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx }),
+    project: setEvent(next, hit.paperTrack, hit.frame, created.key.keyId, sheetRole, { fontSizePx, fontSizeMode }),
     keyId: created.key.keyId,
   }
 }

@@ -1,0 +1,35 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import { checkPinnedCelcodec } from './vendor-celcodec.mjs'
+
+const copies: string[] = []
+function fixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'celcodec-pin-'))
+  copies.push(root)
+  for (const name of ['packages/adapters/package.json', 'package-lock.json', 'vendor/celcodec-0.2.0.tgz']) {
+    fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true })
+    fs.copyFileSync(name, path.join(root, name))
+  }
+  return root
+}
+afterEach(() => { for (const root of copies.splice(0)) fs.rmSync(root, { recursive: true, force: true }) })
+describe('standalone CLIP dependency', () => {
+  it('checks audited package bytes, inventory, notices, and lockfile integrity', () => {
+    expect(checkPinnedCelcodec(process.cwd())).toMatchObject({ version: '0.2.0', files: 108 })
+  })
+  it('rejects mutable sibling links, altered archives and stale integrity', () => {
+    const root = fixture(), file = path.join(root, 'package-lock.json')
+    const lock = JSON.parse(fs.readFileSync(file, 'utf8'))
+    lock.packages['packages/adapters/node_modules/celcodec'].link = true
+    fs.writeFileSync(file, JSON.stringify(lock))
+    expect(() => checkPinnedCelcodec(root)).toThrow(/lock must resolve/)
+    delete lock.packages['packages/adapters/node_modules/celcodec'].link
+    lock.packages['packages/adapters/node_modules/celcodec'].integrity = 'sha512-stale'
+    fs.writeFileSync(file, JSON.stringify(lock))
+    expect(() => checkPinnedCelcodec(root)).toThrow(/integrity/)
+    fs.appendFileSync(path.join(root, 'vendor/celcodec-0.2.0.tgz'), 'changed')
+    expect(() => checkPinnedCelcodec(root)).toThrow(/audited bytes/)
+  })
+})

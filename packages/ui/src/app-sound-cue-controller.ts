@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { CueTextSizeStyle } from './cueTextSizing'
 import {
   createTimedRangeCue,
   deleteTimedRangeCue,
@@ -24,6 +25,7 @@ import {
 interface SoundCueControllerOptions {
   project: CutProject
   getProject: () => CutProject
+  getNewTextSize?: (role: 'sound' | 'camera') => CueTextSizeStyle | undefined
   template: SheetTemplate
   rangeSelection: SheetRangeSelection | null
   selectedCueId: string | null
@@ -125,6 +127,7 @@ export function createSoundCueController(options: SoundCueControllerOptions) {
       if (!placement) return notifyPlacementConflict()
       const created = createTimedRangeCue(sourceProject, {
         role: 'sound',
+        ...options.getNewTextSize?.('sound'),
         laneId: placement.laneId,
         frameStart: input.frameStart,
         frameEnd: input.frameEnd,

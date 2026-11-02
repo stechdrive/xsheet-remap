@@ -190,8 +190,8 @@ describe('template editor geometry', () => {
     })
 
     expect(model?.frameNumbers.map(item => item.text)).toEqual(['102', '104', '106', '108'])
-    expect(model!.frameNumbers[0].fontSizePx).toBe(9)
-    expect(model?.pageSize).toEqual({ widthPx: 1920, heightPx: 3600 })
+    expect(model!.frameNumbers[0].fontSizePx).toBe(8)
+    expect(model?.pageSize).toEqual({ widthPx: 1920, heightPx: 880 })
     const frameBoundaries = model!.rowPaths.flatMap(path => path.segments).map(segment => segment.y1).sort((a, b) => a - b)
     const firstFrameBoundaryY = frameBoundaries[2]!
     expect((firstFrameBoundaryY - model!.frameNumbers[0].y) * model!.pageSize.heightPx).toBeCloseTo(3)

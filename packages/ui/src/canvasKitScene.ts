@@ -29,6 +29,11 @@ export type SceneNode = {
 export type CanvasKitScene = { width: number; height: number; nodes: SceneNode[] }
 
 export const identitySceneMatrix: SceneMatrix = [1, 0, 0, 1, 0, 0]
+/** SVG float transforms can straddle a glyph-hinting boundary at device scale 2.
+ * Discard subpixel serialization noise before either text path reaches Skia. */
+export function stableTextMatrix(matrix: SceneMatrix): SceneMatrix {
+  return matrix.map(value => Number(value.toFixed(7))) as SceneMatrix
+}
 export function skiaMatrix([a, b, c, d, e, f]: SceneMatrix): number[] {
   return [a, c, e, b, d, f, 0, 0, 1]
 }

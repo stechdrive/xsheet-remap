@@ -10,6 +10,9 @@ export interface TimedRangeCueInput {
   label: string
   text?: string
   camera?: CameraInstruction
+  fontSizePx?: number
+  secondaryFontSizePx?: number
+  fontSizeMode?: TimedRangeCue['fontSizeMode']
   source?: TimedRangeCue['source']
 }
 
@@ -20,6 +23,9 @@ export interface TimedRangeCueUpdates {
   label?: string
   text?: string
   camera?: CameraInstruction
+  fontSizePx?: number
+  secondaryFontSizePx?: number
+  fontSizeMode?: TimedRangeCue['fontSizeMode']
 }
 
 export interface AddTimelineLaneInput {
@@ -104,6 +110,9 @@ export function createTimedRangeCue(project: CutProject, input: TimedRangeCueInp
     label: input.label,
     text: input.text ?? '',
     camera: input.camera,
+    fontSizePx: input.fontSizePx,
+    secondaryFontSizePx: input.secondaryFontSizePx,
+    fontSizeMode: input.fontSizeMode,
     source: input.source ?? 'manual',
   })
   return {
@@ -241,6 +250,7 @@ function normalizeCue(project: CutProject, cue: TimedRangeCue): TimedRangeCue {
     frameEnd,
     label: cue.label.trim(),
     text: cue.role === 'camera' ? '' : cue.text.trim(),
+    ...normalizeCueTextSize(cue),
     camera: cue.role === 'camera' ? normalizeCameraInstruction({ ...cue, frameStart, frameEnd }) : undefined,
     source: cue.source ?? 'manual',
   }
@@ -471,8 +481,21 @@ function sameCue(left: TimedRangeCue, right: TimedRangeCue): boolean {
     && left.frameEnd === right.frameEnd
     && left.label === right.label
     && left.text === right.text
+    && left.fontSizePx === right.fontSizePx
+    && left.secondaryFontSizePx === right.secondaryFontSizePx
+    && left.fontSizeMode === right.fontSizeMode
     && JSON.stringify(left.camera) === JSON.stringify(right.camera)
     && left.source === right.source
+}
+
+function normalizeCueTextSize(cue: TimedRangeCue): Pick<TimedRangeCue, 'fontSizePx' | 'secondaryFontSizePx' | 'fontSizeMode'> {
+  const sizes: Pick<TimedRangeCue, 'fontSizePx' | 'secondaryFontSizePx' | 'fontSizeMode'> = {}
+  for (const key of ['fontSizePx', 'secondaryFontSizePx'] as const) {
+    const value = cue[key]
+    if (typeof value === 'number' && Number.isFinite(value)) sizes[key] = Math.max(6, Math.min(256, Math.round(value)))
+  }
+  if (cue.fontSizeMode === 'fixed' || cue.fontSizeMode === 'fit') sizes.fontSizeMode = cue.fontSizeMode
+  return sizes
 }
 
 function clamp(value: number, min: number, max: number): number {

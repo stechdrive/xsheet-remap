@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import type { CueTextSizeStyle } from './cueTextSizing'
 import type { CutProject, SheetTemplate } from '@xsheet-remap/core'
 import type {
   CameraCueClipboard,
@@ -16,6 +17,7 @@ import type { DialogueSoundCueChangeIntent } from './dialogueAudioBinding'
 interface AppTimedRangeControllersOptions {
   project: CutProject
   getProject: () => CutProject
+  getNewTextSize?: (role: 'sound' | 'camera') => CueTextSizeStyle | undefined
   template: SheetTemplate
   rangeSelection: SheetRangeSelection | null
   selectedCueId: string | null
@@ -62,6 +64,7 @@ export function createAppTimedRangeControllers(options: AppTimedRangeControllers
   const shared = {
     project: options.project,
     getProject: options.getProject,
+    getNewTextSize: options.getNewTextSize,
     template: options.template,
     rangeSelection: options.rangeSelection,
     frameMin: options.frameMin,

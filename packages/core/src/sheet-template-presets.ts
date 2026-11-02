@@ -805,7 +805,7 @@ function digitalMetadataFieldCell(cellId: string, column: number, fieldId: strin
 
 export const digitalStandardSheetTemplate: SheetTemplate = {
   schemaVersion: SHEET_TEMPLATE_SCHEMA_VERSION,
-  templateId: 'digital-standard-v2',
+  templateId: 'digital-standard-v3',
   name: 'デジタル標準',
   theme: createDefaultSheetTemplateTheme(),
   templateKind: 'digital-native',
@@ -844,6 +844,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     },
     surface: {
       type: 'continuous-canvas',
+      heightMode: 'content',
     },
   },
   page: {

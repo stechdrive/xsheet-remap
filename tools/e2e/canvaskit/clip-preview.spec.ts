@@ -128,7 +128,8 @@ test('repeated Quick Look closes release every preview worker and generated imag
     if (cycle > 1) await activateControl(page, page.getByRole('button', { name: 'vector-celをクイックルック', exact: true }))
     await expect(preview.locator('img')).toBeVisible()
     expect(await preview.locator('img').evaluate(async node => { await (node as HTMLImageElement).decode(); return [(node as HTMLImageElement).naturalWidth, (node as HTMLImageElement).naturalHeight] })).toEqual([2, 1])
-    await expect.poll(resources).toEqual({ workers: cycle, terminated: cycle, urls: cycle, revoked: cycle - 1 })
+    // The open viewer retains its document worker for subsequent selections.
+    await expect.poll(resources).toEqual({ workers: cycle, terminated: cycle - 1, urls: cycle, revoked: cycle - 1 })
     await activateControl(page, preview.getByRole('button', { name: 'プレビューを閉じる', exact: true }))
     await expect(preview).toHaveCount(0)
     await expect.poll(resources).toEqual({ workers: cycle, terminated: cycle, urls: cycle, revoked: cycle })

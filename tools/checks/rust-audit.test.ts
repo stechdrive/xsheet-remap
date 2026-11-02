@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { inspectAuditDatabase, inspectRustAudit } from './rust-audit.mjs'
+import path from 'node:path'
+import { inspectAuditDatabase, inspectRustAudit, rustAuditBinary, rustAuditRoot } from './rust-audit.mjs'
 
 const exception = { id: 'RUSTSEC-2024-0429', kind: 'unsound', package: 'glib', version: '0.18.5',
   absentFromTarget: true, reviewBy: '2027-01-19', reason: 'GTK is outside the shipped Windows graph' }
@@ -12,6 +13,13 @@ const report = () => ({ database: { 'last-commit': commit, 'advisory-count': 133
 const inspect = (value: unknown, rules = policy, active = new Set<string>()) => inspectRustAudit(value, rules, active, '2026-10-19')
 
 describe('Rust advisory gate', () => {
+  it('shares only the selected tool installation across clean clones', () => {
+    const root = path.resolve('checkout'), clone = path.join(root, '.tmp/clone')
+    expect(rustAuditRoot(root, {})).toBe(path.join(root, '.cache/cargo-audit'))
+    const env = { XSHEET_RUST_AUDIT_ROOT: path.join(root, '.cache/cargo-audit') }
+    expect(rustAuditRoot(clone, env)).toBe(rustAuditRoot(root, {}))
+    expect(rustAuditBinary(clone, env)).toBe(rustAuditBinary(root, {}))
+  })
   it('binds offline reports with omitted metadata to the fetched database revision', () => {
     const snapshot = report().database
     expect(() => inspectAuditDatabase(snapshot, snapshot, commit)).not.toThrow()

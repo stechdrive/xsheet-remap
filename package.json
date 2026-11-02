@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.849",
+  "version": "0.1.850",
   "private": true,
   "type": "module",
   "engines": {
@@ -124,7 +124,7 @@
     "desktop:collect": "node tools/verification/computer-use-desktop.mjs collect",
     "desktop:capabilities": "node tools/verification/computer-use-desktop.mjs capabilities",
     "verify:plan": "node tools/verification/run.mjs plan",
-    "test:clip": "node tools/verification/run-unit.mjs run packages/core/src/clip-export.test.ts packages/core/src/clip-import.test.ts packages/core/src/clip-document.test.ts packages/core/src/process-timing.test.ts packages/adapters/src/clip",
+    "test:clip": "node tools/verification/run-unit.mjs run --clip",
     "check:corrector-native": "cargo test --manifest-path apps/sheet-corrector/src-tauri/Cargo.toml",
     "setup:rust-audit": "node tools/checks/install-rust-audit.mjs",
     "check:rust-audit": "node tools/checks/rust-audit.mjs"

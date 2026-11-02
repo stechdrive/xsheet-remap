@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { load } from 'js-yaml'
-import { inspectPagesWorkflow } from './workflow-policy.mjs'
+import { deploymentCondition, inspectPagesWorkflow } from './workflow-policy.mjs'
 
-const candidate = () => load(readFileSync('.github/workflows/pages.yml', 'utf8')) as { jobs: Record<string, { needs?: string[]; steps: { run?: string; uses?: string; if?: string; with?: Record<string, unknown> }[] }> }
+const candidate = () => load(readFileSync('.github/workflows/pages.yml', 'utf8')) as { jobs: Record<string, { if?: string; needs?: string[]; steps: { run?: string; uses?: string; if?: string; with?: Record<string, unknown> }[] }> }
 describe('Pages publication gates', () => {
   it('accepts the actual workflow regardless of comments or display names', () => {
     expect(inspectPagesWorkflow(candidate())).toEqual([])
@@ -34,7 +34,7 @@ describe('Pages publication gates', () => {
   })
   it('rejects a missing audit or an individual required check being skipped', () => {
     const workflow = candidate()
-    workflow.jobs.check.steps = workflow.jobs.check.steps.filter(step => step.run !== 'npm run check:dependency-audit')
+    workflow.jobs.audit.steps = workflow.jobs.audit.steps.filter(step => step.run !== 'npm run check:dependency-audit')
     workflow.jobs.check.steps.find(step => step.run === 'npm run check')!.if = 'false'
     workflow.jobs.build.steps.find(step => step.run === 'npm run verify:browser:ci')!.if = 'false'
     expect(inspectPagesWorkflow(workflow)).toContain('Dependency audit must gate publication')
@@ -49,10 +49,10 @@ describe('Pages publication gates', () => {
   })
   it('rejects skipping the fixed Rust audit tool installation', () => {
     const workflow = candidate()
-    workflow.jobs.check.steps.find(step => step.run === 'npm run setup:rust-audit')!.if = 'false'
+    workflow.jobs.audit.steps.find(step => step.run === 'npm run setup:rust-audit')!.if = 'false'
     expect(inspectPagesWorkflow(workflow)).toContain('Install the pinned Rust auditor before the dependency gate')
   })
-  it.each(['check', 'native', 'build'])('requires runtime acceptance before npm ci in %s', id => {
+  it.each(['check', 'audit', 'native', 'build'])('requires runtime acceptance before npm ci in %s', id => {
     const workflow = candidate()
     const steps = workflow.jobs[id].steps
     const runtime = steps.findIndex(step => step.run === 'npm run check:runtime')
@@ -60,6 +60,37 @@ describe('Pages publication gates', () => {
     expect(inspectPagesWorkflow(workflow)).toContain(`Check the selected Node and bundled npm before installing dependencies in ${id}`)
     steps.push(step)
     expect(inspectPagesWorkflow(workflow)).toContain(`Check the selected Node and bundled npm before installing dependencies in ${id}`)
+  })
+  it('rejects bypassing gates at job level or skipping importer coverage', () => {
+    const workflow = candidate()
+    workflow.jobs.audit.if = 'false'
+    workflow.jobs.native.if = 'false'
+    workflow.jobs.check.steps.find(step => step.run === 'npm run verify:importer')!.if = 'false'
+    workflow.jobs.deploy.if = '${{ !cancelled() }}'
+    expect(inspectPagesWorkflow(workflow)).toContain('Dependency audit must gate publication')
+    expect(inspectPagesWorkflow(workflow)).toContain('Native job selection must use the shared plan output')
+    expect(inspectPagesWorkflow(workflow)).toContain('Required candidate checks cannot be conditionally skipped')
+    expect(inspectPagesWorkflow(workflow)).toContain('Deployment must require successful gates and only allow plan-excluded native skips')
+  })
+  it('evaluates the actual deployment condition against failed, skipped and cancelled needs', () => {
+    // This expression uses only JS-compatible operators and literals from the
+    // pinned policy; evaluate that expression rather than a duplicate predicate.
+    const evaluate = new Function('needs', 'cancelled', `return ${deploymentCondition.slice(3, -2)}`)
+    const needs = { plan: { result: 'success', outputs: { native: 'true' } },
+      check: { result: 'success' }, audit: { result: 'success' }, build: { result: 'success' }, native: { result: 'success' } }
+    expect(evaluate(needs, () => false)).toBe(true)
+    expect(evaluate(needs, () => true)).toBe(false)
+    for (const gate of ['plan', 'check', 'audit', 'build', 'native'] as const) {
+      for (const result of ['failure', 'cancelled', 'skipped']) {
+        expect(evaluate({ ...needs, [gate]: { ...needs[gate], result } }, () => false)).toBe(false)
+      }
+    }
+    needs.plan.outputs.native = 'false'
+    needs.native.result = 'skipped'
+    expect(evaluate(needs, () => false)).toBe(true)
+    expect(evaluate(needs, () => true)).toBe(false)
+    needs.plan.outputs.native = ''
+    expect(evaluate(needs, () => false)).toBe(false)
   })
   it.each([
     'npm install --global npm@11.7.0',

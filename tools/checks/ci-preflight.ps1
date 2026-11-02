@@ -146,9 +146,13 @@ try {
   }
   $previousBrowserPath = $env:PLAYWRIGHT_BROWSERS_PATH
   $previousCargoTarget = $env:CARGO_TARGET_DIR
+  $previousAuditRoot = $env:XSHEET_RUST_AUDIT_ROOT
   try {
     if (-not $env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $repoRoot ".cache\playwright" }
     $env:CARGO_TARGET_DIR = Join-Path $repoRoot ".cache\cargo-target"
+    # Share only the pinned executable. Every clone still fetches advisories and
+    # audits its own lockfiles; audit results are never reused.
+    $env:XSHEET_RUST_AUDIT_ROOT = Join-Path $repoRoot ".cache\cargo-audit"
     Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "setup:rust-audit") -WorkingDirectory $cloneRoot
     Invoke-CheckedCommand -FilePath $npmCommand -ArgumentList @("run", "check:dependency-audit") -WorkingDirectory $cloneRoot
     Invoke-CheckedCommand -FilePath "node" -ArgumentList @("node_modules/@playwright/test/cli.js", "install", "chromium", "webkit") -WorkingDirectory $cloneRoot
@@ -156,6 +160,7 @@ try {
   } finally {
     $env:PLAYWRIGHT_BROWSERS_PATH = $previousBrowserPath
     $env:CARGO_TARGET_DIR = $previousCargoTarget
+    $env:XSHEET_RUST_AUDIT_ROOT = $previousAuditRoot
     $evidenceDestination = Join-Path $repoRoot "reference-local\preflight\$([System.IO.Path]::GetFileName($runRoot))"
     New-Item -ItemType Directory -Path $evidenceDestination -Force | Out-Null
     foreach ($directory in @("verification", "canvaskit-browser", "dependency-audit")) {

@@ -66,8 +66,12 @@ export function inspectAuditDatabase(database, snapshot, actualCommit) {
   }
 }
 
-export function rustAuditBinary(root) {
-  return path.join(root, '.cache', 'cargo-audit', 'bin', process.platform === 'win32' ? 'cargo-audit.exe' : 'cargo-audit')
+export function rustAuditRoot(root, env = process.env) {
+  return env.XSHEET_RUST_AUDIT_ROOT ? path.resolve(root, env.XSHEET_RUST_AUDIT_ROOT) : path.join(root, '.cache', 'cargo-audit')
+}
+
+export function rustAuditBinary(root, env = process.env) {
+  return path.join(rustAuditRoot(root, env), 'bin', process.platform === 'win32' ? 'cargo-audit.exe' : 'cargo-audit')
 }
 
 export function runRustAudit(root = process.cwd()) {

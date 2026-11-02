@@ -1,11 +1,12 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { checks, selectChecks, testPurposes, withoutGeneratedVersion } from './plan.mjs'
 import { reusableEvidence, sha256, sourceIdentity } from './evidence.mjs'
 import { defaultBrowserWorkers, parseOptions } from './options.mjs'
 import { prepareBrowser, validateBrowserResults } from './browser.mjs'
-import { readUnitEvidence, reusableUnitEvidence, unitReportPath } from './unit-evidence.mjs'
+import { importerCoverage, readUnitEvidence, reusableUnitEvidence, unitReportPath } from './unit-evidence.mjs'
+import { runIndependent } from './parallel.mjs'
 import { readComputerUseAcceptance } from './computer-use-desktop.mjs'
 import { assertSupportedRuntime, runtimeIdentity as nodeRuntimeIdentity } from '../checks/runtime.mjs'
 
@@ -14,15 +15,17 @@ const { phase } = options
 const root = process.cwd()
 const output = path.join(root, 'reference-local/verification')
 fs.mkdirSync(output, { recursive: true })
-function command(file, argv, env = process.env) {
-  const result = spawnSync(file, argv, { cwd: root, env, stdio: 'inherit' })
-  if (result.error) throw result.error
-  if (result.status !== 0) throw new Error(`${path.basename(file)} ${argv.join(' ')} failed (${result.status})`)
+async function command(file, argv, env = process.env) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(file, argv, { cwd: root, env, stdio: 'inherit' })
+    child.once('error', reject)
+    child.once('close', (code, signal) => code === 0 ? resolve() : reject(new Error(`${path.basename(file)} ${argv.join(' ')} failed (${signal ?? code})`)))
+  })
 }
 function npm(script, argv = [], env = process.env) {
   const cli = process.env.npm_execpath
   if (!cli) throw new Error('Run verification through npm run verify:...')
-  command(process.execPath, [cli, 'run', script, ...argv], env)
+  return command(process.execPath, [cli, 'run', script, ...argv], env)
 }
 function runtimeIdentity(phase) {
   const toolVersion = (tool, argv, env = process.env) => {
@@ -79,14 +82,14 @@ if (phase === 'plan') {
     const previous = fs.existsSync(reportPath) ? JSON.parse(fs.readFileSync(reportPath, 'utf8')) : null
     const canReuse = reusableEvidence(previous, identity, name, artifactSha256, execution)
       && (!['check', 'importer'].includes(selected) || reusableUnitEvidence(root, previous))
-    if (artifactSha256 && (browserPhase || options.reuse && canReuse)) npm('check:pages-artifact')
+    if (artifactSha256 && (browserPhase || options.reuse && canReuse)) await npm('check:pages-artifact')
     // Desktop always revalidates the observed EXE bytes and build sessions.
     // This command verifies evidence; the WebView/Explorer runners perform input.
     if (selected !== 'desktop' && options.reuse && canReuse) {
       console.log(`[verification] ${name}: reusing matching passed evidence (${previous.finishedAt})`)
       continue
     }
-    const record = { schemaVersion: 1, phase: name, identity, artifactSha256, execution, status: 'running', startedAt: new Date().toISOString(), purpose: testPurposes[selected] ?? testPurposes.browser,
+    const record = { schemaVersion: 1, phase: name, sourceRoot: root, identity, artifactSha256, execution, status: 'running', startedAt: new Date().toISOString(), purpose: testPurposes[selected] ?? testPurposes.browser,
       recordPath: `reference-local/verification/run-${runId}.json` }
     const start = performance.now()
     fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
@@ -103,24 +106,44 @@ if (phase === 'plan') {
           console.log(`[verification] ${group.suite}: ${group.inventory.length} cases, ${group.workers} worker(s)`)
           const startGroup = performance.now()
           try {
-            command(process.execPath, group.argv, group.env)
+            await command(process.execPath, group.argv, group.env)
             Object.assign(result, validateBrowserResults(JSON.parse(fs.readFileSync(path.join(root, group.results), 'utf8')), group.inventory, group.workers))
           } finally { result.wallMs = Math.round(performance.now() - startGroup) }
         }
-        npm('check:pages-artifact')
+        await npm('check:pages-artifact')
         if (sha256(fs.readFileSync(manifestPath)) !== artifactSha256) throw new Error('Pages candidate changed during browser verification')
       } else if (selected === 'desktop') {
         record.desktopEvidence = readComputerUseAcceptance(root, identity, options.evidence)
         record.scenarios = record.desktopEvidence.scenarios
         record.diagnostics = path.dirname(record.desktopEvidence.recordPath)
-      } else for (const script of checks[selected]) {
-        if (script === 'test' || script === 'test:clip') {
-          const file = unitReportPath(selected, runId)
-          record.unitResults = { path: file }
-          fs.writeFileSync(reportPath, JSON.stringify(record, null, 2))
-          npm(script, [], { ...process.env, XSHEET_UNIT_PHASE: selected, XSHEET_UNIT_RUN_ID: runId })
-          record.unitResults = readUnitEvidence(root, file)
-        } else npm(script)
+      } else if (selected === 'importer' && (record.coveredBy = importerCoverage(root, identity))) {
+        console.log(`[verification] importer: ${record.coveredBy.tests} tests covered by ${record.coveredBy.recordPath}; no duplicate execution`)
+      } else {
+        record.steps = []
+        const runScript = async script => {
+          const step = { script, startedAt: new Date().toISOString(), status: 'running' }
+          record.steps.push(step)
+          const started = performance.now()
+          try {
+            if (script === 'test' || script === 'test:clip') {
+              const file = unitReportPath(selected, runId)
+              record.unitResults = { path: file }
+              await npm(script, [], { ...process.env, XSHEET_UNIT_PHASE: selected, XSHEET_UNIT_RUN_ID: runId })
+              record.unitResults = readUnitEvidence(root, file)
+            } else await npm(script)
+            step.status = 'passed'
+          } catch (error) { step.status = 'failed'; throw error }
+          finally { step.durationMs = Math.round(performance.now() - started) }
+        }
+        if (selected === 'check') {
+          // Unit tests and the static checks read source independently. Keep the
+          // static lane serial to bound resource use; Pages/tsc and native builds
+          // remain separate phases, before any isolated browser measurements.
+          await runIndependent([
+            () => runScript('test'),
+            async () => { for (const script of checks.check.filter(script => script !== 'test')) await runScript(script) },
+          ])
+        } else for (const script of checks[selected]) await runScript(script)
       }
       if (sourceIdentity(root).sourceSha256 !== identity.sourceSha256) throw new Error('Source changed during verification; evidence cannot be accepted')
       record.status = 'passed'

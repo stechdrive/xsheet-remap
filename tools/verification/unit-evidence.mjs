@@ -1,7 +1,35 @@
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { sha256 } from './evidence.mjs'
+import { reusableEvidence, sha256 } from './evidence.mjs'
+
+export const importerTestFilters = ['packages/core/src/clip-export.test.ts', 'packages/core/src/clip-import.test.ts',
+  'packages/core/src/clip-document.test.ts', 'packages/core/src/process-timing.test.ts', 'packages/adapters/src/clip']
+
+export function importerTestFiles(root) {
+  return [...new Set(execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' })
+    .split('\0').filter(file => /\.test\.tsx?$/.test(file) && importerTestFilters.some(filter => file === filter || file.startsWith(`${filter}/`))
+      && existsSync(path.join(root, file))))].sort()
+}
+
+// Coverage is derived from the immutable full-check record, never from a stale
+// test count or a focused test run. Missing evidence falls back to test:clip.
+export function importerCoverage(root, identity, files = importerTestFiles(root)) {
+  try {
+    const latest = JSON.parse(readFileSync(path.join(root, 'reference-local/verification/check.json'), 'utf8'))
+    if (!/^reference-local\/verification\/run-[a-zA-Z0-9_-]+\.json$/.test(latest.recordPath ?? '')) return null
+    const bytes = readFileSync(path.join(root, latest.recordPath))
+    const record = JSON.parse(bytes)
+    if (!reusableEvidence(record, identity, 'check') || !reusableUnitEvidence(root, record) || !files.length) return null
+    const report = JSON.parse(readFileSync(path.join(root, record.unitResults.path), 'utf8'))
+    const results = report.testResults.map(result => ({ ...result, file: path.relative(record.sourceRoot ?? root, result.name).replaceAll('\\', '/') }))
+    const matched = files.map(file => results.filter(result => result.file === file))
+    if (matched.some(matches => matches.length !== 1 || !matches[0].assertionResults?.length)) return null
+    return { recordPath: latest.recordPath, recordSha256: sha256(bytes), unitResults: record.unitResults,
+      files, tests: matched.reduce((count, matches) => count + matches[0].assertionResults.length, 0) }
+  } catch { return null }
+}
 
 export function unitReportPath(phase, runId) {
   if (!['check', 'importer', 'direct'].includes(phase) || !/^[a-zA-Z0-9_-]+$/.test(runId ?? '')) throw new Error('Invalid unit evidence identity')

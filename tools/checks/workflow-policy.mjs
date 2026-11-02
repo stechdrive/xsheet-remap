@@ -1,3 +1,12 @@
+export const deploymentCondition = `\${{ !cancelled() &&
+  needs.plan.result == 'success' &&
+  needs.check.result == 'success' &&
+  needs.audit.result == 'success' &&
+  needs.build.result == 'success' &&
+  ((needs.plan.outputs.native == 'true' && needs.native.result == 'success') ||
+   (needs.plan.outputs.native == 'false' && needs.native.result == 'skipped')) }}`
+const normalize = value => String(value).replace(/\s+/g, ' ').trim()
+
 // Inspect parsed YAML and execution edges, never comments or display names.
 export function inspectPagesWorkflow(workflow) {
   const errors = []
@@ -12,8 +21,10 @@ export function inspectPagesWorkflow(workflow) {
   const [buildId, build] = origins[0] ?? []
   const checks = Object.entries(jobs).filter(([, job]) => phase(job, 'check'))
   require(checks.length > 0, 'A repository check must gate publication')
-  require(checks.some(([, job]) => runs(job).includes('npm run check:dependency-audit')), 'Dependency audit must gate publication')
-  for (const [, job] of checks) {
+  const audits = Object.entries(jobs).filter(([, job]) => runs(job).includes('npm run check:dependency-audit'))
+  require(audits.length === 1 && audits[0][0] === 'audit' && !audits[0][1].if, 'Dependency audit must gate publication')
+  require(checks.length === 1 && checks[0][0] === 'check' && !checks[0][1].if, 'Repository checks must run unconditionally')
+  for (const [, job] of audits) {
     const setup = job.steps.findIndex(step => step.run === 'npm run setup:rust-audit' && !step.if)
     const audit = job.steps.findIndex(step => step.run === 'npm run check:dependency-audit')
     require(setup >= 0 && audit > setup, 'Install the pinned Rust auditor before the dependency gate')
@@ -27,21 +38,21 @@ export function inspectPagesWorkflow(workflow) {
   require(buildIndex >= 0 && buildIndex < smokeIndex && smokeIndex < uploadIndex, 'Build, smoke acceptance and Pages upload must run in that order')
   require(!buildSteps.slice(smokeIndex + 1, uploadIndex).some(step => step.run && step.run !== 'npm run check:pages-artifact'), 'Do not modify the candidate between smoke acceptance and upload')
   require(uses(build, 'actions/upload-pages-artifact').some(step => step.with?.path === 'apps/web/dist-pages'), 'Publish the same inspected candidate directory')
-  const nativeJobs = Object.entries(jobs).filter(([, job]) => phase(job, 'native') && phase(job, 'importer'))
-  require(nativeJobs.length === 1, 'Native and importer checks must have an independent Windows gate')
+  const importerJobs = Object.entries(jobs).filter(([, job]) => phase(job, 'importer'))
+  require(importerJobs.length === 1 && importerJobs[0][0] === 'check', 'Importer coverage must be verified in the full-check job')
+  const nativeJobs = Object.entries(jobs).filter(([, job]) => phase(job, 'native'))
+  require(nativeJobs.length === 1 && nativeJobs[0][0] === 'native', 'Native checks must have an independent Windows gate')
   for (const [, job] of nativeJobs) {
     require(job['runs-on'] === 'windows-latest', 'Native checks require Windows')
     require(needs(job).includes('plan'), 'Native selection must consume the shared change plan')
-    for (const name of ['native', 'importer']) {
-      const step = job.steps.find(step => step.run === `npm run verify:${name}`)
-      require(step?.if === `needs.plan.outputs.${name} == 'true'`, `${name} selection must use the shared plan output`)
-    }
+    require(job.if === "needs.plan.outputs.native == 'true'", 'Native job selection must use the shared plan output')
+    require(!job.steps.find(step => step.run === 'npm run verify:native')?.if, 'Selected native checks cannot be skipped')
   }
   const deploys = Object.entries(jobs).filter(([, job]) => uses(job, 'actions/deploy-pages').length)
   require(deploys.length === 1, 'Use one deployment job')
   for (const [id, job] of deploys) {
-    require(!job.if, 'Deployment must use the default successful-needs condition')
-    for (const gate of [buildId, ...checks.map(([key]) => key), ...nativeJobs.map(([key]) => key)]) require(needs(job).includes(gate), `Deployment ${id} must wait for ${gate}`)
+    require(normalize(job.if) === normalize(deploymentCondition), 'Deployment must require successful gates and only allow plan-excluded native skips')
+    for (const gate of ['plan', buildId, ...checks.map(([key]) => key), ...audits.map(([key]) => key), ...nativeJobs.map(([key]) => key)]) require(needs(job).includes(gate), `Deployment ${id} must wait for ${gate}`)
     require(job.permissions?.pages === 'write' && job.permissions?.['id-token'] === 'write', 'Deployment needs narrowly scoped Pages permissions')
   }
   require(workflow.permissions?.contents === 'read' && Object.keys(workflow.permissions).length === 1, 'Default permissions must be contents: read only')
@@ -61,7 +72,7 @@ export function inspectPagesWorkflow(workflow) {
     require(!(job.steps ?? []).some(step => step['continue-on-error']), `Do not ignore failed steps in ${id}`)
     if (!uses(job, 'actions/deploy-pages').length) require(!job.permissions || Object.values(job.permissions).every(value => value === 'read'), `Non-deployment job ${id} must not receive write permissions`)
     for (const step of job.steps ?? []) {
-      if (/^npm run (?:check(?:$|:dependency-audit$)|verify:(?:pages$|browser:ci$))/.test(step.run ?? '')) require(!step.if, 'Required candidate checks cannot be conditionally skipped')
+      if (/^npm run (?:check(?:$|:dependency-audit$)|verify:(?:pages$|browser:ci$|importer$))/.test(step.run ?? '')) require(!step.if, 'Required candidate checks cannot be conditionally skipped')
       if (step.uses) require(/@[0-9a-f]{40}$/.test(step.uses), `Pin action revision: ${step.uses}`)
       if (step.uses?.startsWith('actions/checkout@')) require(step.with?.['fetch-depth'] === 0 && step.with?.['persist-credentials'] === false, 'Checkout must use full history without persisted credentials')
       require(!JSON.stringify(step).match(/secrets\s*[.[\]]/), 'Pages jobs must not receive repository secrets')

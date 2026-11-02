@@ -18,6 +18,7 @@ export function vectorBytes({ modern = true, points = [[8, 8]], stride = 88, fla
     b.writeFloatBE(1, at + 36); b.writeFloatBE(1, at + 52)
     b.writeFloatBE(direction, at + 48)
     b.writeFloatBE(size, at + 56); b.writeFloatBE(flow, at + 60)
+    b.writeUInt32BE(randomSeed, at + 80)
     handles[i]?.forEach((v, j) => b.writeDoubleBE(v, at + 88 + j * 8))
   })
   return b

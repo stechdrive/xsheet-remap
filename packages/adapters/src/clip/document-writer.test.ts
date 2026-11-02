@@ -3,15 +3,16 @@ import { createRequire } from 'node:module'
 import { beforeAll, describe, expect, it } from 'vitest'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { activeCutProjectFromDocument, addClipLayers, buildClipRegistrationPlan, clipImportFolders, createClipNode, deleteClipLayer, openClipDocument, setEvent, updateActiveCutProjectInDocument, updateClipLayer, type CutGroupProjectDocument, type ClipRegistrationPlan } from '@xsheet-remap/core'
-import { ClipContainer } from './container'
+import { ClipContainer } from './test-support/container'
 import { readClip } from './reader'
 import { writeClip } from './writer'
+import { writeLegacyClip } from './test-support/legacy'
 import { clipSourceDataUrl } from './document-data'
-import { readLayerPixels } from './layers'
+import { readLayerPixels } from './test-support/layers'
 import { readClipLayerPreview } from './preview'
-import { ensureTrackLabelStorage } from './track-labels'
+import { ensureTrackLabelStorage } from './test-support/track-labels'
 import { addClipImages, addOverlayPaperTrack, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument } from '@xsheet-remap/core'
-import { remapClipTracks, selectTimingProcess, sortClipCelsByName, suggestClipProcessColumns } from '@xsheet-remap/core'
+import { moveClipLayer, remapClipTracks, selectTimingProcess, sortClipCelsByName, suggestClipProcessColumns } from '@xsheet-remap/core'
 
 const require = createRequire(import.meta.url)
 const seed = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
@@ -22,7 +23,7 @@ const legacy: ClipRegistrationPlan = { projectId: 'preserve', folders: [{ id: 'A
   timelines: [24, 30].map((fps, i) => ({ id: `cut${i}`, name: `C00${i + 1}`, fps, duration: fps, tracks: [{ folderId: 'A', frames: [{ frame: 0, value: '001' }, { frame: 6, value: '002' }] }] })) }
 const pixels = { width: 2, height: 2, channels: 4 as const, data: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255]) }
 async function setup() {
-  const original = await writeClip(SQL, seed, { plan: legacy, canvas, fit: 'crop', images: { red: pixels } })
+  const original = await writeLegacyClip(SQL, seed, { plan: legacy, canvas, fit: 'crop', images: { red: pixels } })
   const data = await readClip(SQL, original.bytes, 'original.clip')
   const folder = clipImportFolders(data.nodes)[0]
   const document = openClipDocument(data, clipSourceDataUrl(original.bytes), { role: 'action', timelineIds: [data.timelines[0].id], columns: [{ layerId: folder.id, name: 'A' }] })
@@ -32,6 +33,37 @@ function save(document: CutGroupProjectDocument, images = {}) { return writeClip
 function change(document: CutGroupProjectDocument, fn: (project: ReturnType<typeof activeCutProjectFromDocument>) => ReturnType<typeof activeCutProjectFromDocument>) { return updateActiveCutProjectInDocument(document, fn(activeCutProjectFromDocument(document))) }
 
 describe('editable CLIP document preservation', () => {
+  it('inserts differently sized document images with their original pixels and integer centering', async () => {
+    const { document, folder } = await setup()
+    const changed = change(document, project => addClipLayers(project, [
+      { ...createClipNode('small', 'raster', folder.id, 'small'), assetId: 'small' },
+      { ...createClipNode('large', 'raster', folder.id, 'large'), assetId: 'large' },
+    ]))
+    const small = { width: 1, height: 1, channels: 4 as const, data: new Uint8Array([10, 20, 30, 255]) }
+    const result = await save(changed, { small, large: pixels }), clip = new ClipContainer(SQL, result.bytes)
+    try {
+      for (const [name, expected] of [['small', small], ['large', pixels]] as const) {
+        const actual = readLayerPixels(clip, clip.rows('Layer').find(layer => layer.LayerName === name)!)
+        const x = Math.ceil((canvas.width - expected.width) / 2), y = Math.ceil((canvas.height - expected.height) / 2)
+        for (let row = 0; row < expected.height; row++) expect(actual.data.slice(((y + row) * actual.width + x) * 4, ((y + row) * actual.width + x + expected.width) * 4))
+          .toEqual(expected.data.slice(row * expected.width * 4, (row + 1) * expected.width * 4))
+      }
+    } finally { clip.close() }
+  })
+  it('moves a legacy static image into an animation folder without losing its pixels or unrelated tracks', async () => {
+    const { document, folder } = await setup()
+    const withStatic = change(document, project => addClipLayers(project, [{ ...createClipNode('BOOK', 'raster', null, 'book'), assetId: 'book' }]))
+    const old = await writeLegacyClip(SQL, seed, { plan: buildClipRegistrationPlan(withStatic, 'action'), canvas, fit: 'crop', images: { book: pixels } })
+    const data = await readClip(SQL, old.bytes, 'static.clip'), book = data.layers!.find(layer => layer.name === 'BOOK')!
+    const reopened = openClipDocument(data, clipSourceDataUrl(old.bytes), { role: 'action', timelineIds: [data.timelines[0].id], columns: [{ layerId: folder.id, name: 'A' }] })
+    const result = await save(change(reopened, project => moveClipLayer(project, book.id, folder.id)))
+    const after = await readClip(SQL, result.bytes, 'moved.clip')
+    expect(after.layers!.find(layer => layer.id === book.id)?.parentId).toBe(folder.id)
+    expect(after.timelines).toEqual(data.timelines)
+    const before = new ClipContainer(SQL, old.bytes), saved = new ClipContainer(SQL, result.bytes)
+    try { expect(readLayerPixels(saved, saved.row('Layer', book.sourceLayerId!))).toEqual(readLayerPixels(before, before.row('Layer', book.sourceLayerId!))) }
+    finally { before.close(); saved.close() }
+  })
   it('writes natural cel order without changing source pixels, bindings or any timeline, and retains it on reopen', async () => {
     const { original, document, folder, data } = await setup()
     const withTen = change(document, project => addClipLayers(project, [createClipNode('010', 'folder', folder.id, 'ten'),

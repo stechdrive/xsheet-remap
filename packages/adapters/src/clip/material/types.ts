@@ -26,7 +26,7 @@ export interface ClipLayer {
   pixels?: ClipPixels
   fragments?: ClipPixels[]
   mask?: ClipPixels
-  kind?: 'raster' | 'folder' | 'camera' | 'text' | 'image-material' | 'vector' | '3d' | 'adjustment' | 'other'
+  kind?: import('celcodec/material').LayerContentKind
   nativeBlendMode?: number
   materialSource?: 'render' | 'timeline-original' | 'image-original' | 'object-cache' | 'text' | 'fill' | 'gradient' | 'adjustment' | 'vector'
   vectorRendering?: 'approximate' | 'unavailable'

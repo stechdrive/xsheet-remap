@@ -1,6 +1,6 @@
 {
   "name": "xsheet-remap",
-  "version": "0.1.846",
+  "version": "0.1.848",
   "private": true,
   "type": "module",
   "engines": {
@@ -147,6 +147,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitejs/plugin-react": "^6.1.2",
     "ajv": "^8.17.1",
+    "celcodec-legacy": "file:vendor/celcodec-0.2.0.tgz",
     "eslint": "^10.13.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",

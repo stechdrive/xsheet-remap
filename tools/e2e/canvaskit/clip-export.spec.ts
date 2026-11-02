@@ -5,9 +5,9 @@ import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, registerAsset, setEvent, setTimingSpecialEvent, updateActiveCutProjectInDocument, upsertBinding } from '../../../packages/core/src/index'
 import { encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
-import { ClipContainer } from '../../../packages/adapters/src/clip/container'
+import { ClipContainer } from '../../../packages/adapters/src/clip/test-support/container'
 import { writeClip } from '../../../packages/adapters/src/clip/writer'
-import { readLayerPixels } from '../../../packages/adapters/src/clip/layers'
+import { readLayerPixels } from '../../../packages/adapters/src/clip/test-support/layers'
 import { png } from '../../../packages/adapters/src/clip/raster'
 
 const require = createRequire(import.meta.url)

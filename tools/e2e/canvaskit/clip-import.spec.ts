@@ -6,7 +6,7 @@ import { activateControl } from './input'
 import { activeCutProjectFromDocument, type ClipRegistrationPlan } from '../../../packages/core/src/index'
 import { decodeProjectFileBytes } from '../../../packages/adapters/src/projectArchive'
 import { writeClip } from '../../../packages/adapters/src/clip/writer'
-import { ClipContainer } from '../../../packages/adapters/src/clip/container'
+import { ClipContainer } from '../../../packages/adapters/src/clip/test-support/container'
 
 const require = createRequire(import.meta.url)
 const plan: ClipRegistrationPlan = {

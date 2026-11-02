@@ -1,6 +1,7 @@
 import initSqlJs from 'sql.js'
+// Loaded on demand for CLIP I/O; its stable entry name identifies the Pages runtime cache.
 import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
-import seedUrl from 'celcodec/blank.clip?url'
+import seedUrl from './blank.clip?url'
 import { inspectClip, writeClip, type ClipWriteOptions } from './writer'
 import { readClip } from './reader'
 import { readClipAudio } from './audio'

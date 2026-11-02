@@ -361,7 +361,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## celcodec 0.2.0
+## celcodec 0.7.0 (and the fixed 0.2.0 test oracle)
 
 Native CLIP containers, materials, BINC, timelines, audio and document writing
 are provided by the local celcodec package. It consolidates MIT code from

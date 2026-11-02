@@ -4,7 +4,7 @@ import initSqlJs from 'sql.js'
 import { expect, test, type Page } from './fixtures'
 import { activateControl } from './input'
 import { createCachedPreviewFixture, createPreviewFixture } from '../../../packages/adapters/src/clip/fixtures/preview-fixture'
-import { normalizedUuid } from '../../../packages/adapters/src/clip/layer-metadata'
+import { normalizedUuid } from '../../../packages/adapters/src/clip/test-support/layer-metadata'
 import { writeClip } from '../../../packages/adapters/src/clip/writer'
 
 test('CLIP base choice stays beside Import and saved folder disclosure leads to a vector Quick Look', async ({ page }, info) => {

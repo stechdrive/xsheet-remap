@@ -1,6 +1,6 @@
-// CLIP format implementation is shared through celcodec; app policy stays here.
-import * as native from 'celcodec/write'
-import { codecCall, codecFunction } from './material/celcodec'
+// Fixed legacy fixture builder/inspector. Never imported by application code.
+import * as native from 'celcodec-legacy/write'
+import { codecCall, codecFunction } from './codec'
 export type Mixer = native.Mixer
 export const Mixer: typeof native.Mixer = new Proxy(native.Mixer, {
   construct: (target,args) => codecCall(()=>Reflect.construct(target,args)),

@@ -16,8 +16,28 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
   let worker = createPagesServiceWorker(oldPlan)
   const server = await startPagesServer({ worker: () => worker })
   const runtime = manifest.files.find((file: { path: string }) => /(?:^|\/)canvaskit[^/]*\.wasm$/.test(file.path))
+  const clipWorker = manifest.files.find((file: { path: string }) => /^assets\/clip-document\.worker-.*\.js$/.test(file.path))
+  const clipSeed = manifest.files.find((file: { path: string }) => /^assets\/blank-.*\.clip$/.test(file.path))
+  const readCachedClip = () => page.evaluate(async ({ workerPath, seedPath }) => {
+    const response = await fetch('./' + seedPath)
+    if (!response.ok) throw new Error('CLIP seed fetch failed')
+    const bytes = new Uint8Array(await response.arrayBuffer()), worker = new Worker('./' + workerPath, { type: 'module' })
+    return new Promise<{ fileHash: string; canvas: unknown }>((resolve, reject) => {
+      const timeout = setTimeout(() => { worker.terminate(); reject(new Error('CLIP Worker timed out')) }, 30_000)
+      const close = () => { clearTimeout(timeout); worker.terminate() }
+      worker.onerror = event => { close(); reject(new Error(event.message)) }
+      worker.onmessage = event => {
+        close()
+        if (event.data.type === 'error') reject(new Error(event.data.message))
+        else resolve({ fileHash: event.data.result.fileHash, canvas: event.data.result.canvas })
+      }
+      worker.postMessage({ type: 'read', bytes, fileName: 'cached.clip' })
+    })
+  }, { workerPath: clipWorker.path, seedPath: clipSeed.path })
   try {
     expect(runtime).toBeTruthy()
+    expect(clipWorker?.cacheClass).toBe('runtime')
+    expect(clipSeed?.cacheClass).toBe('runtime')
     await page.goto(server.url)
     await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
@@ -48,6 +68,12 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
     expect(server.requests.filter((file: string) => file === runtime.path).length).toBe(requestsBefore)
     // Disconnect the actual origin. Windows WebKit's protocol offline switch
     // aborts reload internally before the worker can receive a navigation.
+    const onlineClip = await readCachedClip()
+    expect(onlineClip.fileHash).toBe(clipSeed.sha256)
+    await expect.poll(() => page.evaluate(async () => {
+      const keys = await Promise.all((await caches.keys()).map(async key => (await caches.open(key)).keys()))
+      return keys.flat().map(request => new URL(request.url).pathname.replace('/xsheet-remap/', ''))
+    })).toEqual(expect.arrayContaining([clipWorker.path, clipSeed.path]))
     await server.close()
     await page.reload()
     await expect(page.getByRole('button', { name: 'シート編集', exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -55,6 +81,7 @@ test('Pages subpath upgrades its worker, reuses runtime bytes and reopens offlin
     await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
     await expect(page.getByRole('button', { name: 'MEMOを編集', exact: true })).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
+    expect(await readCachedClip()).toEqual(onlineClip)
     const offlineFonts = await page.evaluate(async files => Promise.all(files.map(async file => {
       const response = await fetch('./' + file)
       if (!response.ok) throw new Error(`offline font failed: ${file}`)

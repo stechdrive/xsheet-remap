@@ -4,10 +4,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { unzlibSync } from 'fflate'
 import type { ClipRegistrationPlan } from '@xsheet-remap/core'
-import { ClipContainer } from './container'
+import { ClipContainer } from './test-support/container'
 import { writeClip } from './writer'
-import { Mixer } from './animation'
-import { mipmapChain, readLayerPixels } from './layers'
+import { readClip } from './reader'
+import { readLegacyClip, writeLegacyClip } from './test-support/legacy'
+import { Mixer } from './test-support/animation'
+import { mipmapChain, readLayerPixels } from './test-support/layers'
 const nativeLabels = JSON.parse(readFileSync(new URL('./fixtures/native-track-labels.json', import.meta.url), 'utf8')) as {
   labels: { LabelName: string; LabelFrame: number; LabelType: number; LabelLength: null }[]
 }
@@ -24,6 +26,14 @@ const plan: ClipRegistrationPlan = {
   ],
 }
 describe('direct CLIP writer', () => {
+  it('imports legacy exports without changing their application model, identity or input bytes', async () => {
+    const old = await writeLegacyClip(SQL, seed, { plan, canvas, fit: 'crop', images: {} }), snapshot = old.bytes.slice()
+    expect(await readClip(SQL, old.bytes, 'legacy.clip')).toEqual(await readLegacyClip(SQL, old.bytes, 'legacy.clip'))
+    expect(old.bytes).toEqual(snapshot)
+    const updated = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {}, template: old.bytes })
+    expect(await readClip(SQL, updated.bytes, 'legacy.clip')).toEqual(await readClip(SQL, old.bytes, 'legacy.clip'))
+    expect(updated.bytes).toEqual(old.bytes)
+  })
   it.each([24, 30])('writes the native circle/filled-circle label chain at frame positions independent of %s fps', async fps => {
     const labeled = { ...plan, timelines: [{ ...plan.timelines[0], fps, tracks: [{ ...plan.timelines[0].tracks[0], labels: [{ frame: 6, kind: 'reverse' as const }, { frame: 2, kind: 'inbetween' as const }] }] }] }
     const result = await writeClip(SQL, seed, { plan: labeled, canvas, fit: 'crop', images: {} })
@@ -49,7 +59,8 @@ describe('direct CLIP writer', () => {
       const removed = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {}, template: result.bytes })
       const updated = new ClipContainer(SQL, removed.bytes)
       try {
-        expect(updated.rows('TimeLineLabel')).toEqual([])
+        // Detach managed labels without destroying native records (celcodec preservation contract).
+        expect(updated.rows('TimeLineLabel')).toEqual(labels)
         expect(updated.rows('Track').every(row => !row.TrackLabelFirstIndex)).toBe(true)
       } finally { updated.close() }
     } finally { clip.close() }
@@ -119,7 +130,8 @@ describe('direct CLIP writer', () => {
       oldMixers = saved.rows('Track').flatMap(row => [row.TrackActionMixer, row.TrackActionMixer2])
       template = saved.bytes()
     } finally { saved.close() }
-    const result = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {}, template })
+    const changed = { ...plan, timelines: plan.timelines.map(time => ({ ...time, tracks: time.tracks.map(track => ({ ...track, frames: [{ frame: 0, value: '2' }] })) })) }
+    const result = await writeClip(SQL, seed, { plan: changed, canvas, fit: 'crop', images: {}, template })
     const clip = new ClipContainer(SQL, result.bytes)
     try {
       expect(clip.rows('TimeLine').map(row => row.TimeLineName)).toEqual(['C001', 'C002'])

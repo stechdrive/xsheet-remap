@@ -9,6 +9,9 @@ export function inspectSourceBoundaries(file, source) {
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   function inspectImport(specifier) {
     const resolved = specifier.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(normalized), specifier)) : specifier
+    if (/^celcodec-legacy(?:\/|$)/.test(specifier) && !normalized.startsWith('packages/adapters/src/clip/test-support/')) errors.push('Legacy celcodec is restricted to CLIP test support')
+    const testCode = normalized.startsWith('tools/') || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(normalized) || /\/(?:fixtures|test-support)\//.test(normalized)
+    if (!testCode && /\/(?:fixtures|test-support)\//.test(resolved)) errors.push('Production code must not import test fixtures or legacy helpers')
     if (normalized.startsWith('packages/core/') && /^(?:@xsheet-remap|packages)\/(?:ui|adapters|xdts)(?:\/|$)/.test(resolved)) errors.push('core must not depend on UI, adapters or XDTS')
     if (normalized.startsWith('packages/ui/') && specifier.startsWith('@tauri-apps/')) errors.push('UI must access Tauri through adapters')
     if (/^@xsheet-remap\/[^/]+\/src(?:\/|$)/.test(specifier)) errors.push('Workspace packages must use public exports')

@@ -2,20 +2,28 @@ import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { buildClipRegistrationPlan, openClipDocument, type ClipAudioTimeline } from '@xsheet-remap/core'
-import { ClipContainer } from './container'
+import { ClipContainer } from './test-support/container'
 import { createMediaFixture } from './fixtures/media-fixture'
 import { readAudioTiming, readClipAudio } from './audio'
-import { writeAudioTimeline } from './audio-writer'
-import { normalizedUuid } from './layer-metadata'
+import { normalizedUuid } from './test-support/layer-metadata'
 import { unzlibSync } from 'fflate'
-import { Mixer } from './animation'
-import { audioMixer } from './audio-writer'
+import { Mixer } from './test-support/animation'
+import { audioMixer } from './test-support/audio-writer'
 import { writeClip } from './writer'
 import { readClip } from './reader'
 import { clipSourceDataUrl } from './document-data'
 let SQL: SqlJsStatic
 const seedBytes = new Uint8Array(readFileSync(new URL('./blank.clip', import.meta.url)))
 beforeAll(async () => { SQL = await initSqlJs() })
+async function writeAudio(clip: ClipContainer, audio: ClipAudioTimeline) {
+  const bytes = clip.bytes(), data = await readClip(SQL, bytes, 'audio.clip')
+  const document = openClipDocument(data, clipSourceDataUrl(bytes), { role: 'action', columns: [], timelineIds: [data.timelines[0].id] })
+  document.clipDocument!.timelineIds = { [document.activeCutId]: data.timelines[0].id }
+  const plan = buildClipRegistrationPlan(document, 'action')
+  plan.timelines[0].audio = audio
+  const result = await writeClip(SQL, seedBytes, { plan, canvas: data.canvas!, fit: 'crop', images: {} })
+  return new ClipContainer(SQL, result.bytes)
+}
 
 describe('native audio writing', () => {
   it('writes through both application export paths and keeps other cuts explicitly silent', async () => {
@@ -56,37 +64,38 @@ describe('native audio writing', () => {
     }
   })
   it('moves, splits and trims the original layer without duplicating media or audio tracks', async () => {
-    const { clip, audioId, timelineId } = createMediaFixture(SQL), seed = new ClipContainer(SQL, seedBytes)
+    const source = createMediaFixture(SQL), { audioId, timelineId } = source
+    let clip = source.clip
     try {
       const original = readClipAudio(SQL, clip.bytes(), audioId, timelineId), asset = original.assets[0]
-      const timeline = clip.rows('TimeLine')[0]
       const audio: ClipAudioTimeline = { replacedLayerIds: [audioId], assets: [{ id: 'wave', sourceItemId: asset.id, name: asset.name, dataUrl: `data:audio/wav;base64,${Buffer.from(asset.bytes).toString('base64')}`, durationFrames: 72 }], tracks: [{ id: 'voice', name: 'セリフ', sourceLayerId: audioId, muted: false, clips: [
         { id: 'left', assetId: 'wave', startFrame: 12, sourceOffsetFrames: 6, durationFrames: 18 },
         { id: 'right', assetId: 'wave', startFrame: 42, sourceOffsetFrames: 24, durationFrames: 30 },
       ] }] }
       const originalBinaries = clip.rows('CanvasItemBinary'), originalItems = clip.rows('CanvasItem')
-      await writeAudioTimeline(clip, seed, timeline, audio, 'test')
+      const updated = await writeAudio(clip, audio)
+      clip.close(); clip = updated
       const result = readClipAudio(SQL, clip.bytes(), audioId, timelineId)
       expect(result.clips.map(({ startFrame, sourceOffsetFrames, durationFrames }) => ({ startFrame, sourceOffsetFrames, durationFrames }))).toEqual(audio.tracks[0].clips.map(({ startFrame, sourceOffsetFrames, durationFrames }) => ({ startFrame, sourceOffsetFrames, durationFrames })))
       expect(result.assets[0].bytes).toEqual(asset.bytes)
       expect(clip.rows('CanvasItemBinary').map(row => row.ItemBinaryData)).toEqual(originalBinaries.map(row => row.ItemBinaryData))
       expect(clip.rows('CanvasItem').map(row => row.ItemUuid)).toEqual(originalItems.map(row => row.ItemUuid))
       expect(clip.rows('Track').filter(row => row.TrackKind === 4001)).toHaveLength(1)
-      await writeAudioTimeline(clip, seed, timeline, { ...audio, tracks: [] }, 'test')
+      const cleared = await writeAudio(clip, { ...audio, tracks: [] })
+      clip.close(); clip = cleared
       const track = clip.rows('Track').find(row => row.TrackKind === 4001)!
       expect(readAudioTiming(clip.body(track.TrackActionMixer)!, Number(track.TrackActionMixerSize), 24, 0)).toEqual([])
-    } finally { clip.close(); seed.close() }
+    } finally { clip.close() }
   })
 
   it('adds 32 tracks and places overlapping clips in separate native layers with exact embedded media', async () => {
     const source = createMediaFixture(SQL), original = readClipAudio(SQL, source.clip.bytes(), source.audioId, source.timelineId)
-    const clip = new ClipContainer(SQL, seedBytes), seed = new ClipContainer(SQL, seedBytes)
+    const clip = new ClipContainer(SQL, seedBytes)
     try {
       const asset = original.assets[0], timeline = clip.rows('TimeLine')[0]
       const audio: ClipAudioTimeline = { replacedLayerIds: [], assets: [{ id: 'wave', name: 'stereo original', dataUrl: `data:audio/wav;base64,${Buffer.from(asset.bytes).toString('base64')}`, durationFrames: 72 }], tracks: Array.from({ length: 32 }, (_, index) => ({ id: `voice-${index}`, name: `音声 ${index + 1}`, muted: index === 31,
-        clips: [{ id: 'first', assetId: 'wave', startFrame: 6, sourceOffsetFrames: 12, durationFrames: 24 }, ...(index === 0 ? [{ id: 'overlap', assetId: 'wave', startFrame: 12, sourceOffsetFrames: 6, durationFrames: 24 }] : [])] })) }
-      await writeAudioTimeline(clip, seed, timeline, audio, 'test')
-      const saved = new ClipContainer(SQL, clip.bytes())
+        clips: [{ id: `first-${index}`, assetId: 'wave', startFrame: 6, sourceOffsetFrames: 12, durationFrames: 24 }, ...(index === 0 ? [{ id: 'overlap', assetId: 'wave', startFrame: 12, sourceOffsetFrames: 6, durationFrames: 24 }] : [])] })) }
+      const saved = await writeAudio(clip, audio)
       try {
         const layers = saved.rows('Layer').filter(row => row.AudioLayer === 1)
         expect(layers).toHaveLength(33)
@@ -96,6 +105,6 @@ describe('native audio writing', () => {
         expect(results.filter(result => result.clips[0].muted)).toHaveLength(1)
         expect(saved.rows('CanvasItem').filter(row => row.ItemType === 'Audio')).toHaveLength(1)
       } finally { saved.close() }
-    } finally { clip.close(); seed.close(); source.clip.close() }
+    } finally { clip.close(); source.clip.close() }
   })
 })

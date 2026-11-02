@@ -6,9 +6,10 @@ import { unzlibSync } from 'fflate'
 import { clipImportFolders, type ClipRegistrationPlan } from '@xsheet-remap/core'
 import { readAnimation } from './read-animation'
 import { readClip } from './reader'
-import { ClipContainer } from './container'
+import { ClipContainer } from './test-support/container'
 import { writeClip } from './writer'
-import { Mixer, animationMixer, packedMixer } from './animation'
+import { Mixer, animationMixer, packedMixer } from './test-support/animation'
+import { openClipSession, flattenLayers } from './session'
 const native = JSON.parse(readFileSync(new URL('./fixtures/native-timelines.json', import.meta.url), 'utf8')) as {
   tracks: { fps: number; start: number; end: number; mixers: Record<'TrackActionMixer' | 'TrackActionMixer2', { size: number; hex: string }> }[]
 }
@@ -87,6 +88,21 @@ const plan: ClipRegistrationPlan = { projectId: 'import', folders: [
   { id: 'two', name: 'C002', fps: 30, duration: 60, tracks: [{ folderId: 'bottom', frames: [{ frame: 6, value: '001' }] }, { folderId: 'top', frames: [{ frame: 0, value: '2' }] }] },
 ] }
 describe('CLIP document import', () => {
+  it('keeps fractional saved timing in the source and diagnoses it before sheet conversion', async () => {
+    const session = openClipSession(SQL, seed)
+    let bytes: Uint8Array
+    try {
+      const time = session.document.timelines[0], layer = flattenLayers(session.document.layers).find(layer => layer.animation)!
+      const plan = await session.planEdits([{ type: 'setCelKeys', timelineId: time.id, layerId: layer.id,
+        keys: [{ frame: -1.5, value: '1' }, { frame: 2.25, value: null }] }])
+      expect(plan.allowed).toBe(true)
+      bytes = (await session.save(plan)).bytes
+    } finally { session.dispose() }
+    const before = bytes.slice(), data = await readClip(SQL, bytes, 'fractional.clip')
+    expect(data.timelines[0].tracks[0].frames).toEqual([])
+    expect(data.timelines[0].tracks[0].error).toContain('整数フレーム')
+    expect(bytes).toEqual(before)
+  })
   it('reads arbitrary folder hierarchy in palette order, hidden animation folders, shared layer identity and distinct timelines', async () => {
     const written = await writeClip(SQL, seed, { plan, canvas: { width: 32, height: 24, dpi: 150, basisWidth: 24, basisHeight: 16, offsetX: 0, offsetY: 0 }, fit: 'expand', images: {} })
     const clip = new ClipContainer(SQL, written.bytes)

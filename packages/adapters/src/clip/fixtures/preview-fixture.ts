@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import type { SqlJsStatic } from 'sql.js'
-import { ClipContainer } from '../container'
+import { ClipContainer } from '../test-support/container'
 import { writeClip } from '../writer'
 import { vectorBytes } from './clip-vector'
-import { writeMipmap } from '../layers'
+import { writeMipmap } from '../test-support/layers'
 
 /** Small generated CLIP with nested saved disclosure and a cache-free vector cel. */
 export async function createPreviewFixture(SQL: SqlJsStatic) {

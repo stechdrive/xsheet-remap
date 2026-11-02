@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import type { SqlJsStatic } from 'sql.js'
-import { ClipContainer, type Row } from '../container'
-import { normalizedUuid } from '../layer-metadata'
+import { ClipContainer, type Row } from '../test-support/container'
+import { normalizedUuid } from '../test-support/layer-metadata'
 const seed = new Uint8Array(readFileSync(new URL('../blank.clip', import.meta.url)))
 const native = JSON.parse(readFileSync(new URL('./native-media.json', import.meta.url), 'utf8')) as { audioLayer: Row; videoLayer: Row; items: Row[]; objects: Row[]; mixer: { size: number; hex: string } }
 

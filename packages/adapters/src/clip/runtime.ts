@@ -2,7 +2,7 @@ import type { ClipCanvasSettings, ClipImportData } from '@xsheet-remap/core'
 import type { ClipWriteOptions, ClipWriteResult } from './writer'
 function request<T>(message: object, progress?: (message: string) => void, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    const worker = new Worker(new URL('./clip-document.worker.ts', import.meta.url), { type: 'module' })
     const dispose = () => { worker.terminate(); signal?.removeEventListener('abort', abort) }
     const abort = () => { dispose(); reject(new DOMException('キャンセルしました。', 'AbortError')) }
     if (signal?.aborted) { abort(); return }

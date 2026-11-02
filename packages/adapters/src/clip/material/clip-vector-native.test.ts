@@ -30,7 +30,11 @@ describe('native CSP controlled vector captures', () => {
     const b = brush()
     Object.assign(b.styles.get(7)!, { FlowBase: .5, FlowEffector: hex('0000008100000000'), RotationEffector: 131,
       RotationRandom: 1, AutoIntervalType: test.autoInterval, IntervalBase: test.interval })
-    const p = renderVectors(readVectorStrokes(vectorBytes({ diameter: test.diameter, randomSeed: goldens.seed, points: goldens.points, flags: 17 })), b, 512, 128)
+    const strokes = readVectorStrokes(vectorBytes({ diameter: test.diameter, randomSeed: goldens.seed, points: goldens.points, flags: 17 }))
+    // This historical fixture reconstructs controls only, without native continuation records.
+    // Do not interpret its zero-filled residual fields as a saved CSP RNG/spacing reset.
+    for (const stroke of strokes) for (const point of stroke.points) delete point.dabState
+    const p = renderVectors(strokes, b, 512, 128)
     const expected = inflateSync(Buffer.from(test.alphaDeflateBase64, 'base64'))
     const { x, y, width, height } = goldens.crop
     expect(expected).toHaveLength(width * height)

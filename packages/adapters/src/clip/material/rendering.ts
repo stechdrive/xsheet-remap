@@ -15,7 +15,7 @@ export interface MaterialEffects {
   tone?: boolean
 }
 
-export type MaterialAdjustment = { kind: 'invert' } | { kind: 'threshold'; threshold: number }
+export type { MaterialAdjustment } from 'celcodec/material'
 
 /** Corners in document space: top left, top right, bottom right, bottom left. */
 export type MaterialQuad = [number, number, number, number, number, number, number, number]

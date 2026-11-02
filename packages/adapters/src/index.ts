@@ -11,6 +11,7 @@ export type { Pixels as ClipImagePixels } from './clip/raster'
 export { browserAssetBytes, browserAssetDataUrl, browserFileForObjectUrl, fileToFileRef, filesToFileRefs, sha256File, createBrowserFileOwner, retainBrowserFiles, releaseBrowserFileRefs } from './browserFiles'
 export { clipSourceDataUrl, clipSourceBytes } from './clip/document-data'
 export { previewClipLayer, createClipPreviewSession, readClipAudioFile } from './clip/runtime'
+export { createClipPreviewCache } from './clip/preview-cache'
 export type { ClipAudioReadResult } from './clip/audio'
 export { createPortableArchive, type PortableArchiveFile } from './portableArchive'
 export {

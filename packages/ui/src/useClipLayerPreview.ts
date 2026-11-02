@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { clipEffectiveCel, clipNodePath, timingForProcess, type ClipLayerNode, type CutProject, type SheetHit } from '@xsheet-remap/core'
-import { createClipPreviewSession } from '@xsheet-remap/adapters'
+import { createClipPreviewCache } from '@xsheet-remap/adapters'
 import type { AssetPreviewPayload } from './assetPreviewModel'
 
 interface LayerImage {
@@ -50,6 +50,10 @@ function sameImages(a: PreviewPlan | null, b: PreviewPlan | null): boolean {
 
 /** Image identity is independent of labels, selection coordinates and other edits. */
 export function useClipLayerPreview(project: CutProject, selected: ClipLayerNode | undefined, cutId: string, hit: SheetHit | null, open: boolean): { payload: AssetPreviewPayload; notices?: string[] } | null {
+  const cache = useMemo(() => createClipPreviewCache(), [])
+  const source = project.clipDocument?.source?.dataUrl
+  // Closing the viewer, changing the source revision, or unmounting releases the Worker.
+  useEffect(() => () => cache.dispose(), [cache, open, source])
   const plan = useMemo(() => open && selected && selected.kind !== 'audio' ? previewPlan(project, selected, cutId, hit) : null, [project, selected, cutId, hit, open])
   const [state, setState] = useState<{ request: { plan: PreviewPlan }; result?: PreviewResult } | null>(() => plan ? { request: { plan } } : null)
   // Adjust during render so a different cel never displays the preceding cel's image.
@@ -59,7 +63,7 @@ export function useClipLayerPreview(project: CutProject, selected: ClipLayerNode
   useEffect(() => {
     if (!request) return
     const plan = request.plan, controller = new AbortController(), urls: string[] = []
-    const reader = plan.source ? createClipPreviewSession(plan.source, controller.signal) : undefined
+    const reader = plan.source ? cache.acquire(plan.source, controller.signal) : undefined
     const read = async (layer: LayerImage): Promise<LoadedImage> => {
       if (layer.imageUrl || layer.sourceLayerId === undefined || !reader) return { id: layer.id, imageUrl: layer.imageUrl }
       const result = await reader.read(layer.sourceLayerId)
@@ -90,7 +94,7 @@ export function useClipLayerPreview(project: CutProject, selected: ClipLayerNode
       if (!controller.signal.aborted) setState(current => current?.request === request ? { request, result } : current)
     }).finally(() => reader?.dispose())
     return () => { controller.abort(); reader?.dispose(); urls.forEach(url => URL.revokeObjectURL(url)) }
-  }, [request])
+  }, [request, cache])
   if (!plan || !sameImages(state?.request.plan ?? null, plan) || !state?.result) return null
   const { result } = state
   const notices = result.error ? [result.error] : result.images.flatMap(image => image.error ? [`「${plan.layers.find(layer => layer.id === image.id)?.label ?? plan.node.label}」: ${image.error}`] : image.notices ?? [])

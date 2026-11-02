@@ -39,6 +39,7 @@ export function createClipPreviewSession(source: Uint8Array | string, signal?: A
   signal?.addEventListener('abort', abort, { once: true })
   return {
     dispose,
+    get closed() { return disposed },
     read(layerId: number): Promise<Preview> {
       if (disposed || signal?.aborted) { dispose(); return Promise.reject(new DOMException('キャンセルしました。', 'AbortError')) }
       return new Promise((resolve, reject) => {

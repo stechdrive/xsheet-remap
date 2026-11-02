@@ -1,14 +1,14 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { addClipLayers, createClipNode, createDefaultProject, ensureClipDocument, updateClipLayer, type CutProject, type SheetHit } from '@xsheet-remap/core'
-import { createClipPreviewSession } from '@xsheet-remap/adapters'
 import { useClipLayerPreview } from './useClipLayerPreview'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), dispose: vi.fn() }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), dispose: vi.fn(), acquire: vi.fn(), close: vi.fn() }))
 vi.mock('@xsheet-remap/adapters', async original => ({ ...await original<object>(),
-  createClipPreviewSession: vi.fn(() => ({ read: mocks.read, dispose: mocks.dispose })),
+  createClipPreviewCache: vi.fn(() => ({ acquire: mocks.acquire, dispose: mocks.close })),
 }))
 beforeEach(() => {
+  mocks.acquire.mockImplementation(() => ({ read: mocks.read, dispose: mocks.dispose }))
   mocks.read.mockReset().mockResolvedValue({ bytes: new Uint8Array([1, 2]), width: 2048, height: 1024, storedComposite: false })
   let count = 0
   vi.stubGlobal('URL', class extends URL {
@@ -39,11 +39,12 @@ it('reuses pixels and URL through static frame selection and unrelated edits whi
   expect(result.current?.payload.detailText).toContain('renamed still / 2048 × 1024px')
   expect(mocks.read).toHaveBeenCalledTimes(1)
   expect(mocks.read).toHaveBeenCalledWith(10)
-  expect(createClipPreviewSession).toHaveBeenCalledWith(props.project.clipDocument!.source!.dataUrl, expect.any(AbortSignal))
+  expect(mocks.acquire).toHaveBeenCalledWith(props.project.clipDocument!.source!.dataUrl, expect.any(AbortSignal))
   expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
   rerender({ ...props, open: false })
   expect(result.current).toBeNull()
   expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-0')
+  expect(mocks.close).toHaveBeenCalled()
 })
 
 it('replaces source pixels on a source change and ignores a late completion after closing', async () => {
@@ -59,7 +60,7 @@ it('replaces source pixels on a source change and ignores a late completion afte
   await act(async () => finish({ bytes: new Uint8Array([3]), width: 1, height: 1 }))
   expect(result.current).toBeNull()
   expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
-  expect(vi.mocked(createClipPreviewSession).mock.calls[1][1]?.aborted).toBe(true)
+  expect(mocks.acquire.mock.calls[1][1]?.aborted).toBe(true)
 })
 
 it('shares a single source reader for folder fallback and keeps exact images and per-layer notices', async () => {
@@ -72,7 +73,7 @@ it('shares a single source reader for folder fallback and keeps exact images and
     .mockRejectedValueOnce(new Error('missing material'))
   const { result, unmount } = setup(source, 'folder')
   await waitFor(() => expect(result.current?.payload.items).toHaveLength(2))
-  expect(createClipPreviewSession).toHaveBeenCalledTimes(1)
+  expect(mocks.acquire).toHaveBeenCalledTimes(1)
   expect(mocks.read.mock.calls).toEqual([[30], [31], [32]])
   expect(result.current?.payload.items?.[0]).toMatchObject({ label: 'first', imageUrl: 'blob:preview-0' })
   expect(result.current?.notices).toEqual(['unsupported effect', '「second」: missing material'])

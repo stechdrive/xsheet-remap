@@ -17,9 +17,9 @@ export async function readClipLayerPreview(SQL: SqlJsStatic, bytes: Uint8Array, 
   const reader = createClipLayerPreviewReader(SQL, bytes)
   try { return await reader.read(layerId) } finally { reader.close() }
 }
-export function createClipLayerPreviewReader(SQL: SqlJsStatic, bytes: Uint8Array) {
+export function createClipLayerPreviewReader(SQL: SqlJsStatic, bytes: Uint8Array, ownership: 'copy' | 'borrow' = 'copy') {
   return codecCall(() => {
-    const session = openClipSession(SQL, bytes)
+    const session = openClipSession(SQL, bytes, ownership)
     try {
       const { width, height } = session.document.canvas
       check(width * height <= 64 * 1024 * 1024, 'キャンバス寸法が範囲外です。')

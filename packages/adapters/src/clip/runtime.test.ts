@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { createClipPreviewSession, previewClipLayer } from './runtime'
+import { createClipPreviewCache } from './preview-cache'
 
 class PreviewWorker {
   static instances: PreviewWorker[] = []
@@ -11,7 +12,7 @@ class PreviewWorker {
   postMessage(message: typeof this.messages[number]) { this.messages.push(structuredClone(message)) }
   complete(index: number) { this.onmessage?.({ data: { id: this.messages[index].id, type: 'done', result: { bytes: new Uint8Array([1, 2]), width: 1, height: 1 } } }) }
 }
-afterEach(() => { vi.unstubAllGlobals(); PreviewWorker.instances = [] })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); PreviewWorker.instances = [] })
 
 it('sends encoded source once, shares a worker across gallery reads and releases it explicitly', async () => {
   vi.stubGlobal('Worker', PreviewWorker)
@@ -52,4 +53,48 @@ it('aborts every pending read and handles worker startup failures without leavin
   PreviewWorker.instances[1].onerror?.({ message: 'startup failed' })
   await expect(failed).rejects.toThrow('startup failed')
   expect(PreviewWorker.instances[1].terminate).toHaveBeenCalledTimes(1)
+})
+
+it('reuses the private reader across selections, expires idle input, and releases changed revisions', async () => {
+  vi.useFakeTimers(); vi.stubGlobal('Worker', PreviewWorker)
+  const cache = createClipPreviewCache(), signal = new AbortController().signal
+  const a = cache.acquire('source', signal), first = a.read(1), worker = PreviewWorker.instances[0]
+  worker.complete(0); await first; a.dispose()
+  const b = cache.acquire('source', signal), second = b.read(2)
+  expect(PreviewWorker.instances).toHaveLength(1)
+  expect(worker.messages[1]).toEqual({ id: 1, layerId: 2 })
+  worker.complete(1); await second; b.dispose()
+  vi.advanceTimersByTime(29_999); expect(worker.terminate).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(1); expect(worker.terminate).toHaveBeenCalledTimes(1)
+  const c = cache.acquire('source', signal), third = c.read(3)
+  PreviewWorker.instances[1].complete(0); await third; c.dispose()
+  cache.acquire('updated source', signal)
+  expect(PreviewWorker.instances[1].terminate).toHaveBeenCalledTimes(1)
+  cache.dispose()
+})
+
+it('cancels an obsolete pending selection and never reuses its worker', async () => {
+  vi.stubGlobal('Worker', PreviewWorker)
+  const cache = createClipPreviewCache(), controller = new AbortController()
+  const a = cache.acquire('source', controller.signal), first = a.read(1)
+  controller.abort()
+  await expect(first).rejects.toHaveProperty('name', 'AbortError')
+  expect(PreviewWorker.instances[0].terminate).toHaveBeenCalledTimes(1)
+  const b = cache.acquire('source', new AbortController().signal), second = b.read(2)
+  expect(PreviewWorker.instances).toHaveLength(2)
+  PreviewWorker.instances[1].complete(0); await second
+  b.dispose(); cache.dispose()
+})
+
+it('discards a failed worker so a subsequent selection can reopen the same source', async () => {
+  vi.stubGlobal('Worker', PreviewWorker)
+  const cache = createClipPreviewCache(), signal = new AbortController().signal,
+    a = cache.acquire('source', signal), first = a.read(1)
+  PreviewWorker.instances[0].onerror?.({ message: 'startup failed' })
+  await expect(first).rejects.toThrow('startup failed')
+  a.dispose()
+  const b = cache.acquire('source', signal), second = b.read(2)
+  expect(PreviewWorker.instances).toHaveLength(2)
+  PreviewWorker.instances[1].complete(0); await second
+  b.dispose(); cache.dispose()
 })

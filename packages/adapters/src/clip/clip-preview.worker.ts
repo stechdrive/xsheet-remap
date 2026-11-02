@@ -16,7 +16,8 @@ scope.onmessage = event => {
       if (!reader) {
         if (source === undefined) throw new Error('CLIPの元データがありません。')
         const SQL = await initSqlJs({ locateFile: () => wasmUrl })
-        reader = createClipLayerPreviewReader(SQL, typeof source === 'string' ? clipSourceBytes(source) : source)
+        // The structured clone / decoded data URL is private to this Worker.
+        reader = createClipLayerPreviewReader(SQL, typeof source === 'string' ? clipSourceBytes(source) : source, 'borrow')
       }
       const result = await reader.read(layerId)
       scope.postMessage({ type: 'done', id, result }, [result.bytes.buffer as ArrayBuffer])

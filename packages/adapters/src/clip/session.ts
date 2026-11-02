@@ -5,8 +5,8 @@ import type { ClipCanvasSettings } from '@xsheet-remap/core'
 
 // Keep the application's editable-file budget independent of material/render budgets.
 export const sessionOptions = { limits: writeContainerLimits, maxRows: 1_000_000, maxDepth: 100, maxCanvasPixels: 100_000_000 }
-export function openClipSession(SQL: SqlJsStatic, bytes: Uint8Array) {
-  return openDocument(SQL, bytes, sessionOptions)
+export function openClipSession(SQL: SqlJsStatic, bytes: Uint8Array, ownership: 'copy' | 'borrow' = 'copy') {
+  return openDocument(SQL, bytes, { ...sessionOptions, ownership })
 }
 export function flattenLayers(layers: readonly LayerView[]): LayerView[] {
   return layers.flatMap(layer => [layer, ...flattenLayers(layer.children)])

@@ -8,7 +8,7 @@ const copies: string[] = []
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'celcodec-pin-'))
   copies.push(root)
-  for (const name of ['package.json', 'packages/adapters/package.json', 'package-lock.json', 'vendor/celcodec-0.2.0.tgz', 'vendor/celcodec-0.7.1-077f7a9e6c55.tgz']) {
+  for (const name of ['package.json', 'packages/adapters/package.json', 'package-lock.json', 'vendor/celcodec-0.2.0.tgz', 'vendor/celcodec-0.8.0-ac2a1c3c0758.tgz']) {
     fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true })
     fs.copyFileSync(name, path.join(root, name))
   }
@@ -17,7 +17,7 @@ function fixture() {
 afterEach(() => { for (const root of copies.splice(0)) fs.rmSync(root, { recursive: true, force: true }) })
 describe('standalone CLIP dependency', () => {
   it('checks audited package bytes, inventory, notices, and lockfile integrity', () => {
-    expect(checkPinnedCelcodec(process.cwd())).toMatchObject({ version: '0.7.1', files: 214 })
+    expect(checkPinnedCelcodec(process.cwd())).toMatchObject({ version: '0.8.0', files: 218 })
   })
   it('rejects mutable sibling links, altered archives and stale integrity', () => {
     const root = fixture(), file = path.join(root, 'package-lock.json')
@@ -30,7 +30,7 @@ describe('standalone CLIP dependency', () => {
     installed.integrity = 'sha512-stale'
     fs.writeFileSync(file, JSON.stringify(lock))
     expect(() => checkPinnedCelcodec(root)).toThrow(/integrity/)
-    fs.appendFileSync(path.join(root, 'vendor/celcodec-0.7.1-077f7a9e6c55.tgz'), 'changed')
+    fs.appendFileSync(path.join(root, 'vendor/celcodec-0.8.0-ac2a1c3c0758.tgz'), 'changed')
     expect(() => checkPinnedCelcodec(root)).toThrow(/audited bytes/)
   })
   it('rejects a production legacy dependency or a modified comparison package', () => {

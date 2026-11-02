@@ -1,20 +1,22 @@
 # celcodecによるCLIP形式処理
 
-CLIPの形式処理はcelcodec **0.7.1**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
+CLIPの形式処理はcelcodec **0.8.0**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
 
 ## 固定した配布依存
 
-依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.7.1-077f7a9e6c55.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
+依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.8.0-ac2a1c3c0758.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
 
-- 提供元コミット: `7f4aa2c73f0914fb398ee54494d9d9576a8c07aa`
-- SHA-256: `077f7a9e6c5541ff70e62f9e48b5a10ac13fb96a3b1ba89255ead482657014c5`
-- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの214ファイル。CLIPや採取資料は含まない。
+- 提供元コミット: `9d5c753f0b5fd04d2f2c331920f512f86fe513f2`
+- SHA-256: `ac2a1c3c075874e090ad36a47fe45a78669af1ef7e6c6e5a82f9b302da8e8e83`
+- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの218ファイル。CLIPや採取資料は含まない。
 
 [固定依存の監査](../tools/checks/vendor-celcodec.mjs)がmanifest・lock・tarballの版、hash、ファイル一覧を検査する。symlinkや兄弟checkoutへの依存には切り替えない。
 
 ## 文書セッションとアプリの境界
 
 [session.ts](../packages/adapters/src/clip/session.ts)がセッションの入力上限とキャンバス情報の変換を担当する。読み取り・保存・プレビューは各所有者がfinallyまたは明示的なcloseでセッションを解放する。入力bytesを変更しない。
+
+Quick Lookは同一の元データについてWorker内の文書セッションを再利用する。メインスレッドの保存・Undo用データはtransferせず、Workerへ複製された入力だけをborrowする。保持対象は元データ1件で、PNGの完成画像はキャッシュしない。使用していないセッションは30秒で破棄し、元データが64 MiBを超える場合は使用終了時に即座に破棄する。元データ変更、ビューを閉じる、アンマウントでも破棄する。まだ処理中の選択を中止して利用者がいなくなった場合はWorkerを終了し、次の選択を古い処理の後ろに待たせない。
 
 - [reader.ts](../packages/adapters/src/clip/reader.ts): UUID・階層・保存属性・タイムラインをRemapのモデルへ変換する。保存タイミング自体は保持し、整数フレームのシートへ変換できないトラックは診断する。負数と再生範囲外の整数キーは残す。従来のFPS・期間・階層・入力サイズ上限を維持する。
 - [registration-writer.ts](../packages/adapters/src/clip/registration-writer.ts): 管理フォルダーとセルの名前空間、再登録、各カットのセル指定を公開操作へ変換する。全タイムラインを作ってから音声を置換し、他カットに明示的な無音トラックを作る。
@@ -30,7 +32,7 @@ ACTION/CELL、工程、カット、入力セル名、対応付け、丸め、Und
 
 [Worker](../packages/adapters/src/clip/clip-document.worker.ts)は、アプリが従来から保持している `packages/adapters/src/clip/blank.clip` をURLとして読み、createDocumentと編集計画へ渡す。廃止されたcelcodec/blank.clip exportは使わない。既存seedのSHA-256は `6fb3efa8066af90b2d0e042ddc3d2aee7572691e5cc658f89cdb02467e377a82`。今回新しいCLIPや採取値を追加していない。Pagesの内容監査もこの許可済みhashを検査する。
 
-既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.7.1だけを使う。
+既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.8.0だけを使う。
 
 旧writerで作ったCLIPに対して、現行readerとのモデル一致、無編集のバイト一致、セル並べ替え、レイヤー移動、選択タイムラインの編集、画像・音声の保持を検証する。既存のCSP採取値は独立した比較基準として維持する。ベクターの合成テスト用コントロールはネイティブの継続状態を含まないため、ゼロ埋め領域を実際のRNG・間隔リセットとして扱わない。ネイティブ継続記録の検証はライブラリ側の資料庫回帰で行う。
 

@@ -70,10 +70,14 @@ for (const template of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
       await activateControl(page, page.getByLabel('入力文字設定', { exact: true }))
     }
     await paint(page)
-    const direct = await readPng(await page.screenshot({ path: info.outputPath('sizes-gpu.png') }))
+    // Compare the paper, including its timing/cue text, rather than unrelated
+    // toolbar icons whose page-compositor antialiasing can change when the SVG
+    // fallback adds DOM. Keep the paper's one-channel-level limit unchanged.
+    const viewport = page.locator('.sheetViewport')
+    const direct = await readPng(await viewport.screenshot({ path: info.outputPath('sizes-gpu.png') }))
     await svg.evaluate(element => { element.dataset.paperModelMode = 'svg' })
     await paint(page)
-    const compatibility = await readPng(await page.screenshot({ path: info.outputPath('sizes-svg.png') }))
+    const compatibility = await readPng(await viewport.screenshot({ path: info.outputPath('sizes-svg.png') }))
     await info.attach('svg-text-metrics', { contentType: 'application/json', body: JSON.stringify(await svg.locator('.templateFormLabel').evaluateAll(elements => elements.map(element => ({
       text: element.textContent, requested: element.getAttribute('font-size'), actual: getComputedStyle(element).fontSize,
       weight: getComputedStyle(element).fontWeight, requestedWeight: element.getAttribute('font-weight'), baseline: getComputedStyle(element).dominantBaseline,

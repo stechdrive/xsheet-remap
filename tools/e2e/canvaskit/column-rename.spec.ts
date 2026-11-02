@@ -7,6 +7,7 @@ import { writeClip } from '../../../packages/adapters/src/clip/writer'
 import { decodeProjectFileBytes } from '../../../packages/adapters/src/projectArchive'
 import { activeCutProjectFromDocument, digitalStandardSheetTemplate } from '../../../packages/core/src/index'
 import { buildTemplateChromeRenderModel } from '../../../packages/ui/src/templateEditorGeometry'
+import { waitForPaperPaint } from '../paper-paint-contract'
 
 const require = createRequire(import.meta.url)
 
@@ -85,7 +86,12 @@ for (const role of ['action', 'cell'] as const) test(`right-click selects the im
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles(saved)
   await expect(timing('A')).toHaveText('001')
   await expect(timing('B')).toHaveText('001')
-  await page.mouse.click(target.x, target.y, { button: 'right' })
+  // Reopening restores the fitted viewport asynchronously; old screen coordinates
+  // can hit before the restored sheet has finished painting at its current size.
+  await waitForPaperPaint({ evaluate: <T>(expression: string) => page.evaluate<T>(expression) })
+  const restoredTarget = await point(0)
+  await page.mouse.click(restoredTarget.x, restoredTarget.y, { button: 'right' })
+  await expect(status).toContainText(`${role.toUpperCase()} A 001-024`)
   await activateControl(page, page.getByRole('menuitem', { name: 'セル列名を変更', exact: true }))
   await expect(name).toHaveValue('A')
   await name.press('Escape')

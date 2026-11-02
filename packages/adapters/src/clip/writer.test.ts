@@ -10,6 +10,7 @@ import { readClip } from './reader'
 import { readLegacyClip, writeLegacyClip } from './test-support/legacy'
 import { Mixer } from './test-support/animation'
 import { mipmapChain, readLayerPixels } from './test-support/layers'
+import { openDocument } from 'celcodec'
 const nativeLabels = JSON.parse(readFileSync(new URL('./fixtures/native-track-labels.json', import.meta.url), 'utf8')) as {
   labels: { LabelName: string; LabelFrame: number; LabelType: number; LabelLength: null }[]
 }
@@ -26,6 +27,24 @@ const plan: ClipRegistrationPlan = {
   ],
 }
 describe('direct CLIP writer', () => {
+  it('registers the parent tracks PAINT needs to display nested animation folders in every timeline', async () => {
+    const result = await writeClip(SQL, seed, { plan, canvas, fit: 'crop', images: {} })
+    const session = openDocument(SQL, result.bytes)
+    try {
+      const nodes = session.document.layers.flatMap(function visit(layer): typeof session.document.layers[number][] { return [layer, ...layer.children.flatMap(visit)] })
+      const parents = nodes.filter(layer => ['xsheet-remap', 'LO', '作画'].includes(layer.name))
+      expect(parents).toHaveLength(3)
+      expect(session.document.timelines).toHaveLength(2)
+      for (const timeline of session.document.timelines) {
+        for (const layer of parents) {
+          const tracks = timeline.tracks.filter(track => track.layerId === layer.id)
+          expect(tracks).toHaveLength(1)
+          expect(tracks[0].kind).toBe(1000)
+          expect(session.readKeyframes(tracks[0].id).clips).toEqual([expect.objectContaining({ startFrame: 0, endFrame: timeline.durationFrames, parameters: [], curves: [] })])
+        }
+      }
+    } finally { session.dispose() }
+  })
   it('imports legacy exports without changing their application model, identity or input bytes', async () => {
     const old = await writeLegacyClip(SQL, seed, { plan, canvas, fit: 'crop', images: {} }), snapshot = old.bytes.slice()
     expect(await readClip(SQL, old.bytes, 'legacy.clip')).toEqual(await readLegacyClip(SQL, old.bytes, 'legacy.clip'))
@@ -116,6 +135,7 @@ describe('direct CLIP writer', () => {
     } finally { a.close(); b.close() }
   })
   it('accepts CSP saved templates and retains their external-data cleanup triggers', async () => {
+    const parentData = (clip: ClipContainer) => clip.rows('Track').filter(row => row.TrackKind === 1000).map(row => ({ id: row.MainId, primary: clip.body(row.TrackActionMixer), secondary: clip.body(row.TrackActionMixer2) }))
     const first = await writeClip(SQL, seed, { plan, canvas, fit: 'expand', images: {} })
     const saved = new ClipContainer(SQL, first.bytes)
     let template: Uint8Array
@@ -127,7 +147,7 @@ describe('direct CLIP writer', () => {
           saved.db.run(`CREATE TRIGGER External${operation}Of${column}On${table} ${event} ON ${table} BEGIN INSERT INTO RemovedExternal(ExternalID) VALUES(OLD.${column}); END`)
         }
       }
-      oldMixers = saved.rows('Track').flatMap(row => [row.TrackActionMixer, row.TrackActionMixer2])
+      oldMixers = saved.rows('Track').filter(row => row.TrackKind === 2000).flatMap(row => [row.TrackActionMixer, row.TrackActionMixer2])
       template = saved.bytes()
     } finally { saved.close() }
     const changed = { ...plan, timelines: plan.timelines.map(time => ({ ...time, tracks: time.tracks.map(track => ({ ...track, frames: [{ frame: 0, value: '2' }] })) })) }
@@ -138,6 +158,8 @@ describe('direct CLIP writer', () => {
       expect(clip.rows('Layer').filter(row => row.LayerType === 1)).toHaveLength(2)
       expect(clip.db.exec("SELECT name FROM sqlite_master WHERE type='trigger'")[0].values).toHaveLength(6)
       expect(clip.rows('RemovedExternal').map(row => row.ExternalID)).toEqual(expect.arrayContaining(oldMixers))
+      const before = new ClipContainer(SQL, template)
+      try { expect(parentData(clip)).toEqual(parentData(before)) } finally { before.close() }
     } finally { clip.close() }
   })
   it.each(['unrecognized', 'ExternalDeleteOfTrackActionMixerOnTrack'])('rejects the nonstandard trigger %s before changing the template', name => {

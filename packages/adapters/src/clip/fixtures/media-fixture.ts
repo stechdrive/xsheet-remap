@@ -5,7 +5,12 @@ import { normalizedUuid } from '../test-support/layer-metadata'
 const seed = new Uint8Array(readFileSync(new URL('../blank.clip', import.meta.url)))
 const native = JSON.parse(readFileSync(new URL('./native-media.json', import.meta.url), 'utf8')) as { audioLayer: Row; videoLayer: Row; items: Row[]; objects: Row[]; mixer: { size: number; hex: string } }
 
-/** Synthetic container around independently captured media metadata and native BINC. */
+/**
+ * Synthetic container around captured media metadata and native BINC, for parser/preservation tests.
+ * Not a CSP-compatible document: it replaces a seed cel with audio, leaves the cel track,
+ * and has video metadata without its material. The unchanged fixture crashes CSP EX 5.1.5,
+ * as do both legacy/current writer outputs (2026-11-02). Do not use it as a native roundtrip golden.
+ */
 export function createMediaFixture(SQL: SqlJsStatic) {
   const clip = new ClipContainer(SQL, seed)
   for (const column of ['AudioLayer', 'BankItemUuid', 'LinkLayerItemUUID']) if (!Object.keys(clip.rows('Layer')[0]).includes(column)) clip.db.run(`ALTER TABLE Layer ADD COLUMN ${column}`)

@@ -1,13 +1,13 @@
 # celcodecによるCLIP形式処理
 
-CLIPの形式処理はcelcodec **0.7.0**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
+CLIPの形式処理はcelcodec **0.7.1**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
 
 ## 固定した配布依存
 
-依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.7.0-620b056b2636.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
+依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.7.1-077f7a9e6c55.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
 
-- 提供元コミット: `f7b5c6235c2894350ece22d6ec6133bd53e2a42c`
-- SHA-256: `620b056b26366efada9ed412b2c0882f6a280ee36ec2441fdc2018d2cf3cdcd6`
+- 提供元コミット: `7f4aa2c73f0914fb398ee54494d9d9576a8c07aa`
+- SHA-256: `077f7a9e6c5541ff70e62f9e48b5a10ac13fb96a3b1ba89255ead482657014c5`
 - ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの214ファイル。CLIPや採取資料は含まない。
 
 [固定依存の監査](../tools/checks/vendor-celcodec.mjs)がmanifest・lock・tarballの版、hash、ファイル一覧を検査する。symlinkや兄弟checkoutへの依存には切り替えない。
@@ -30,7 +30,7 @@ ACTION/CELL、工程、カット、入力セル名、対応付け、丸め、Und
 
 [Worker](../packages/adapters/src/clip/clip-document.worker.ts)は、アプリが従来から保持している `packages/adapters/src/clip/blank.clip` をURLとして読み、createDocumentと編集計画へ渡す。廃止されたcelcodec/blank.clip exportは使わない。既存seedのSHA-256は `6fb3efa8066af90b2d0e042ddc3d2aee7572691e5cc658f89cdb02467e377a82`。今回新しいCLIPや採取値を追加していない。Pagesの内容監査もこの許可済みhashを検査する。
 
-既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.7.0だけを使う。
+既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.7.1だけを使う。
 
 旧writerで作ったCLIPに対して、現行readerとのモデル一致、無編集のバイト一致、セル並べ替え、レイヤー移動、選択タイムラインの編集、画像・音声の保持を検証する。既存のCSP採取値は独立した比較基準として維持する。ベクターの合成テスト用コントロールはネイティブの継続状態を含まないため、ゼロ埋め領域を実際のRNG・間隔リセットとして扱わない。ネイティブ継続記録の検証はライブラリ側の資料庫回帰で行う。
 
@@ -45,3 +45,19 @@ Web容量はtools/pages/pages-cache-policy.mjsが所有する。seed許可hash�
 文書セッション導入直後のapp precacheは4,781,998 bytesで、既存上限4,653,056 bytesを超えた。CLIP入出力Workerは従来から操作時にだけ起動するため、固有のclip-document.worker名を付け、プレビューWorker・seed・WASMと同じ必要時の内容hashキャッシュへ分類した。初回のCLIP操作で取得し、その後のオフライン再利用と更新時のhash切り替えを検証する。未使用のCLIP機能が最初からオフラインで使えることは保証しない。
 
 ライブラリの単体・公開API・画像検証、Remapの統合・ブラウザー・WebView2、CSP実機の確認は別の証拠として扱う。新しいCSP実機採取を行わずに完全互換と表現しない。クレジットはTHIRD_PARTY_NOTICES.mdに保持し、ライブラリ側のdocs/provenance.jsonが由来を記録する。各リポジトリの変更は個別にコミットし、外部公開は別の明示依頼がある場合に行う。
+
+## CSP実機で確認した範囲
+
+2026-11-02にWindowsのCSP EX 5.1.5で、0.7.0移行時のPages候補（0.1.847）の実際の読み込み・編集・保存UIから出力した検証用CLIPを確認した。これは公開版やEXEの追加検証ではない。
+
+CSPで保存済みの64×64、24fps・24コマ、赤青2セルの文書では、Remapで1・5・13コマ目へ指定したセルをCSPで表示できた。CSPの再保存後もレイヤーのUUID・属性・順序、セルのRGBA・配置、トラック・ラベル・セル指定を保持し、CSP書き出し動画の全24コマも赤4・青8・赤12コマで一致した。
+
+CSPで読み込んだ440Hzの検証音をRemapで9コマ目開始・12コマ長に編集したケースでは、CSP再保存・再読み込み後も埋め込み音声と保存タイミングを保持した。CSPだけで同じ移動・トリミングを行った対照と、CSPから書き出したWAVもバイト一致した。波形末尾が区間終端より約8ミリ秒早く無音になる挙動も対照と同じだった。スピーカーからの実音を聴取したという証拠ではない。
+
+初回に残った2件は、未編集入力・旧版出力・現行出力をCSPで比較した。入れ子の工程文書のタイムライン空欄は0.7.0の新規作成だけで発生した。通常フォルダーの祖先トラックが欠けていたため、celcodec 0.7.1で不足分だけを補うよう修正した。既存トラックの内容は保持する。修正出力ではCSPのタイムライン表示と再保存を確認し、CSPの操作で新しく作ったフォルダートラックとの比較をライブラリの回帰テストへ追加した。
+
+修正版0.7.1を取り込んだPages候補（0.1.848）でも、Remapの実UIから音声付き文書と入れ子の工程文書を保存し、CSPで開く・別名保存・閉じる・再読み込みを確認した。音声文書の元8レイヤー、入れ子文書の元11レイヤーと6トラックを保持し、作画Aの1・5・13コマと確認Aの1・9コマを区別して表示した。CSPによる作品情報レイヤーの追加は元レイヤーと分けて記録した。440Hz音声の書き出しも独立対照と再びバイト一致した。両入力のハッシュは変化していない。この最終確認もEXE検証や公開版の検証ではない。
+
+`createMediaFixture`のクラッシュは未編集入力と旧版・現行の両出力すべてで同じ位置に再現した。このfixtureはセルを音声へ差し替え、旧セル参照や素材本体を欠く動画情報を含む解析・保持テスト用の合成データで、正常なCSP文書とは確認されていない。移行による回帰や音声互換性の失敗として数えず、CSP実機確認には正常に保存された対照を使う。クラッシュを起こす最小条件や、すべてのCSP操作で作成不可能な構造かまでは確定していない。
+
+音声対照の準備時には、既存の合成無音素材がCSPの音声追加・保存後、Remapへ渡す前から欠落していることも確認した。この素材は維持成功に数えず、診断の保持と新しくCSPで埋め込んだ検証音の一致を分けて記録した。原本・検証コピー・再保存CLIP・画面・測定結果は非公開のresearch collectionへ保全し、公開ソースへ採取値を追加していない。

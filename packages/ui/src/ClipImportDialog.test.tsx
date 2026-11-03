@@ -151,11 +151,11 @@ describe('CLIP import selection', () => {
     expect(callbacks.onClose).toHaveBeenCalledOnce()
     expect(callbacks.onImport).not.toHaveBeenCalled()
   })
-  it('imports selected timelines as shared cuts into CELL in one callback', async () => {
+  it('imports selected timelines as shared cuts into CEL in one callback', async () => {
     const { onImport } = show()
     await screen.findByLabelText('原画のセル指定を取り込む')
     fireEvent.click(screen.getByRole('checkbox', { name: /C002/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CEL' }))
     fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
     expect(onImport).toHaveBeenCalledOnce()
     const doc = onImport.mock.calls[0][0]

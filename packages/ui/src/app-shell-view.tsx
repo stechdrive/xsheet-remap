@@ -312,7 +312,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             project={project}
             referenceProject={referenceProject}
             actionCellTransferGhost={actionCellTransferGhost}
-            actionCellTransferControls={actionCellTransferPlan && <ActionCellTransferPreview plan={actionCellTransferPlan}
+            actionCellTransferControls={actionCellTransferPlan && <ActionCellTransferPreview plan={actionCellTransferPlan} template={template}
               onCancel={() => setActionCellTransferPlan(null)} onApply={handleApplyActionCellTransfer} />}
             referenceOpacity={activeSheetRevision.reference?.opacity ?? 0.28}
             exportProfileId={exportProfileId}
@@ -717,7 +717,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
           <dt>{uiText.inspector.track}</dt>
           <dd>{selectedSoundCue ? selectedSoundCue.laneId : rangeSelection ? rangeSelection.paperTrack ?? rangeSelection.columnId : selection.hit?.paperTrack ?? '-'}</dd>
           <dt>{uiText.inspector.sheetRole}</dt>
-          <dd>{selectedSoundCue ? 'SOUND' : rangeSelection ? rangeSelection.role.toUpperCase() : selection.hit ? sheetRoleLabel(sheetRoleForHit(selection.hit)) : '-'}</dd>
+          <dd>{selectedSoundCue ? 'SOUND' : rangeSelection ? rangeSelection.role === 'cell' ? uiText.sheetRoles.cell : rangeSelection.role.toUpperCase() : selection.hit ? sheetRoleLabel(sheetRoleForHit(selection.hit)) : '-'}</dd>
           <dt>{uiText.inspector.process}</dt>
           <dd>{activeCorrectionLayer?.label ?? '-'}</dd>
           <dt>{uiText.inspector.key}</dt>

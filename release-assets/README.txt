@@ -11,7 +11,7 @@ xsheet-remap 配布物の使い分け
 
 ■ xsheet-template.exe
 シートテンプレート作成アプリです。
-参照画像、ACTION・SOUND・CELL・CAMERA領域、情報欄、補正基準枠を編集して保存します。
+参照画像、ACTION・SOUND・CEL・CAMERA領域、情報欄、補正基準枠を編集して保存します。
 
 ■ xsheet-corrector.exe
 シート画像補正アプリです。

@@ -273,7 +273,7 @@ if (stage === 'prepare') {
         for (const [frame, label] of [[1, '1'], [5, '2'], [9, '3']] as const) await expect(event(main, 'A', frame).locator('.eventText')).toHaveText(label)
         const start = await cell(main, 'A', 12), end = await cell(main, 'A', 1)
         await main.mouse.move(start.x, start.y); await main.mouse.down(); await main.mouse.move(end.x, end.y, { steps: 5 }); await main.mouse.up()
-        await expect(main.locator('.statusBar span').first()).toContainText('CELL A 001-012')
+        await expect(main.locator('.statusBar span').first()).toContainText('CEL A 001-012')
         const from = await cell(main, 'A', 5), to = await cell(main, 'B', 17)
         const before = await events(main)
         await main.mouse.move(from.x, from.y); await main.mouse.down(); await main.mouse.move(to.x, to.y, { steps: 5 })

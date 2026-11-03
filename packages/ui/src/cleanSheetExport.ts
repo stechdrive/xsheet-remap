@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import {
   getSheetViewLayout,
   isRenderableSheetTemplateGridRegion,
@@ -185,7 +186,7 @@ export async function renderSheetImageExports(
         const base: Layer = { name: layer.name, imageData: layer.imageData, opacity: (layer.opacity ?? 255) / 255 }
         if (!texts.length || !layer.psdBase) return base
         return { name: layer.name, opened: false, children: [
-          { ...base, name: layer.id === 'timingInput' ? 'ACTION/CELL記号' : '線・図形', imageData: cropImageData(layer.psdBase, 0, page.pageIndex * context.pageSize.heightPx, context.pageSize.widthPx, context.pageSize.heightPx) },
+          { ...base, name: layer.id === 'timingInput' ? 'ACTION/CEL記号' : '線・図形', imageData: cropImageData(layer.psdBase, 0, page.pageIndex * context.pageSize.heightPx, context.pageSize.widthPx, context.pageSize.heightPx) },
           ...texts,
         ] }
       })
@@ -281,7 +282,7 @@ function sheetExportLayerDescriptorsForContext(
   }
   if (hasOverlayRenderContent(context)) layers.push({ id: 'overlayTracks', name: '追加トラック/ラベル' })
   layers.push({ id: 'metadataText', name: 'シート情報' })
-  layers.push({ id: 'timingInput', name: 'ACTION/CELL入力' })
+  layers.push({ id: 'timingInput', name: 'ACTION/CEL入力' })
   for (const id of timedRangeCueExportLayerIds(context.project)) {
     layers.push({ id, name: id === 'soundCues' ? 'SOUND指示' : 'CAMERA指示' })
   }
@@ -761,7 +762,7 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
         drawSheetExportText(context.textOutput, ctx, {
           text: layout.text, x: textX, y: textY, size: layout.fontSizePx, weight: SHEET_EVENT_FONT_WEIGHT, offsetY,
           name: `${String(item.frame).padStart(3, '0')}f：${item.text}`,
-          groups: [(item.sheetRole ?? 'cell').toUpperCase(), item.paperTrack],
+          groups: [uiText.sheetRoles[item.sheetRole ?? 'cell'], item.paperTrack],
           clips: [exportClipRect(context, clip, offsetY)], stroke: Boolean(layout.outlineWidthPx),
         }, target => {
           if (layout.outlineWidthPx) target.strokeText(layout.text, textX, textY)
@@ -1504,7 +1505,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
             drawSheetExportText(context.textOutput, ctx, {
               text: text.text, x: layout.xPx, y: offsetY + layout.yPx, size: layout.fontSizePx,
               weight: SHEET_LABEL_FONT_WEIGHT, offsetY, vertical: true, glyphs, clips,
-              groups: [`${memo.anchor.role.toUpperCase()} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
+              groups: [`${uiText.sheetRoles[memo.anchor.role]} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
             }, target => { for (const glyph of glyphs) drawVerticalGlyph(target, glyph.value, glyph.xPx, glyph.yPx, layout.fontSizePx) })
             continue
           }
@@ -1514,7 +1515,7 @@ function renderAnnotationTextLayer(context: SheetExportLayerContext): ImageData 
           drawSheetExportText(context.textOutput, ctx, {
             text: layout.lines.join('\n'), x: layout.xPx, y: offsetY + layout.yPx, size: layout.fontSizePx,
             weight: SHEET_LABEL_FONT_WEIGHT, leading: layout.lineHeightPx, offsetY, clips,
-            groups: [`${memo.anchor.role.toUpperCase()} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
+            groups: [`${uiText.sheetRoles[memo.anchor.role]} ${memo.anchor.paperTrack ?? ''} ${memo.anchor.frame}f`],
           }, target => {
             for (const line of positionMultilineTextLines(layout.lines, layout.xPx, offsetY + layout.yPx, layout.lineHeightPx)) target.fillText(line.text, line.xPx, line.yPx)
           })

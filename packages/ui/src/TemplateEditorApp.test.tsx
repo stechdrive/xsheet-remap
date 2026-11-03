@@ -122,12 +122,12 @@ describe('TemplateEditorApp authoring workflow', () => {
     render(<TemplateEditorApp />)
     startA3Authoring()
 
-    const sharedColumns = screen.getByLabelText('ACTION / CELL共有の列数')
+    const sharedColumns = screen.getByLabelText('ACTION / CEL共有の列数')
     fireEvent.change(sharedColumns, { target: { value: '5' } })
     expect(screen.getAllByText(/最小 12\.5mm/)).toHaveLength(2)
 
-    const cellWidth = screen.getByLabelText('CELL幅 mm') as HTMLInputElement
-    const decrease = screen.getByRole('button', { name: 'CELL幅を狭くする' })
+    const cellWidth = screen.getByLabelText('CEL幅 mm') as HTMLInputElement
+    const decrease = screen.getByRole('button', { name: 'CEL幅を狭くする' })
     expect(cellWidth.value).toBe('43.4')
     fireEvent.click(decrease)
     expect(cellWidth.value).toBe('43.2')
@@ -170,16 +170,16 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(document.querySelector('.templateEditorCanvas')?.classList.contains('showPixelGrid')).toBe(true)
   })
 
-  it('creates a digital template with shared ACTION and CELL columns and no paper controls', async () => {
+  it('creates a digital template with shared ACTION and CEL columns and no paper controls', async () => {
     render(<TemplateEditorApp />)
     fireEvent.click(screen.getByRole('button', { name: 'デジタルシートを作成' }))
 
     expect(screen.getByText('現在の表示キャンバス')).toBeTruthy()
     expect(screen.getAllByText('1920 × 3600px')).toHaveLength(2)
-    expect(screen.getByText('セル列数（ACTION/CELL共通）')).toBeTruthy()
+    expect(screen.getByText('セル列数（ACTION/CEL共通）')).toBeTruthy()
     expect(screen.getByLabelText('FPS')).toBeTruthy()
     expect(screen.getByLabelText('初期フレーム数')).toBeTruthy()
-    expect(screen.getByLabelText('セル列数（ACTION/CELL共通）')).toBeTruthy()
+    expect(screen.getByLabelText('セル列数（ACTION/CEL共通）')).toBeTruthy()
     expect(within(screen.getByRole('complementary', { name: 'テンプレート構成' })).queryByRole('button', { name: '下絵' })).toBeNull()
     expect(screen.queryByRole('slider', { name: '下絵の不透明度' })).toBeNull()
 
@@ -188,8 +188,8 @@ describe('TemplateEditorApp authoring workflow', () => {
     const actionColumnCount = screen.getByLabelText('ACTIONの共有セル列数') as HTMLInputElement
     fireEvent.change(actionColumnCount, { target: { value: '22' } })
     expect(actionColumnCount.value).toBe('22')
-    fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
-    const cellColumnCount = screen.getByLabelText('CELLの共有セル列数') as HTMLInputElement
+    fireEvent.click(screen.getByRole('button', { name: 'CEL' }))
+    const cellColumnCount = screen.getByLabelText('CELの共有セル列数') as HTMLInputElement
     expect(cellColumnCount.value).toBe('22')
 
     const tracks = createAlphabeticTrackLabels(22)
@@ -241,7 +241,7 @@ describe('TemplateEditorApp authoring workflow', () => {
     expect(screen.queryByRole('group', { name: '6秒タイムライン表の操作' })).toBeNull()
     expect(screen.queryByLabelText(/ACTION 1-72の開始F/)).toBeNull()
     expect(screen.queryByLabelText(/ACTION 1-72の行数/)).toBeNull()
-    const sharedColumns = screen.getByLabelText('ACTION / CELL共有の列数') as HTMLInputElement
+    const sharedColumns = screen.getByLabelText('ACTION / CEL共有の列数') as HTMLInputElement
     fireEvent.change(sharedColumns, { target: { value: '12' } })
     expect(sharedColumns.value).toBe('12')
     const tableHeight = screen.getByLabelText('6秒タイムライン表 高さ mm') as HTMLInputElement

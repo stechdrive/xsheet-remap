@@ -1,17 +1,20 @@
 import { useState } from 'react'
-import type { ActionCellTransferPlan } from '@xsheet-remap/core'
+import type { ActionCellTransferPlan, SheetTemplate } from '@xsheet-remap/core'
 import { useModalDialogKeyboardBoundary } from './useModalDialogKeyboardBoundary'
+import { sheetColumnRoleLabel } from './sheetColumnModel'
 
-export function ActionCellTransferPreview({ plan, onCancel, onApply }: { plan: ActionCellTransferPlan; onCancel: () => void; onApply: () => void }) {
+export function ActionCellTransferPreview({ plan, template, onCancel, onApply }: { plan: ActionCellTransferPlan; template: SheetTemplate; onCancel: () => void; onApply: () => void }) {
   const boundary = useModalDialogKeyboardBoundary<HTMLDivElement>(onCancel)
   const [error, setError] = useState('')
+  const sourceLabel = sheetColumnRoleLabel(template, 'action')
+  const targetLabel = sheetColumnRoleLabel(template, 'cell')
   const ready = plan.columns.filter(column => column.status === 'ready')
   const skipped = plan.columns.filter(column => column.status !== 'ready' && column.status !== 'empty')
   const hasNotes = ready.some(column => column.openIntervals.length || column.additionalFrames.length
     || column.duplicateNumberFrames.length || !column.usesNumericOrder && column.drawingCount > 0)
-  return <div className="actionCellTransferPreview" role="region" aria-label="ACTION→CELLの転記プレビュー" ref={boundary} tabIndex={-1}>
+  return <div className="actionCellTransferPreview" role="region" aria-label={`${sourceLabel}→${targetLabel}の転記プレビュー`} ref={boundary} tabIndex={-1}>
     <div className="actionCellTransferSummary" role="status">
-      <strong>CELLに仮表示中</strong>
+      <strong>{targetLabel}に仮表示中</strong>
       <span>{ready.length ? `対象：${ready.map(column => column.paperTrack).join('・')}（${ready.length}列）` : '転記できる列がありません'}</span>
       <small>非表示の前後ダミーも採番に含みます</small>
     </div>

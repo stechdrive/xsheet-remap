@@ -21,7 +21,7 @@ it('imports independent tracks, previews correspondence collisions, commits and 
   Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(4) })
   fireEvent.change(document.querySelector('input[accept=".clip"]')!, { target: { files: [file] } })
   fireEvent.click(await screen.findByRole('button', { name: 'group0 / Aの読み込み設定' }))
-  fireEvent.click(screen.getByRole('button', { name: 'CELL' }))
+  fireEvent.click(screen.getByRole('button', { name: 'CEL' }))
   fireEvent.change(screen.getByLabelText('シートの基準にする工程を選択'), { target: { value: 'group0' } })
   fireEvent.click(screen.getByRole('button', { name: 'タイムシートに読み込む' }))
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'CLIPを読み込む' })).toBeNull())

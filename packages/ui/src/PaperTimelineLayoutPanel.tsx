@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import type { NormalizedRect, SheetTemplate } from '@xsheet-remap/core'
 import {
   canNudgePaperTimelineRoleWidthPx,
@@ -35,7 +36,7 @@ export function PaperTimelineLayoutPanel({
         <header>
           <span>6秒タイムライン表</span>
           <h2>表の必須領域が不足しています</h2>
-          <p>ACTION・SOUND・CELL・CAMERAを左右3秒分そろえる必要があります。</p>
+          <p>ACTION・SOUND・CEL・CAMERAを左右3秒分そろえる必要があります。</p>
         </header>
         <div className="paperTimelineIssue" role="alert">
           <strong>不足している領域</strong>
@@ -176,14 +177,14 @@ export function PaperTimelineLayoutPanel({
             return (
               <label key={role} className={columnMm < 2.5 ? 'warning' : ''}>
                 <span>
-                  <strong>{role.toUpperCase()}</strong>
+                  <strong>{uiText.sheetRoles[role]}</strong>
                   <small>{region.grid?.columns.length ?? 1}列 / 1列 {formatNumber(columnMm)}mm / 最小 {formatNumber(minimumWidthMm)}mm</small>
                 </span>
                 <span className="paperTimelineNumberInput">
                   <span className="paperTimelineWidthStepper">
                     <button
                       type="button"
-                      aria-label={`${role.toUpperCase()}幅を狭くする`}
+                      aria-label={`${uiText.sheetRoles[role]}幅を狭くする`}
                       disabled={!canDecrease}
                       onClick={() => nudgeRoleWidth(role, -1)}
                     >−</button>
@@ -191,7 +192,7 @@ export function PaperTimelineLayoutPanel({
                       type="number"
                       step="0.1"
                       min={formatNumber(minimumWidthMm)}
-                      aria-label={`${role.toUpperCase()}幅 mm`}
+                      aria-label={`${uiText.sheetRoles[role]}幅 mm`}
                       value={formatNumber(widthMm)}
                       onKeyDown={event => {
                         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -202,7 +203,7 @@ export function PaperTimelineLayoutPanel({
                     />
                     <button
                       type="button"
-                      aria-label={`${role.toUpperCase()}幅を広くする`}
+                      aria-label={`${uiText.sheetRoles[role]}幅を広くする`}
                       disabled={!canIncrease}
                       onClick={() => nudgeRoleWidth(role, 1)}
                     >＋</button>
@@ -219,7 +220,7 @@ export function PaperTimelineLayoutPanel({
       <fieldset className="paperTimelineFieldset">
         <legend>列数</legend>
         <div className="paperTimelineColumnCountGrid">
-          <ColumnCountControl label="ACTION / CELL共有" value={sharedPaperTrackCount} onChange={count => changeColumnCount('cell', count)} />
+          <ColumnCountControl label="ACTION / CEL共有" value={sharedPaperTrackCount} onChange={count => changeColumnCount('cell', count)} />
           <ColumnCountControl label="SOUND" value={leftSound.grid?.columns.length ?? 1} onChange={count => changeColumnCount('sound', count)} />
           <ColumnCountControl label="CAMERA" value={leftCamera.grid?.columns.length ?? 1} onChange={count => changeColumnCount('camera', count)} />
         </div>

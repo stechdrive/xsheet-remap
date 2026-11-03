@@ -7,7 +7,7 @@ import { uiText } from './i18n'
 afterEach(cleanup)
 
 describe('TimingExportDialog', () => {
-  it('uses the shared ACTION/CELL selector for After Effects JSX without XDTS options', () => {
+  it('uses the shared ACTION/CEL selector for After Effects JSX without XDTS options', () => {
     const onConfirm = vi.fn()
     render(
       <TimingExportDialog
@@ -23,7 +23,7 @@ describe('TimingExportDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: uiText.actions.aeJsx })
     expect(screen.getByRole('button', { name: 'ACTION' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'CELL' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'CEL' })).toBeTruthy()
     expect(screen.queryByLabelText('SOUNDを含める')).toBeNull()
     expect(screen.queryByLabelText('CAMERAを含める')).toBeNull()
     expect(screen.getByText(uiText.afterEffects.jsxDescription)).toBeTruthy()
@@ -51,7 +51,7 @@ describe('TimingExportDialog', () => {
     )
 
     expect(screen.getByRole('dialog', { name: uiText.actions.aeSend })).toBeTruthy()
-    for (const name of ['閉じる', 'キャンセル', 'ACTION', 'CELL', '送信中…']) {
+    for (const name of ['閉じる', 'キャンセル', 'ACTION', 'CEL', '送信中…']) {
       expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
     }
     fireEvent.click(screen.getByRole('button', { name: '送信中…' }))

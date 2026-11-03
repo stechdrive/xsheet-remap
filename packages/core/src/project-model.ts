@@ -177,7 +177,7 @@ export function defaultTimelineSections(template: SheetTemplate = standardA3Shee
     {
       sectionId: 'section_cell',
       role: 'cell',
-      label: timelineSectionLabelForTemplate(template, 'cell', 'CELL'),
+      label: timelineSectionLabelForTemplate(template, 'cell', 'CEL'),
       order: 2,
       inputMode: 'point-event',
       trackAxis: 'paper-tracks',

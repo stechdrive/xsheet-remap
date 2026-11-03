@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { buildPaperTranscriptionPrompt, type CutProject, type PaperTranscriptionRequest, type PaperTranscriptionTarget, type SheetTemplate } from '@xsheet-remap/core'
 import { createPortableArchive, type PortableArchiveFile } from '@xsheet-remap/adapters'
 import { renderCorrectedSheetImageExport } from './correctedSheetImageExport'
@@ -53,7 +54,7 @@ export async function paperTranscriptionImageArchive(project: CutProject, templa
         context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height)
         context.drawImage(image, crop.x * image.width, crop.y * image.height, crop.w * image.width, crop.h * image.height, padding, heading, crop.w * image.width, crop.h * image.height)
         context.fillStyle = '#172c36'; context.font = '14px sans-serif'
-        context.fillText(`${target.targetId} / ${target.role.toUpperCase()} / ${target.column}`, 8, 18)
+        context.fillText(`${target.targetId} / ${uiText.sheetRoles[target.role]} / ${target.column}`, 8, 18)
         context.fillText(`${from}–${to} F`, 8, 38)
         const rowHeight = target.rect.h / (target.to - target.from + 1)
         context.textAlign = 'right'

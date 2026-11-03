@@ -291,7 +291,7 @@ describe('TemplateRegionEditor region visibility and position locks', () => {
     expect(container.querySelectorAll('.templateHandleKnob')).toHaveLength(2)
     expect(container.querySelectorAll('.templateDomEdgeGuide.vertical')).toHaveLength(0)
     expect(container.querySelectorAll('.templateDomEdgeGuide.horizontal')).toHaveLength(2)
-    expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('CELL / 22列 / 481行')
+    expect(container.querySelector('.templateEditorCaption')?.textContent).toContain('CEL / 22列 / 481行')
   })
 
   it('removes hidden regions from both the static preview and hit testing', () => {

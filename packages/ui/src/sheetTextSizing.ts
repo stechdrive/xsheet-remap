@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { sheetTimingRoleForEvent, timingEventValueKind, updateTimedRangeCue,
   type CutProject, type SheetTemplate, type TimedRangeCue, type TimelineEvent } from '@xsheet-remap/core'
 import type { SheetSelection } from './appTypes'
@@ -31,7 +32,7 @@ export function selectedSheetTextTargets(project: CutProject, selection: SheetSe
   const role = cues.at(0)?.role ?? (events[0] ? sheetTimingRoleForEvent(events[0])
     : selection.kind === 'range' ? selection.range.role : selection.kind === 'cell' ? selection.hit.role : null)
   const nextOnly = count === 0 && (selection.kind === 'none' || (selection.kind === 'cell' && (role === 'action' || role === 'cell')))
-  return { events, cues, nextOnly, label: count ? `${role?.toUpperCase()} ${count}件` : nextOnly ? '次に入力する文字' : '変更できる文字がありません' }
+  return { events, cues, nextOnly, label: count ? `${role === 'cell' ? uiText.sheetRoles.cell : role?.toUpperCase()} ${count}件` : nextOnly ? '次に入力する文字' : '変更できる文字がありません' }
 }
 
 export function stepTextFontSize(value: number, direction: -1 | 1): number {

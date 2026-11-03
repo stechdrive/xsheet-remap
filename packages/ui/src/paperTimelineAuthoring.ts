@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import {
   createPaperTrackColumns,
   type NormalizedRect,
@@ -423,7 +424,7 @@ function regionIdForSide(pair: PaperTimelineRolePair, side: PaperTimelineSide): 
 }
 
 function roleLabel(role: PaperTimelineRole): string {
-  return role.toUpperCase()
+  return uiText.sheetRoles[role]
 }
 
 function rectBounds(rects: readonly NormalizedRect[]): NormalizedRect {

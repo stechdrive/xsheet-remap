@@ -47,8 +47,8 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
   initializeCanvas(() => { throw new Error('Unexpected canvas') }, (width, height) => ({ width, height, colorSpace: 'srgb', data: new Uint8ClampedArray(width * height * 4) }))
   const bytes = readFileSync(info.outputPath('editable-text.psd'))
   const psd = readPsd(bytes, { useImageData: true })
-  const input = psd.children!.find(layer => layer.name === 'ACTION/CELL入力')!
-  for (const role of ['ACTION', 'CELL']) {
+  const input = psd.children!.find(layer => layer.name === 'ACTION/CEL入力')!
+  for (const role of ['ACTION', 'CEL']) {
     const group = input.children!.find(layer => layer.name === role)!
     expect(group.children!.map(layer => layer.name)).toEqual(['A', 'B'])
     expect(group.children![0].children!.map(layer => layer.text!.text)).toEqual(['12', 'A_001'])

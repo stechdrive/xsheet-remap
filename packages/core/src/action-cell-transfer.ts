@@ -47,11 +47,11 @@ export function buildActionCellTransferPlan(project: CutProject, tracks = projec
       return { ...column, status: 'invalid', reason: 'ACTIONのセル対応またはコマ位置が不正です。' }
     }
     if (project.logicalSheet.keys.some(key => key.paperTrack === paperTrack && sheetTimingRoleForKey(key) === 'cell' && keyInActiveProcess(project, key) && bound.has(key.keyId))) {
-      return { ...column, status: 'bound', reason: 'CELLに素材の登録があります。' }
+      return { ...column, status: 'bound', reason: 'CELに素材の登録があります。' }
     }
     if (project.logicalSheet.events.some(event => event.paperTrack === paperTrack && sheetTimingRoleForEvent(event) === 'cell')
       || project.logicalSheet.referenceMarks?.some(mark => mark.paperTrack === paperTrack && mark.sheetRole === 'cell')) {
-      return { ...column, status: 'occupied', reason: 'CELLに記入があります。' }
+      return { ...column, status: 'occupied', reason: 'CELに記入があります。' }
     }
     const drawings = collectActionDrawings(stream, keys)
     const { numbers, ...notes } = numberActionDrawings(drawings)

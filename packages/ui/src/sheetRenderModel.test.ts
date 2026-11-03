@@ -51,7 +51,7 @@ describe('sheet render model', () => {
     expect(rectForHit(project, standardA3SheetTemplate, destination)).toEqual(event.rect)
   })
 
-  it('uses each role capacity and keeps a same-named visible CELL event out of the ACTION overlay', () => {
+  it('uses each role capacity and keeps a same-named visible CEL event out of the ACTION overlay', () => {
     const template = { ...standardA3SheetTemplate, templateId: 'action-six-cell-nine', regions: standardA3SheetTemplate.regions.map(region => region.grid?.role === 'action' && region.grid.trackProjection
       ? { ...region, grid: { ...region.grid, columns: region.grid.columns.slice(0, 6) } } : region) }
     let project = updateProjectPaperTracks(createDefaultProject(), createAlphabeticTrackLabels(12))
@@ -200,7 +200,7 @@ describe('sheet render model', () => {
     expect(items.every(item => item.fontSizePx === defaultTimingTextFontSizePx(standardA3SheetTemplate, 'action'))).toBe(true)
   })
 
-  it('projects ACTION and CELL events once when an A3 page folds between frames 72 and 73', () => {
+  it('projects ACTION and CEL events once when an A3 page folds between frames 72 and 73', () => {
     let project = createDefaultProject()
     for (const role of ['action', 'cell'] as const) {
       for (const frame of [70, 73]) project = createOrSetEvent(project, 'A', frame, role).project
@@ -288,7 +288,7 @@ describe('sheet render model', () => {
     expect(shortItem).toBeUndefined()
   })
 
-  it('keeps CELL continuation lines across their full hold', () => {
+  it('keeps CEL continuation lines across their full hold', () => {
     const start = createOrSetEvent(createDefaultProject(), 'A', 1, 'cell')
     const end = createOrSetEvent(start.project, 'A', 20, 'cell')
     const context = createSheetRenderModelContext(end.project, standardA3SheetTemplate)

@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import type { SheetHit, SheetPage, TimedRangeCue, TimelineInkMemo } from '@xsheet-remap/core'
 import type { SheetRangeSelection, TemplateRegionAnnotationTarget } from './appTypes'
 
@@ -72,7 +73,7 @@ function timelineTargetLabel(
   frameEnd?: number,
 ): string {
   const track = paperTrack ? ` ${paperTrack}` : ''
-  return `${role.toUpperCase()}${track} ${frameRangeLabel(frameStart, frameEnd)}`
+  return `${uiText.sheetRoles[role]}${track} ${frameRangeLabel(frameStart, frameEnd)}`
 }
 
 function frameRangeLabel(frameStart: number, frameEnd?: number): string {

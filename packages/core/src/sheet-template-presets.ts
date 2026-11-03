@@ -255,7 +255,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
       labelOverrides: {
         action: 'ACTION',
         sound: '',
-        cell: 'CELL',
+        cell: 'CEL',
         camera: 'CAMERA',
       },
     },
@@ -569,7 +569,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
     {
       regionId: 'left_cell_grid',
       type: 'exposure-grid',
-      label: 'CELL 1-72',
+      label: 'CEL 1-72',
       rect: { x: 0.248, y: 0.2854, w: 0.146, h: 0.6856 },
       usage: 'input',
       inputKind: 'timing-event',
@@ -628,7 +628,7 @@ export const standardA3SheetTemplate: SheetTemplate = {
     {
       regionId: 'right_cell_grid',
       type: 'exposure-grid',
-      label: 'CELL 73-144',
+      label: 'CEL 73-144',
       rect: { x: 0.7355, y: 0.2854, w: 0.1465, h: 0.6856 },
       usage: 'input',
       inputKind: 'timing-event',
@@ -815,7 +815,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
       labelOverrides: {
         action: 'ACTION',
         sound: 'SOUND',
-        cell: 'CELL',
+        cell: 'CEL',
         camera: 'CAMERA',
       },
     },
@@ -950,7 +950,7 @@ export const digitalStandardSheetTemplate: SheetTemplate = {
     {
       regionId: 'digital_cell_grid',
       type: 'exposure-grid',
-      label: 'CELL',
+      label: 'CEL',
       rect: digitalRect(736, DIGITAL_STANDARD_GRID_TOP_PX, 800, DIGITAL_STANDARD_GRID_HEIGHT_PX),
       usage: 'input',
       inputKind: 'timing-event',

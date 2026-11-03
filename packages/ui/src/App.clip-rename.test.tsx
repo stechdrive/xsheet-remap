@@ -29,13 +29,13 @@ it.each([
   Object.defineProperty(file, 'arrayBuffer', { value: async () => new ArrayBuffer(4) })
   fireEvent.change(document.querySelector('input[accept=".clip"]')!, { target: { files: [file] } })
   const importButton = await screen.findByRole('button', { name: 'タイムシートに読み込む' })
-  fireEvent.click(screen.getByRole('button', { name: role.toUpperCase() }))
+  fireEvent.click(screen.getByRole('button', { name: (role === 'cell' ? 'CEL' : role.toUpperCase()) }))
   fireEvent.click(importButton)
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'CLIPを読み込む' })).toBeNull())
   fireEvent.click(within(openDisplaySettingsMenu()).getByRole('button', { name: templateName }))
   const sheet = screen.getByLabelText(templateName === 'デジタル標準' ? uiText.sheet.canvasSurfaceLabel : uiText.sheet.canvasLabel)
   setSheetRect(sheet, 0, 0)
-  const header = Array.from(document.querySelectorAll('.templateHeaderText')).find(element => element.textContent === role.toUpperCase())!.parentElement!
+  const header = Array.from(document.querySelectorAll('.templateHeaderText')).find(element => element.textContent === (role === 'cell' ? 'CEL' : role.toUpperCase()))!.parentElement!
   const labels = () => Array.from(header.querySelectorAll('.templateColumnText'), element => element.textContent)
   const originalLabels = labels()
   const point = (index: number) => {

@@ -26,14 +26,14 @@ export async function verifyTimingEditingScenario(actions: TimingEditingActions,
     waitForNoEventAt, keyPress, keyboardShortcut, clickMenuItem, waitForPageCondition, waitForSelectedRangeTracks,
     dragRangeBetweenTracks, dragTimelineEvent } = actions
   await dragRange('cell', 'A', 1, 3)
-  await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')), 'visible CELL selection range')
+  await waitForPageCondition(() => Boolean(document.querySelector('.selectedRangeRect')), 'visible CEL selection range')
   await waitForSelectedRange('cell', 'A', 1, 3)
   await keyPress('1')
   await waitForNoEventAt('cell', 'A', 1, '1')
   await keyPress('Enter')
   await waitForEventAt('cell', 'A', 1, '1')
   await waitForSelectedFrame('cell', 'A', 4)
-  checks.push('committed a CELL range value only on Enter and advanced by the selected range length')
+  checks.push('committed a CEL range value only on Enter and advanced by the selected range length')
 
   await clickFrame('cell', 'B', 2)
   await keyPress('2')
@@ -49,7 +49,7 @@ export async function verifyTimingEditingScenario(actions: TimingEditingActions,
   await waitForEventAt('cell', 'C', 30, '1')
   await waitForEventAt('cell', 'D', 31, '2')
   await waitForNoEventAt('cell', 'C', 31, '2')
-  checks.push('copied a multi-track CELL rectangle while preserving track and frame offsets')
+  checks.push('copied a multi-track CEL rectangle while preserving track and frame offsets')
 
   await dragRange('cell', 'A', 1, 3)
   await waitForSelectedRange('cell', 'A', 1, 3)
@@ -122,5 +122,5 @@ export async function verifyTimingEditingScenario(actions: TimingEditingActions,
   await keyboardShortcut('v')
   await waitForEventAt('action', 'B', 40, '7')
   await waitForEventAt('action', 'B', 42, '8')
-  checks.push('copied ACTION to CELL and back, renumbered CELL independently, and restored it with undo')
+  checks.push('copied ACTION to CEL and back, renumbered CEL independently, and restored it with undo')
 }

@@ -17,7 +17,7 @@ export function createPaperTranscriptionRequest(
     || selection.from < displayFrom || selection.to >= displayFrom + duration || selection.from > selection.to) {
     throw new Error('読み取り範囲を現在のシートのコマ範囲内で指定してください。')
   }
-  if (!selection.roles.length || selection.roles.some(role => role !== 'action' && role !== 'cell')) throw new Error('ACTIONまたはCELLを選択してください。')
+  if (!selection.roles.length || selection.roles.some(role => role !== 'action' && role !== 'cell')) throw new Error('ACTIONまたはCELを選択してください。')
   if (!selection.columns.length || selection.columns.some(column => !project.logicalSheet.paperTracks.some(track => track.paperTrack === column))) throw new Error('読み取る列を選択してください。')
   if (selection.to - selection.from >= 20000) throw new Error('一回の読み取りは20,000コマ以内に分けてください。')
   const layoutOptions = projectSheetLayoutOptions(project, template)
@@ -47,7 +47,7 @@ export function createPaperTranscriptionRequest(
       }
     }
   }
-  if (!targets.length) throw new Error('選択範囲に読み取り可能なACTION／CELL欄がありません。')
+  if (!targets.length) throw new Error('選択範囲に読み取り可能なACTION／CEL欄がありません。')
   if (targets.length > 128) throw new Error('対象が多すぎます。ページまたは列を分けてください。')
   for (let i = 0; i < targets.length; i++) for (let j = i + 1; j < targets.length; j++) {
     const a = targets[i]!, b = targets[j]!
@@ -60,7 +60,7 @@ export function createPaperTranscriptionRequest(
       if (range.from !== next) break
       next = range.to + 1
     }
-    if (next !== selection.to + 1) throw new Error(`${role.toUpperCase()} ${column}列 ${next}F以降の紙面上の位置が見つかりません。テンプレートにある欄・列・コマ範囲を選択してください。`)
+    if (next !== selection.to + 1) throw new Error(`${role === 'cell' ? 'CEL' : 'ACTION'} ${column}列 ${next}F以降の紙面上の位置が見つかりません。テンプレートにある欄・列・コマ範囲を選択してください。`)
   }
   const pageIds = new Set(targets.map(target => target.pageId))
   const pages = project.sheetView.pages.filter(page => pageIds.has(page.pageId))

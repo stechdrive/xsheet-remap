@@ -67,7 +67,7 @@ describe('sheet template layout', () => {
     expect(layout?.rect.h).toBeCloseTo((48 * 8) / 564, 10)
   })
 
-  it('uses the logical paper tracks as the only digital ACTION and CELL column count', () => {
+  it('uses the logical paper tracks as the only digital ACTION and CEL column count', () => {
     const labels = ['A', 'B', 'C']
     const mismatched = structuredClone(digitalStandardSheetTemplate)
     mismatched.defaults.paperTracks = labels
@@ -254,7 +254,7 @@ function variableLayoutTemplate(gridOverrides: Partial<NonNullable<SheetTemplate
       {
         regionId: 'test_cell_grid',
         type: 'exposure-grid',
-        label: 'CELL',
+        label: 'CEL',
         rect: { x: 0, y: 0.125, w: 1, h: 0.25 },
         usage: 'input',
         inputKind: 'timing-event',

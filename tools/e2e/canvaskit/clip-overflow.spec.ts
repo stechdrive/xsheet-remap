@@ -26,7 +26,7 @@ for (const role of ['action', 'cell'] as const) test(`dropped CLIP ${role} overf
     document.querySelector('.sheetSvg')!.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }))
   }, [...bytes])
   const dialog = page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true })
-  await activateControl(page, dialog.getByRole('button', { name: role.toUpperCase(), exact: true }))
+  await activateControl(page, dialog.getByRole('button', { name: (role === 'cell' ? 'CEL' : role.toUpperCase()), exact: true }))
   await activateControl(page, dialog.getByRole('button', { name: 'タイムシートに読み込む', exact: true }))
   const handle = page.getByRole('button', { name: new RegExp(`^${track.label}追加セル列:`) }).first()
   await handle.scrollIntoViewIfNeeded()

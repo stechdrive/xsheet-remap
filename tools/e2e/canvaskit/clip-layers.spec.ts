@@ -168,7 +168,7 @@ test('two-pane layer workspace imports, previews, reuses cels, filters without c
   await dialog.getByLabel('作画サイズ（用紙サイズ） 高さ（px）', { exact: true }).fill('24')
   await dialog.getByLabel('基準サイズ（撮影フレーム） 幅（px）', { exact: true }).fill('24')
   await dialog.getByLabel('基準サイズ（撮影フレーム） 高さ（px）', { exact: true }).fill('16')
-  await activateControl(page, dialog.getByRole('button', { name: 'CELL', exact: true }))
+  await activateControl(page, dialog.getByRole('button', { name: 'CEL', exact: true }))
   const download = page.waitForEvent('download')
   await activateControl(page, dialog.getByRole('button', { name: 'CLIPを作成して保存…', exact: true }))
   const saved = info.outputPath('tree.clip')

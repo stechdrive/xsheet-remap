@@ -177,9 +177,9 @@ it('renders the main workspace shell', () => {
     expect(within(dialog).getByRole('heading', { name: '画面の見方' })).toBeTruthy()
     expect(within(dialog).getByText('全11章')).toBeTruthy()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: /04\s*ACTION・CELL入力/ }))
-    expect(within(dialog).getByRole('heading', { name: 'ACTION・CELL入力' })).toBeTruthy()
-    expect(within(dialog).getByText('ACTIONとCELLの共通列')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: /04\s*ACTION・CEL入力/ }))
+    expect(within(dialog).getByRole('heading', { name: 'ACTION・CEL入力' })).toBeTruthy()
+    expect(within(dialog).getByText('ACTIONとCELの共通列')).toBeTruthy()
     expect(within(dialog).getByText(/デジタルでは列数に合わせて横幅が広がります/)).toBeTruthy()
     expect(within(dialog).getByText('フレーム挿入・削除')).toBeTruthy()
 
@@ -523,7 +523,7 @@ it('starts from the remembered template preset for each application', () => {
     const displayMenu = openDisplaySettingsMenu()
 
     expect(within(displayMenu).getByRole('button', { name: 'デジタル標準' }).getAttribute('aria-pressed')).toBe('true')
-    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CEL', 'CAMERA'])
   })
 
 it('migrates the former left layer pane to the right and persists its width and visibility', async () => {
@@ -575,7 +575,7 @@ it('opens remap After Effects JSX options without XDTS-only toggles', () => {
     render(<RemapApp />)
     const dialog = openTimingExportDialog('ae-jsx')
     expect(within(dialog).getByRole('button', { name: 'ACTION' }).getAttribute('aria-pressed')).toBe('true')
-    expect(within(dialog).getByRole('button', { name: 'CELL' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'CEL' })).toBeTruthy()
     expect(within(dialog).queryByLabelText('SOUNDを含める')).toBeNull()
     expect(within(dialog).queryByLabelText('CAMERAを含める')).toBeNull()
     expect(screen.queryByText('読込開始')).toBeNull()
@@ -1275,7 +1275,7 @@ it('keeps template creation as a draft until apply or cancel', async () => {
       expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     })
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
-    expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CEL', 'CAMERA'])
 
     selectTemplateInspector('json')
     const json = document.querySelector('.jsonPreview') as HTMLTextAreaElement | null
@@ -1446,7 +1446,7 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
       'タイトル', '話数', 'シーン', 'カット', '尺', '作業者名', 'MEMO',
     ])
     const headerLabels = Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)
-    expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(headerLabels).toEqual(['ACTION', 'SOUND', 'CEL', 'CAMERA'])
     expect(document.querySelector('.gridOverlay-sound')).toBeTruthy()
     expect(document.querySelectorAll('.gridOverlay-sound .gridLineRow')).toHaveLength(1)
     expect(document.querySelectorAll('.gridOverlay-sound .gridLineColumn')).toHaveLength(1)
@@ -1475,7 +1475,7 @@ it('omits the fixed paper outer frame for the digital standard template', () => 
     expect(document.querySelectorAll('.templateFormBox').length).toBeGreaterThan(16)
   })
 
-it('selects a CELL grid position and creates a key from explicit input', () => {
+it('selects a CEL grid position and creates a key from explicit input', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -1505,7 +1505,7 @@ it('selects a CELL grid position and creates a key from explicit input', () => {
     const registeredCell = document.querySelector<HTMLElement>('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
-    expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
+    expect(registeredCellIdentityText(registeredCell)).toBe('CEL A')
     expect(registeredCell?.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(registeredCell?.querySelectorAll('input')).toHaveLength(0)
     expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('1')
@@ -1626,7 +1626,7 @@ it('resets the page text editor completion guard for every edit session', () => 
     expect(document.querySelector('.annotationTextDisplay')?.textContent).toBe('second')
   })
 
-it('reuses a registered cell when typing the same value in the same CELL column', () => {
+it('reuses a registered cell when typing the same value in the same CEL column', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1641,7 +1641,7 @@ it('reuses a registered cell when typing the same value in the same CELL column'
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]')
     expect(registeredCell).toBeTruthy()
     if (!registeredCell) throw new Error('registered cell card not found')
-    expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
+    expect(registeredCellIdentityText(registeredCell)).toBe('CEL A')
     expect(registeredCell.querySelector('.cspTreeSheetLabel')?.textContent).toBe('シート: 1')
     expect(registeredCell.querySelectorAll('input')).toHaveLength(0)
     expect(registeredCell.querySelector('.cspTreeCelName')?.textContent).toBe('1')

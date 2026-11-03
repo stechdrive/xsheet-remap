@@ -24,7 +24,7 @@ Quick Lookは同一の元データについてWorker内の文書セッション�
 - [writer.ts](../packages/adapters/src/clip/writer.ts): 読み込みまたは新規作成、planEdits、save、再読込を管理する。画像の整数配置、crop/expand、アプリの安全な書き込み条件を維持する。通常登録は同寸法の画像、文書編集は異なる寸法の追加画像にも対応する。
 - [preview.ts](../packages/adapters/src/clip/preview.ts): 素材はprefer-original、フォルダーと動画は保存済み合成を読む。extent予算とvector予約を使い、アプリ側で単独プレビューのマスク・効果・診断を適用する。保存済み合成への効果の二重適用を避ける。OffscreenCanvasとWorkerの所有権はアプリに残す。
 
-ACTION/CELL、工程、カット、入力セル名、対応付け、丸め、Undo/Redoはcoreに残す。celcodec-plan.tsは従来の `xsheet-remap:clip:1:` 名前空間によるUUIDと音声入力の変換だけを担当する。
+ACTION/CEL、工程、カット、入力セル名、対応付け、丸め、Undo/Redoはcoreに残す。celcodec-plan.tsは従来の `xsheet-remap:clip:1:` 名前空間によるUUIDと音声入力の変換だけを担当する。
 
 通常レイヤーをアニメーションフォルダーへ移す既存操作は、ライブラリの `moveLayer.crossAnimationTracks: 'detach'` を明示する。既知トラックの連結を解除し、元の行・ラベル・外部データは残す。ライブラリの既定動作は拒否のまま、未知トラック種類も拒否する。名前によるセル再結合は `celReferences: 'follow-layer-order'` として明示する。ライブラリへRemapの工程モデルを持ち込まない。
 

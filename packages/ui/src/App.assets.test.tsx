@@ -578,15 +578,15 @@ it('registers material assets in the CSP layer tree and reuses its cards on the 
     dragInternalPointer(drawingCell, sheet, { toX: target.x, toY: target.y })
     await waitFor(() => expectSelectedHit('cell', 'B', 1))
     expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual([
-      'CELL B',
-      'CELL A',
-      'CELL B',
-      'CELL A',
+      'CEL B',
+      'CEL A',
+      'CEL B',
+      'CEL A',
     ])
 
     const dialog = openTimingExportDialog()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
-    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CEL' }))
+    expect(within(dialog).getByRole('button', { name: 'CEL' }).getAttribute('aria-pressed')).toBe('true')
   })
 it('updates an open material preview when the asset browser selection changes', async () => {
     URL.createObjectURL = () => 'blob:asset-preview'

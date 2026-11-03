@@ -269,13 +269,13 @@ it('assigns a registered cell card to a frame through pointer drag fallback', as
     expect(document.querySelector('.internalDragPreviewText strong')?.textContent).toBe('1')
     expect(registeredCell.dataset.internalDragSource).toBe('true')
     expect(document.body.dataset.internalDragValidity).toBe('valid')
-    expectStatusHint(uiText.statusHints.dropRegisteredCell(`CELL B ${formatTestFramePosition(1)}`))
+    expectStatusHint(uiText.statusHints.dropRegisteredCell(`CEL B ${formatTestFramePosition(1)}`))
     fireEvent.pointerUp(window, { pointerId: 71, pointerType: 'mouse', button: 0, buttons: 0, clientX: target.x, clientY: target.y })
 
     await waitFor(() => expectSelectedHit('cell', 'B', 1))
     expect(document.querySelector('.internalDragPreviewShell.pointerDragGhost')).toBeNull()
     expect(document.body.classList.contains('internalPointerDragActive')).toBe(false)
-    expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual(['CELL B', 'CELL A'])
+    expect(Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).map(registeredCellIdentityText)).toEqual(['CEL B', 'CEL A'])
     expect(document.activeElement).toBe(document.querySelector('.sheetViewport'))
     const targetEvent = () => document.querySelector('[data-timeline-event-role="cell"][data-timeline-event-track="B"][data-timeline-event-frame="1"]')
     expect(targetEvent()).toBeTruthy()
@@ -427,8 +427,8 @@ it('edits registered cell CSP names and assigns image assets by dropping onto th
     expect(assignedCell.querySelector('.cspTreeAssetState')?.getAttribute('aria-label')).toBe('素材: A1_ref.png')
 
     const dialog = openTimingExportDialog()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
-    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CEL' }))
+    expect(within(dialog).getByRole('button', { name: 'CEL' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('removes one process card before deleting its shared logical cell', async () => {
@@ -987,7 +987,7 @@ it('clears the current sheet cell selection with Escape', () => {
     expect(screen.getByText(new RegExp(uiText.app.noCellSelected))).toBeTruthy()
   })
 
-it('creates independent keys in ACTION and CELL grid positions', () => {
+it('creates independent keys in ACTION and CEL grid positions', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     sheet.getBoundingClientRect = () => ({
@@ -1013,12 +1013,12 @@ it('creates independent keys in ACTION and CELL grid positions', () => {
     expectSelectedHit('cell', 'A', 2)
     const registeredCells = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
     expect(registeredCells).toHaveLength(2)
-    expect(registeredCells.map(registeredCellIdentityText)).toEqual(['CELL A', 'ACTION A'])
+    expect(registeredCells.map(registeredCellIdentityText)).toEqual(['CEL A', 'ACTION A'])
     expect(registeredCells.map(card => card.querySelector('.cspTreeCelName')?.textContent)).toEqual(['1_2', '1'])
     expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
   })
 
-it('adds and restores a leading blank atomically for the first later ACTION and CELL keys', async () => {
+it('adds and restores a leading blank atomically for the first later ACTION and CEL keys', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1057,7 +1057,7 @@ it('groups CSP cells by column and keeps CSP top-to-bottom stacking order', () =
     enterTimingValue('4')
 
     const cards = Array.from(document.querySelectorAll('.cspTreeCel[data-csp-key-id]'))
-    expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'CELL A', 'ACTION A', 'ACTION A'])
+    expect(cards.map(registeredCellIdentityText)).toEqual(['ACTION B', 'CEL A', 'ACTION A', 'ACTION A'])
     expect(cards.map(card => card.querySelector('.cspTreeSheetLabel')?.textContent)).toEqual([
       'シート: 1',
       'シート: 4',
@@ -1159,7 +1159,7 @@ it('edits a timing draft with Backspace, commits it on cell change, and cancels 
     expectSelectedHit('cell', 'A', 3)
   })
 
-it('selects a CELL range across the left and right six-second sheet blocks', () => {
+it('selects a CEL range across the left and right six-second sheet blocks', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1170,7 +1170,7 @@ it('selects a CELL range across the left and right six-second sheet blocks', () 
     expect(document.querySelectorAll('.selectedRangeRect')).toHaveLength(2)
   })
 
-it('keeps the starting CELL column locked while dragging a range across neighboring columns', () => {
+it('keeps the starting CEL column locked while dragging a range across neighboring columns', () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1181,7 +1181,7 @@ it('keeps the starting CELL column locked while dragging a range across neighbor
     expect(document.querySelector('.selectedRangeRect')).toBeTruthy()
   })
 
-it('selects a CELL range across visible sheet pages', async () => {
+it('selects a CEL range across visible sheet pages', async () => {
     render(<App />)
     openCutMetadataMenu()
     fireEvent.change(screen.getByLabelText(uiText.sheet.durationFrames), { target: { value: '6' } })
@@ -1334,7 +1334,7 @@ it('adds and renames a logical SOUND lane from paper, then expands it as a digit
   await waitFor(() => {
     const labels = Array.from(document.querySelectorAll('.templateColumnText')).map(element => element.textContent)
     expect(labels).not.toContain('FOLEY')
-    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(Array.from(document.querySelectorAll('.templateHeaderText')).map(element => element.textContent)).toEqual(['ACTION', 'SOUND', 'CEL', 'CAMERA'])
     expect(screen.queryByLabelText('このテンプレートでは1列が非表示')).toBeNull()
   })
 
@@ -1745,8 +1745,8 @@ it('shows post-roll after insert paste beyond the cut end and clips XDTS output 
     expect(document.querySelectorAll('.eventRect').length).toBeGreaterThanOrEqual(4)
 
     const dialog = openTimingExportDialog()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'CELL' }))
-    expect(within(dialog).getByRole('button', { name: 'CELL' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CEL' }))
+    expect(within(dialog).getByRole('button', { name: 'CEL' }).getAttribute('aria-pressed')).toBe('true')
   })
 
 it('opens frame operation commands from the sheet context menu', () => {
@@ -1785,7 +1785,7 @@ it('opens frame operation commands from the sheet context menu', () => {
     expect(document.querySelectorAll('.cspTreeCel[data-csp-key-id]')).toHaveLength(2)
   })
 
-it('ripples ACTION, CELL, SOUND, and CAMERA together from every frame-bearing context menu', async () => {
+it('ripples ACTION, CEL, SOUND, and CAMERA together from every frame-bearing context menu', async () => {
     render(<App />)
     const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
     setSheetRect(sheet, 0, 0)
@@ -1889,14 +1889,14 @@ it('registers new timing at the active process without moving it when the destin
     clickSheet(sheet, 255, 290)
     enterTimingValue('1')
     const registeredCell = document.querySelector('.cspTreeCel[data-csp-key-id]') as Element
-    expect(registeredCellIdentityText(registeredCell)).toBe('CELL A')
+    expect(registeredCellIdentityText(registeredCell)).toBe('CEL A')
     expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
     expect(document.querySelector('.cspTreeUnregisteredStage')).toBeNull()
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
 
     selectCspCorrectionLayer('作画')
     expect(registeredCell.closest('.cspTreeLayer')?.querySelector('.cspTreeSummaryLabel')?.textContent).toBe('演出')
-    expectSelectionStatus('作画', 'CELL', 'A', formatTestFramePosition(2))
+    expectSelectionStatus('作画', 'CEL', 'A', formatTestFramePosition(2))
     expect(document.querySelectorAll('.eventRect')).toHaveLength(1)
   })
 })

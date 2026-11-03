@@ -129,7 +129,7 @@ describe('paper timeline authoring', () => {
     }
   })
 
-  it('treats CAMERA as the inverse control for the shared CELL boundary', () => {
+  it('treats CAMERA as the inverse control for the shared CEL boundary', () => {
     const template = structuredClone(standardA3SheetTemplate)
     const structure = detectPaperTimelineStructure(template)!
     const beforeCellWidthPx = region(template, 'left_cell_grid').rect.w * template.page.widthPx

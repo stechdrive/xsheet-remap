@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { remapProcessHelp } from './remap-process-help'
 import { activeCutProjectFromDocument, createDefaultProjectDocument, clipImportFolders, clipImportSettings, openClipDocument, suggestClipProcessColumns, suggestClipBaseProcess, clipProcessName, type ClipImportColumn, type ClipImportData, type ClipImportNode, type CutGroupProjectDocument, type SheetTimingRole } from '@xsheet-remap/core'
@@ -66,7 +67,7 @@ export function ClipImportDialog({ file, onClose, onImport }: { file: File; docu
             {data && timeline && <>
               <fieldset><legend>読み込むタイムライン</legend>{data.timelines.map(item => <label className="clipCutChoice" key={item.id}><input type="checkbox" checked={timelineIds.includes(item.id)} onChange={event => { const checked = event.currentTarget.checked; setTimelineIds(current => checked ? [...current, item.id] : current.filter(id => id !== item.id)); setTimelineId(item.id) }} />{item.name}<span>{item.fps}fps / {item.endFrame - item.startFrame}F</span></label>)}</fieldset>
               {data.timelines.length > 1 && <label className="timingExportPathField"><span>確認するタイムライン</span><select value={timelineId} onChange={event => setTimelineId(event.currentTarget.value)}>{data.timelines.map(item => <option key={item.id} value={item.id}>{item.name}（{item.endFrame - item.startFrame}F / {item.fps}fps）</option>)}</select></label>}
-              <fieldset><legend>タイミングの読み込み先</legend><div className="segmented">{(['action', 'cell'] as const).map(value => <button type="button" key={value} aria-pressed={role === value} onClick={() => setRole(value)}>{value.toUpperCase()}</button>)}</div></fieldset>
+              <fieldset><legend>タイミングの読み込み先</legend><div className="segmented">{(['action', 'cell'] as const).map(value => <button type="button" key={value} aria-pressed={role === value} onClick={() => setRole(value)}>{uiText.sheetRoles[value]}</button>)}</div></fieldset>
               {timelineIds.length === 1 && <p>{settings!.fps}fps・{settings!.durationFrames}フレーム（範囲外のセル指定はダミーコマに保持）</p>}
               {timelineIds.length > 1 && <p>各タイムラインを兼用カットとして読み込み、セルを共有します。</p>}
             </>}

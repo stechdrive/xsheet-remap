@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildClipRegistrationPlan, clipImagePlacement, validateClipCanvas, type ClipCanvasSettings, type ClipImageFit, type ClipRegistrationPlan, type CutGroupProjectDocument } from '@xsheet-remap/core'
 import { generateClipFile, inspectClipFile, saveBinaryFile, type ClipImagePixels } from '@xsheet-remap/adapters'
@@ -95,7 +96,7 @@ export function ClipExportDialog({ document, initialRole, initialDirectory, onCl
             <button type="button" onClick={() => { try { validateClipCanvas(canvas); localStorage.setItem(presetKey, JSON.stringify(canvas)); setMessage('新規作成の設定を保存しました。') } catch (error) { setError(String(error)) } }}>この設定を次回も使う</button></>}
         </fieldset>
         <fieldset disabled={busy}><legend>登録するタイムライン</legend><div className="segmented">
-          {(['action', 'cell'] as const).map(value => <button type="button" key={value} aria-pressed={role === value} onClick={() => setRole(value)}>{value.toUpperCase()}</button>)}
+          {(['action', 'cell'] as const).map(value => <button type="button" key={value} aria-pressed={role === value} onClick={() => setRole(value)}>{uiText.sheetRoles[value]}</button>)}
         </div>
           {document.cuts.map(cut => { const timeline = planned.plan?.timelines.find(item => item.id === cut.cutId); return <label className="clipCutChoice" key={cut.cutId}><input type="checkbox" checked={cutIds.includes(cut.cutId)} onChange={event => setCutIds(event.target.checked ? [...cutIds, cut.cutId] : cutIds.filter(id => id !== cut.cutId))} />{timeline?.name || cut.metadata.cut || cut.cutId}{timeline && <span>{timeline.fps}fps / {timeline.duration}フレーム</span>}</label> })}
           <p>FPS・デュレーションは各カットのシート設定を使用します。</p>

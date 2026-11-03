@@ -26,7 +26,7 @@ export function XdtsImportDialog({
   }
   const summary = summarizeXdtsImport(state.data, options)
   const actionLabel = template.style?.gridHeader?.labelOverrides?.action || 'ACTION'
-  const cellLabel = template.style?.gridHeader?.labelOverrides?.cell || 'CELL'
+  const cellLabel = template.style?.gridHeader?.labelOverrides?.cell || 'CEL'
   const hasSound = summary.table.dialogueCues.length > 0
   const hasCamera = summary.table.cameraCues.length > 0
 

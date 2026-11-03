@@ -3,7 +3,7 @@ import { cellRectForHit, createDefaultProject, createOrSetEvent, digitalStandard
 import { continuationRenderItemsForPage, continuationRenderItemsForPages, createSheetRenderModelContext, inputTextRenderItemsForPage } from './sheetRenderModel'
 
 describe('dummy frame rendering', () => {
-  it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])('continues CELL holds into the tail on $templateId', template => {
+  it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])('continues CEL holds into the tail on $templateId', template => {
     let project = updateLogicalSheetSettings(createDefaultProject(), {
       durationFrames: 72,
       workRange: { preRollFrames: 24, postRollFrames: 24, showPreRoll: false, showPostRoll: true },

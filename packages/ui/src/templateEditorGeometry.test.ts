@@ -197,7 +197,7 @@ describe('template editor geometry', () => {
     expect((firstFrameBoundaryY - model!.frameNumbers[0].y) * model!.pageSize.heightPx).toBeCloseTo(3)
   })
 
-  it('places elapsed seconds at the lower-left edge of paper CELL grids across pages', () => {
+  it('places elapsed seconds at the lower-left edge of paper CEL grids across pages', () => {
     const leftRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'left_cell_grid')
     const rightRegion = standardA3SheetTemplate.regions.find(item => item.regionId === 'right_cell_grid')
 
@@ -243,7 +243,7 @@ describe('template editor geometry', () => {
     expect(buildTemplateGridOverlayRenderModel(template, region)?.backgroundBands).toEqual([])
   })
 
-  it('places digital seconds beside CELL and renders SOUND from its dotted template rules', () => {
+  it('places digital seconds beside CEL and renders SOUND from its dotted template rules', () => {
     const cellRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'cell')
     const actionRegion = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'action')
     const region = digitalStandardSheetTemplate.regions.find(item => item.grid?.role === 'sound')
@@ -461,7 +461,7 @@ describe('template editor geometry', () => {
     const digital = buildTemplateChromeRenderModel(digitalStandardSheetTemplate, [], undefined, {
       timelineLanes: { sound: soundLanes, camera: cameraLanes },
     })
-    expect(digital.headers.map(header => header.label)).toEqual(['ACTION', 'SOUND', 'CELL', 'CAMERA'])
+    expect(digital.headers.map(header => header.label)).toEqual(['ACTION', 'SOUND', 'CEL', 'CAMERA'])
   })
 
   it('projects A3 process and count fields into editable form cells', () => {

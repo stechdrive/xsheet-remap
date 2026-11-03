@@ -275,7 +275,7 @@ function cspUnregisteredTracks(project: CutProject): CspLayerTreeTrack[] {
       const paperTrack = project.logicalSheet.paperTracks.find(track => track.paperTrack === group.paperTrack)
       return {
         nodeId: `track:unregistered:${group.sheetRole}:${group.paperTrack}`,
-        label: `${group.sheetRole === 'action' ? 'ACTION' : 'CELL'} ${paperTrack?.label || group.paperTrack}`,
+        label: `${group.sheetRole === 'action' ? 'ACTION' : 'CEL'} ${paperTrack?.label || group.paperTrack}`,
         paperTrack: group.paperTrack,
         cels: group.cels
           .sort((a, b) => a.firstFrame - b.firstFrame || a.keyOrder - b.keyOrder || a.nodeId.localeCompare(b.nodeId, 'ja'))

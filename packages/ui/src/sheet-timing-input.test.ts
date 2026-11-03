@@ -57,7 +57,7 @@ describe('sheet timing keyboard input', () => {
     }
   })
 
-  it('keeps independent ACTION and CELL registrations unique within the same destination', () => {
+  it('keeps independent ACTION and CEL registrations unique within the same destination', () => {
     const project = createDefaultProject()
     const action = setTimingValueAt(project, timingHit('action', 'A', 1), '1', 12, correctionLayer(project))
     const cell = setTimingValueAt(action.project, timingHit('cell', 'A', 1), '1', 12, correctionLayer(project))

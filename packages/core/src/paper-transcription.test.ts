@@ -56,7 +56,7 @@ describe('paper transcription request geometry', () => {
   it('fails instead of silently dropping a requested field absent from the template', () => {
     const withoutCell = { ...template, regions: template.regions.filter(region => !region.regionId.includes('cell_grid')) }
     expect(() => createPaperTranscriptionRequest(createDefaultProject(), withoutCell, 'cut:revision',
-      { from: 1, to: 6, roles: ['action', 'cell'], columns: ['A'] }, 'r')).toThrow('CELL A列')
+      { from: 1, to: 6, roles: ['action', 'cell'], columns: ['A'] }, 'r')).toThrow('CEL A列')
   })
   it('tells the reader the actual printed column heading independently of the destination track ID', () => {
     const named = structuredClone(template)

@@ -36,7 +36,7 @@ describe('CLIP timeline import', () => {
     expect(next.logicalSheet.durationFrames).toBe(24)
     expect(project.logicalSheet.events).toHaveLength(0)
   })
-  it('preserves literal cel names, repeated keys, blanks and ACTION/CELL without importing pixels', () => {
+  it('preserves literal cel names, repeated keys, blanks and ACTION/CEL without importing pixels', () => {
     const next = importClipTimeline(createDefaultProject(), data, { ...options, role: 'cell' })
     const plan = buildClipRegistrationPlan(createProjectDocumentFromCutProject(next), 'cell')
     expect(plan.timelines[0].tracks[0].frames).toEqual(data.timelines[0].tracks[0].frames)

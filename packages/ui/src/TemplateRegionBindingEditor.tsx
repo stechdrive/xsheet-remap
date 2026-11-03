@@ -107,7 +107,7 @@ export function TemplateRegionBindingEditor({
           >
             <option value="action">ACTION</option>
             <option value="sound">SOUND</option>
-            <option value="cell">CELL</option>
+            <option value="cell">CEL</option>
             <option value="camera">CAMERA</option>
           </select>
         </label>

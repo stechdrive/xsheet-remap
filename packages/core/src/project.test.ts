@@ -176,7 +176,7 @@ describe('core project commands', () => {
     expect(() => updateKey(two.project, two.key.keyId, { displayLabel: '1', paperToken: '1' })).toThrow(/displayLabel already exists/)
   })
 
-  it('keeps ACTION and CELL timing events separate at the same paperTrack/frame', () => {
+  it('keeps ACTION and CEL timing events separate at the same paperTrack/frame', () => {
     const action = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const cell = createOrSetEvent(action.project, 'A', 1, 'cell')
 
@@ -189,7 +189,7 @@ describe('core project commands', () => {
     expect(cell.key.displayLabel).toBe('1')
   })
 
-  it('exports ACTION timing events by default and can switch to CELL timing events', () => {
+  it('exports ACTION timing events by default and can switch to CEL timing events', () => {
     const action = createOrSetEvent(createDefaultProject(), 'A', 1, 'action')
     const cell = createOrSetEvent(action.project, 'A', 1, 'cell')
     const labeledCell = updateKey(cell.project, cell.key.keyId, { displayLabel: '9' })
@@ -1567,12 +1567,12 @@ describe('sheet template hit testing', () => {
     })
   })
 
-  it('maps normalized points to CELL tracks and frames', () => {
+  it('maps normalized points to CEL tracks and frames', () => {
     const hit = hitTestSheetTemplate(standardA3SheetTemplate, { x: 0.255, y: 0.29 }, { onlyXdtsEligible: true, role: 'cell' })
     expect(hit).toMatchObject({ paperTrack: 'A', frame: 1, role: 'cell' })
   })
 
-  it('resolves ACTION and CELL hits for the same track/frame in their own regions', () => {
+  it('resolves ACTION and CEL hits for the same track/frame in their own regions', () => {
     expect(timingHitForFrame(standardA3SheetTemplate, 'action', 'A', 1)).toMatchObject({
       regionId: 'left_action_grid',
       role: 'action',
@@ -1587,7 +1587,7 @@ describe('sheet template hit testing', () => {
     })
   })
 
-  it('treats SAMPLE ACTION and CELL left/right grids as continuous timed flows', () => {
+  it('treats SAMPLE ACTION and CEL left/right grids as continuous timed flows', () => {
     const actionRegions = standardA3SheetTemplate.regions.filter(region => region.grid?.role === 'action')
     expect(actionRegions.map(region => [region.regionId, region.flowGroupId, region.grid?.frameStart, region.grid?.frameEnd])).toEqual([
       ['left_action_grid', 'main_action', 1, 72],

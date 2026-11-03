@@ -44,7 +44,7 @@ describe('text size gesture ownership', () => {
   })
   it('discards drafts on selection or revision changes, and exposes mixed sizes', () => {
     const onApply = vi.fn()
-    const model: SheetTextSizeControlModel = { targetKey: 'cut-1:event-1', label: 'CELL 2件', value: null, mode: '混在', primaryLabel: '', secondaryLabel: '', disabled: false, count: 2, onApply }
+    const model: SheetTextSizeControlModel = { targetKey: 'cut-1:event-1', label: 'CEL 2件', value: null, mode: '混在', primaryLabel: '', secondaryLabel: '', disabled: false, count: 2, onApply }
     const { rerender } = render(<SheetTextSizeControl model={model} />)
     const input = screen.getByRole('spinbutton')
     expect(input.getAttribute('placeholder')).toBe('混在')

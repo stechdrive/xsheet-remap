@@ -109,6 +109,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     top: `${Math.max(8, Math.min(cameraCueHoverAnchor.y + 14, (typeof window === 'undefined' ? 768 : window.innerHeight) - 180))}px`,
   } : undefined
   const contextTimelineMemoIds = contextMenu?.timelineMemoIds ?? []
+  const transferTargetLabel = sheetColumnRoleLabel(props.template, 'cell')
+  const transferMenuLabel = `${transferTargetLabel}欄に転記…`
+  const transferMenuTitle = `${sheetColumnRoleLabel(props.template, 'action')}欄を自動採番して${transferTargetLabel}欄に転記`
   const columnAddRole = columnMenuContext?.role
   const columnAddItems = columnAddRole && ['action', 'cell', 'sound', 'camera'].includes(columnAddRole)
     ? <SheetColumnAddMenuItems template={props.template} role={columnAddRole as SheetColumnRole} regionId={columnMenuContext?.regionId}
@@ -696,7 +699,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                 onClick={() => runContextMenuAction(() => props.onToggleTimingInputCircle?.(contextMenu.hit as SheetHit))}>
                 {props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'] ? '✓ ' : ''}記入時に○を付ける</button>
               </SheetContextSubmenu>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenActionCellTransfer?.(contextMenu.transferTracks))}>ACTION→CELLに自動採番して転記…</button>
+              <button role="menuitem" title={transferMenuTitle} onClick={() => runContextMenuAction(() => props.onOpenActionCellTransfer?.(contextMenu.transferTracks))}>{transferMenuLabel}</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
           )}
@@ -753,9 +756,9 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
             <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}>{uiText.actions.copyAeKeyframeDataJapanese}</button>
             <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}>{uiText.actions.copyAeKeyframeDataEnglish}</button>
           </SheetContextSubmenu>
-          <button role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onOpenActionCellTransfer?.(
+          <button role="menuitem" title={transferMenuTitle} onClick={() => runPaperTrackHeaderMenuAction(() => props.onOpenActionCellTransfer?.(
             props.rangeSelection && isPointEventRangeForUi(props.rangeSelection) ? rangePaperTracks(props.rangeSelection) : [paperTrackHeaderMenu.hit.paperTrack!],
-          ))}>ACTION→CELLに自動採番して転記…</button>
+          ))}>{transferMenuLabel}</button>
           {columnAddItems}
         </SheetContextMenu>
       )}

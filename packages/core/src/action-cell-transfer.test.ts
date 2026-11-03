@@ -23,7 +23,7 @@ const convert = (project: CutProject) => applyActionCellTransferPlan(project, bu
 const numbers = (project: CutProject, track = 'A') => project.logicalSheet.events.filter(event => event.sheetRole === 'cell' && event.paperTrack === track)
   .sort((a, b) => a.frame - b.frame).map(event => event.valueKind === 'blank' ? '×' : project.logicalSheet.keys.find(key => key.keyId === event.keyId)!.displayLabel)
 
-describe('ACTION to CELL numbering', () => {
+describe('ACTION to CEL numbering', () => {
   it('numbers the mixed Japanese example and preserves each occurrence enclosure independently', () => {
     let source = write(createDefaultProject(), '1 ○ ○ ○ 2 ○ あ い ○ 3 ● ● ● 2 ○ ○ 1'.split(' '))
     for (const frame of [1, 5, 10, 14, 17]) source = setTimingReferenceAt(source, 'A', frame, 'action', 'circle')
@@ -156,7 +156,7 @@ describe('ACTION to CELL numbering', () => {
     const registered = { ...created.project, bindings: [{ bindingId: 'test', keyId: created.key.keyId, slotId: source.cspTrackSlots[0].slotId, cspCellName: 'A_1', materialState: 'unassigned' as const }] }
     expect(buildActionCellTransferPlan(registered).columns[0].status).toBe('bound')
   })
-  it('preserves an assembled CLIP and its ACTION export while leaving new CELL drawings explicitly unregistered', () => {
+  it('preserves an assembled CLIP and its ACTION export while leaving new CEL drawings explicitly unregistered', () => {
     let source = ensureClipDocument(createDefaultProject())
     const target = source.clipDocument!.targets[0], slot = source.cspTrackSlots.find(slot => slot.slotId === target.slotId)!
     const node = createClipNode('001', 'raster', target.folderId)

@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { useEffect, useMemo, useState } from 'react'
 import {
   assertPaperTranscriptionContext, buildPaperTranscriptionPrompt, buildPaperTranscriptionRepairPrompt,
@@ -141,7 +142,7 @@ export function PaperTranscriptionDialog(props: PaperTranscriptionDialogProps) {
         {tab === 'request' ? <div role="tabpanel" id="paperAiRequestPanel" aria-labelledby="paperAiRequestTab">
           <p>テンプレート：<strong>{template.name}</strong> / {project.logicalSheet.fps} fps</p>
           <fieldset disabled={busy}><legend>読み取る対象</legend>
-            <div className="paperAiChoices">{(['action', 'cell'] as const).map(role => <label key={role}><input type="checkbox" checked={selection.roles.includes(role)} onChange={event => setSelection({ ...selection, roles: event.target.checked ? [...selection.roles, role] : selection.roles.filter(value => value !== role) })} /> {role.toUpperCase()}</label>)}</div>
+            <div className="paperAiChoices">{(['action', 'cell'] as const).map(role => <label key={role}><input type="checkbox" checked={selection.roles.includes(role)} onChange={event => setSelection({ ...selection, roles: event.target.checked ? [...selection.roles, role] : selection.roles.filter(value => value !== role) })} /> {uiText.sheetRoles[role]}</label>)}</div>
             <div className="paperAiChoices" aria-label="読み取る列">{project.logicalSheet.paperTracks.map(track => <label key={track.paperTrack}><input type="checkbox" checked={selection.columns.includes(track.paperTrack)} onChange={event => setSelection({ ...selection, columns: event.target.checked ? [...selection.columns, track.paperTrack] : selection.columns.filter(value => value !== track.paperTrack) })} /> {track.label || track.paperTrack}</label>)}</div>
             <div className="paperAiRange"><label>開始コマ<input aria-label="開始コマ" type="number" value={selection.from} min={logicalSheetDisplayFrameStart(project.logicalSheet)} max={logicalSheetDisplayFrameEnd(project.logicalSheet)} onChange={event => setSelection({ ...selection, from: Number(event.target.value) })} /></label><label>終了コマ<input aria-label="終了コマ" type="number" value={selection.to} min={selection.from} max={logicalSheetDisplayFrameEnd(project.logicalSheet)} onChange={event => setSelection({ ...selection, to: Number(event.target.value) })} /></label></div>
           </fieldset>

@@ -421,12 +421,12 @@ export function expectStatusHint(...parts: string[]) {
 
 export function expectSelectedHit(role: SheetTemplateGridRole, paperTrack: string, frame: number) {
   expectCurrentFrame(frame)
-  expectSelectionStatus(role.toUpperCase(), paperTrack, formatTestFramePosition(frame))
+  expectSelectionStatus((role === 'cell' ? 'CEL' : role.toUpperCase()), paperTrack, formatTestFramePosition(frame))
 }
 
 export function expectSelectedRange(role: SheetTemplateGridRole, paperTrack: string, frameStart: number, frameEnd: number) {
   expectSelectionStatus(
-    role.toUpperCase(),
+    (role === 'cell' ? 'CEL' : role.toUpperCase()),
     paperTrack,
     formatTestFrameTimecode(frameStart),
     formatTestFrameTimecode(frameEnd),
@@ -482,7 +482,7 @@ export function mockFileTransferItem(entry: MockFileSystemEntry, file: File | nu
 export function registeredCellIdentityText(card: Element) {
   if (card.matches('.cspTreeCel[data-csp-key-id]')) {
     const element = card as HTMLElement
-    return [element.dataset.cspSheetRole?.toLocaleUpperCase(), element.dataset.cspPaperTrack]
+    return [element.dataset.cspSheetRole === 'cell' ? 'CEL' : element.dataset.cspSheetRole?.toLocaleUpperCase(), element.dataset.cspPaperTrack]
       .filter(Boolean)
       .join(' ')
   }

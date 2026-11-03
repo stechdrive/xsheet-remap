@@ -17,7 +17,7 @@ export function sheetColumnRoleLabel(template: SheetTemplate, role: SheetColumnR
   const region = template.regions.find(item => item.regionId === regionId && item.grid?.role === role)
     ?? template.regions.find(item => isInteractiveSheetTemplateGridRegion(item) && item.grid.role === role)
   return (region ? gridHeaderLabelForRegion(template, region) : gridHeaderLabelForRole(template, role))
-    || ({ action: 'ACTION', cell: 'CELL', sound: 'SOUND', camera: 'CAMERA' }[role])
+    || ({ action: 'ACTION', cell: 'CEL', sound: 'SOUND', camera: 'CAMERA' }[role])
 }
 
 export function hiddenSheetColumns(project: CutProject, template: SheetTemplate) {

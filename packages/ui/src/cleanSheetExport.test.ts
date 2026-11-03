@@ -58,7 +58,7 @@ describe('clean sheet export options', () => {
       ['templateLines', 'テンプレ罫線'],
       ['templateLabels', 'テンプレラベル'],
       ['metadataText', 'シート情報'],
-      ['timingInput', 'ACTION/CELL入力'],
+      ['timingInput', 'ACTION/CEL入力'],
       ['soundCues', 'SOUND指示'],
       ['cameraCues', 'CAMERA指示'],
       ['annotationBackground', 'メモ・背景'],

@@ -31,7 +31,7 @@ async function copyRange(page: Page, role: SheetTimingRole, start: number, end: 
   await page.mouse.down()
   await page.mouse.move(a.x, a.y, { steps: 5 })
   await page.mouse.up()
-  await expect(page.locator('.statusBar span').first()).toContainText(`${role.toUpperCase()} A ${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}`)
+  await expect(page.locator('.statusBar span').first()).toContainText(`${(role === 'cell' ? 'CEL' : role.toUpperCase())} A ${String(start).padStart(3, '0')}-${String(end).padStart(3, '0')}`)
   await page.keyboard.press('ControlOrMeta+c')
 }
 
@@ -91,7 +91,7 @@ test('CLIP cel name sorting keeps sheet exposures and restores the whole order w
   for (const [frame, value] of [[1, '1'], [5, '2'], [9, '10'], [13, '1']] as const) await expect(event(page, 'cell', frame)).toHaveText(value)
 })
 
-test('copies ACTION to CELL and back with independent numbering and undo', async ({ page }, info) => {
+test('copies ACTION to CEL and back with independent numbering and undo', async ({ page }, info) => {
   await page.goto('./')
   await ready(page)
   await clickCell(page, 'action', 1)

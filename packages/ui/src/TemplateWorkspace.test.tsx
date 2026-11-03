@@ -188,7 +188,7 @@ describe('TemplateWorkspace project integration', () => {
       />,
     )
 
-    fireEvent.change(screen.getByLabelText('セル列数（ACTION/CELL共通）'), { target: { value: '22' } })
+    fireEvent.change(screen.getByLabelText('セル列数（ACTION/CEL共通）'), { target: { value: '22' } })
 
     const tracks = createAlphabeticTrackLabels(22)
     const authored = {

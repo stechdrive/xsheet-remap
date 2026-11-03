@@ -23,9 +23,9 @@ function setup() {
 }
 const cell = (role: 'action' | 'cell', frame: number) => document.querySelector(`[data-timeline-event-role="${role}"][data-timeline-event-track="A"][data-timeline-event-frame="${frame}"]`)
 const ghost = (track: string, frame: number) => document.querySelector(`[data-transfer-track="${track}"][data-transfer-frame="${frame}"]`)
-const openTransfer = () => fireEvent.click(screen.getByRole('menuitem', { name: 'ACTION→CELLに自動採番して転記…' }))
+const openTransfer = () => fireEvent.click(screen.getByRole('menuitem', { name: 'CEL欄に転記…' }))
 
-it('adds circles to existing ACTION entries in a range, keeping holds, symbols, CELL and triangles intact', () => {
+it('adds circles to existing ACTION entries in a range, keeping holds, symbols, CEL and triangles intact', () => {
   const { sheet, menu } = setup()
   for (const [frame, value] of [[1, '12'], [5, 'あ'], [9, '3']] as const) {
     clickTemplateFrame(sheet, 'action', 'A', frame); enterTimingValue(value)
@@ -85,7 +85,7 @@ it('checks separate input-circle options, preserves triangles and transfers encl
   fireEvent.click(screen.getByRole('menuitem', { name: '囲み' }))
   expect(screen.getByRole('menuitemcheckbox', { name: '記入時に○を付ける' }).getAttribute('aria-checked')).toBe('false')
   openTransfer()
-  const preview = screen.getByRole('region', { name: 'ACTION→CELLの転記プレビュー' })
+  const preview = screen.getByRole('region', { name: 'ACTION→CELの転記プレビュー' })
   expect([1, 2, 3, 4].map(frame => ghost('A', frame)?.querySelector('.eventText')?.textContent)).toEqual(['1', '2', '3', '4'])
   expect(ghost('A', 1)?.querySelector('ellipse')).toBeTruthy()
   expect(ghost('A', 4)?.querySelector('polygon')).toBeTruthy()
@@ -100,7 +100,7 @@ it('checks separate input-circle options, preserves triangles and transfers encl
   menu('cell', 1)
   openTransfer()
   fireEvent.click(screen.getByRole('button', { name: 'OK' }))
-  expect(screen.queryByRole('region', { name: 'ACTION→CELLの転記プレビュー' })).toBeNull()
+  expect(screen.queryByRole('region', { name: 'ACTION→CELの転記プレビュー' })).toBeNull()
   expect([1, 2, 3, 4].map(frame => cell('cell', frame)?.querySelector('.eventText')?.textContent)).toEqual(['1', '2', '3', '4'])
   expect(cell('cell', 1)?.querySelector('ellipse.eventReferenceSymbol')).toBeTruthy()
   expect(cell('cell', 3)?.querySelector('ellipse.eventReferenceSymbol')).toBeTruthy()

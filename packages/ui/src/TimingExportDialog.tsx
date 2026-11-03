@@ -28,7 +28,7 @@ export function TimingExportDialog({
   const dialogLabel = timingExportDialogLabel(state.kind)
   const actionLabel = timelineSectionLabel(timelineSections, 'action', 'ACTION')
   const soundLabel = timelineSectionLabel(timelineSections, 'sound', 'SOUND')
-  const cellLabel = timelineSectionLabel(timelineSections, 'cell', 'CELL')
+  const cellLabel = timelineSectionLabel(timelineSections, 'cell', 'CEL')
   const cameraLabel = timelineSectionLabel(timelineSections, 'camera', 'CAMERA')
 
   return (

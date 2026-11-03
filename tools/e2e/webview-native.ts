@@ -141,7 +141,7 @@ if (stage === 'prepare') {
     await page.screenshot({ path: path.join(run, 'screenshots/reopened.png') })
     checks.push('fresh document load restores the registered layer in the current CLIP tree')
     await verifyNativeClipDrop(page, run, drop, reloadFixture)
-    checks.push('native CLIP paths open through document-drop routing; ACTION/CELL overflow uses its own grid edge')
+    checks.push('native CLIP paths open through document-drop routing; ACTION/CEL overflow uses its own grid edge')
     assert.deepEqual(errors, [])
     assert.deepEqual(sourceIdentity(root), prepared.harnessIdentity, 'Harness/source changed during the run')
     assert.equal(sha256(fs.readFileSync(prepared.artifact.executable)), prepared.artifact.sha256)

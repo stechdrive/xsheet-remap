@@ -29,7 +29,7 @@ describe('cell stack order', () => {
     expect(created.project.stackGuideLabels.find(label => label.labelId === background.label.labelId)?.viewSnapIndex).toBe(3)
   })
 
-  it('preserves an explicit CELL placement when adding at CSP top', () => {
+  it('preserves an explicit CEL placement when adding at CSP top', () => {
     const created = addOverlayPaperTrackAtCspTop(createDefaultProject(), { sheetRole: 'cell' })
     expect(created.paperTrack.viewPlacement?.sheetRole).toBe('cell')
   })

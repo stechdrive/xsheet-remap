@@ -27,7 +27,7 @@ export async function verifyNativeClipDrop(page: Page, run: string, drop: (paths
     await drop([file])
     const dialog = page.getByRole('dialog', { name: 'CLIPを読み込む', exact: true })
     await expect(dialog).toContainText(path.basename(file))
-    await dialog.getByRole('button', { name: role.toUpperCase(), exact: true }).click()
+    await dialog.getByRole('button', { name: (role === 'cell' ? 'CEL' : role.toUpperCase()), exact: true }).click()
     await dialog.getByRole('button', { name: 'タイムシートに読み込む', exact: true }).click()
     await expect(dialog).toHaveCount(0)
     const content = page.locator(`[data-timeline-event-role="${role}"][data-timeline-event-track="J"][data-timeline-event-frame="1"]`).first()

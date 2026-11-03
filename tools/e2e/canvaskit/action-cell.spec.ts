@@ -5,7 +5,7 @@ import { createProjectFromTemplate, createKey, setEvent, setTimingSpecialEvent, 
   digitalStandardSheetTemplate, activeCutProjectFromDocument } from '../../../packages/core/src/index'
 import { encodeProjectArchive, decodeProjectFileBytes } from '../../../packages/adapters/src/projectArchive'
 
-test('ACTION transfer previews hidden dummy frames and saves independent enclosed CELL identities', async ({ page }, info) => {
+test('ACTION transfer previews hidden dummy frames and saves independent enclosed CEL identities', async ({ page }, info) => {
   const template = digitalStandardSheetTemplate
   let source = createProjectFromTemplate(template)
   source.logicalSheet.durationFrames = 200
@@ -31,8 +31,12 @@ test('ACTION transfer previews hidden dummy frames and saves independent enclose
   await expect(event('action', -2)).toHaveCount(0)
   const box = await event('action', 2).locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
-  await activateControl(page, page.getByRole('menuitem', { name: 'ACTION→CELLに自動採番して転記…', exact: true }))
-  const preview = page.getByRole('region', { name: 'ACTION→CELLの転記プレビュー', exact: true })
+  const transfer = page.getByRole('menuitem', { name: 'CEL欄に転記…', exact: true })
+  await expect(transfer).toBeVisible()
+  expect(await transfer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.screenshot({ path: info.outputPath('transfer-menu.png') })
+  await activateControl(page, transfer)
+  const preview = page.getByRole('region', { name: 'ACTION→CELの転記プレビュー', exact: true })
   await expect(preview).toBeVisible()
   const ghost = (frame: number) => page.locator(`[data-transfer-track="A"][data-transfer-frame="${frame}"]`)
   await expect(ghost(2).locator('.eventText')).toHaveText('2')
@@ -82,8 +86,10 @@ test('ACTION transfer previews hidden dummy frames and saves independent enclose
   expect(restored.logicalSheet.referenceMarks?.filter(mark => mark.sheetRole === 'cell')).toEqual(source.logicalSheet.referenceMarks?.map(mark => ({ ...mark, sheetRole: 'cell' })))
 })
 
-test('ACTION transfer keeps lip-sync numbers and reverses reusable inbetweens from an opening pose', async ({ page }, info) => {
-  const template = digitalStandardSheetTemplate
+test('ACTION transfer keeps legacy CELL headings, lip-sync numbers and reverse inbetweens', async ({ page }, info) => {
+  const template = structuredClone(digitalStandardSheetTemplate)
+  template.style!.gridHeader!.labelOverrides!.cell = 'CELL'
+  for (const region of template.regions) if (region.grid?.role === 'cell') region.label = 'CELL'
   let source = createProjectFromTemplate(template)
   source.logicalSheet.durationFrames = 24
   for (const [track, values] of [['A', '3 2 3 1 2'], ['B', '2 ○ 1 ○ 2']]) {
@@ -103,8 +109,12 @@ test('ACTION transfer keeps lip-sync numbers and reverses reusable inbetweens fr
   const first = page.locator('[data-timeline-event-role="action"][data-timeline-event-track="A"][data-timeline-event-frame="1"]')
   const box = await first.locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
-  await activateControl(page, page.getByRole('menuitem', { name: 'ACTION→CELLに自動採番して転記…', exact: true }))
+  const transfer = page.getByRole('menuitem', { name: 'CELL欄に転記…', exact: true })
+  await expect(transfer).toBeVisible()
+  expect(await transfer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await activateControl(page, transfer)
   const preview = page.getByRole('region', { name: 'ACTION→CELLの転記プレビュー', exact: true })
+  await expect(preview.getByText('CELLに仮表示中', { exact: true })).toBeVisible()
   for (const [track, expected] of [['A', ['3', '2', '3', '1', '2']], ['B', ['3', '2', '1', '2', '3']]] as const) {
     await expect(page.locator(`[data-transfer-track="${track}"] .eventText`)).toHaveText([...expected])
   }

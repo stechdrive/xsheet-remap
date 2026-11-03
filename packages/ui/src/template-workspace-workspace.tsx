@@ -1107,8 +1107,8 @@ export function TemplateWorkspace({
               defaults: { ...current.defaults, durationFrames },
             }))
           }} /></dd>
-          <dt>{mode === 'project' ? '新規プロジェクトの初期セル列数（ACTION/CELL共通）' : 'セル列数（ACTION/CELL共通）'}</dt>
-          <dd><input aria-label="セル列数（ACTION/CELL共通）" className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
+          <dt>{mode === 'project' ? '新規プロジェクトの初期セル列数（ACTION/CEL共通）' : 'セル列数（ACTION/CEL共通）'}</dt>
+          <dd><input aria-label="セル列数（ACTION/CEL共通）" className="numberInput" type="number" min="1" value={template.defaults.paperTracks.length} onChange={event => {
             const count = Math.max(1, Number(event.currentTarget.value))
             updateTemplateDraft(current => {
               const paperTracks = resizePaperTrackLabels(current.defaults.paperTracks, count)

@@ -1,3 +1,4 @@
+import { uiText } from './i18n'
 import { isRenderableSheetTemplateGridRegion, parseSheetTemplate, type NormalizedRect, type SheetTemplate } from '@xsheet-remap/core'
 import { detectPaperTimelineStructure, paperTimelineColumnWidthMm, paperTimelineRoleRegion } from './paperTimelineAuthoring'
 
@@ -289,7 +290,7 @@ export function validateTemplateAuthoring(
       code: 'input-region-missing',
       severity: 'error',
       field: 'regions',
-      message: '入力可能な領域がありません。情報欄、入力表、ACTION・SOUND・CELL・CAMERAなどを1つ以上追加してください。',
+      message: '入力可能な領域がありません。情報欄、入力表、ACTION・SOUND・CEL・CAMERAなどを1つ以上追加してください。',
     })
   }
 
@@ -327,7 +328,7 @@ export function validateTemplateAuthoring(
           severity: 'warning',
           field: 'rect',
           regionId: region.regionId,
-          message: `${role.toUpperCase()}の1列幅が2.5mm未満です。印刷後に読み書きしづらくなる可能性があります。`,
+          message: `${uiText.sheetRoles[role]}の1列幅が2.5mm未満です。印刷後に読み書きしづらくなる可能性があります。`,
         })
       }
     }
@@ -365,14 +366,14 @@ export function validateTemplateAuthoring(
       code: 'calibration-target-fallback',
       severity: 'warning',
       field: 'calibration',
-      message: '補正基準枠が未指定のため、ACTION・SOUND・CELL・CAMERA領域の外接矩形を使います。実際の用紙罫線に合うか確認してください。',
+      message: '補正基準枠が未指定のため、ACTION・SOUND・CEL・CAMERA領域の外接矩形を使います。実際の用紙罫線に合うか確認してください。',
     })
   } else if (template.page.isPhysical && calibrationTargetSource === 'none') {
     addIssue({
       code: 'calibration-target-missing',
       severity: 'warning',
       field: 'calibration',
-      message: '紙テンプレートの補正基準枠を決められません。補正基準枠を設定するか、ACTION・SOUND・CELL・CAMERA領域を追加してください。',
+      message: '紙テンプレートの補正基準枠を決められません。補正基準枠を設定するか、ACTION・SOUND・CEL・CAMERA領域を追加してください。',
     })
   }
 

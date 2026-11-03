@@ -827,7 +827,7 @@ async function verifyTimelineRippleEditing(): Promise<void> {
   await waitForEventAt('action', 'A', 2, '1')
   await waitForEventAt('cell', 'B', 11, '2')
   await waitForPageCondition(() => document.body.textContent?.includes('147F') ?? false, '147F cut duration after ripple insert')
-  checks.push('inserted three frames from SOUND and rippled ACTION, CELL, SOUND, CAMERA, and the cut duration')
+  checks.push('inserted three frames from SOUND and rippled ACTION, CEL, SOUND, CAMERA, and the cut duration')
 
   await keyboardShortcut('z')
   e2eDurationFrames -= 3

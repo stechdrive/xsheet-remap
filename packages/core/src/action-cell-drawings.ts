@@ -18,7 +18,7 @@ export interface ActionDrawings {
   openIntervals: number[]
 }
 
-/** Drawing identity is independent of the eventual CELL number. Hollow slots
+/** Drawing identity is independent of the eventual CEL number. Hollow slots
  * share only endpoints, count and position; filled ticks never share a drawing.
  */
 export function collectActionDrawings(stream: TimelineEvent[], keys: ReadonlyMap<string, TimingKey>): ActionDrawings {

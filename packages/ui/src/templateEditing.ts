@@ -94,7 +94,7 @@ export function gridRoleLabel(role: TemplateGridRole): string {
   return {
     action: 'ACTION',
     sound: 'SOUND',
-    cell: 'CELL',
+    cell: 'CEL',
     camera: 'CAMERA',
     'frame-guide': 'FRAME',
     'count-table': 'COUNT',

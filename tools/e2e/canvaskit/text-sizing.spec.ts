@@ -37,7 +37,7 @@ for (const template of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
     await activateControl(page, page.getByLabel('入力文字設定', { exact: true }))
     const size = page.getByRole('spinbutton', { name: '入力文字', exact: true })
     await expect(size).toHaveAttribute('placeholder', '混在')
-    await expect(page.locator('.sheetTextSizeTarget')).toHaveText('CELL 3件')
+    await expect(page.locator('.sheetTextSizeTarget')).toHaveText('CEL 3件')
     // The portal can reposition between protocol calls. Compare all controls
     // in one layout snapshot so movement of the whole menu is not a row error.
     const geometry = await size.evaluate(input => {

@@ -277,7 +277,7 @@ export async function verifyAnnotationInteractionScenario(driver: AnnotationInte
     await waitForCondition(
       async () => evaluatePage<boolean>(`
         document.querySelector('.annotationFloatingPalette')?.getAttribute('data-annotation-target-kind') === 'timed-cue'
-          && document.querySelector('.annotationTargetLabel')?.textContent?.includes(${JSON.stringify(anchorRole.toUpperCase())}) === true
+          && document.querySelector('.annotationTargetLabel')?.textContent?.includes(${JSON.stringify(anchorRole === 'cell' ? 'CEL' : anchorRole.toUpperCase())}) === true
       `),
       5000,
       `${anchorRole} cue annotation target`,

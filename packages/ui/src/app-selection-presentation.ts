@@ -60,7 +60,7 @@ export function buildSelectionPresentation({
         ? formatFramePosition(project, selectedHit.frame)
         : '-'
   const rangeSummary = rangeSelection
-    ? `${rangeSelection.role.toUpperCase()} ${rangeSelection.paperTrack ?? rangeSelection.columnId} ${selectedFrameSummary}`
+    ? `${rangeSelection.role === 'cell' ? uiText.sheetRoles.cell : rangeSelection.role.toUpperCase()} ${rangeSelection.paperTrack ?? rangeSelection.columnId} ${selectedFrameSummary}`
     : null
   const rangeTimingStatus = rangeSelection
     ? `${uiText.sheet.rangeStart} ${formatPaddedFrameTimecode(project, rangeSelection.frameStart)} / ${uiText.sheet.rangeEnd} ${formatPaddedFrameTimecode(project, rangeSelection.frameEnd)} / ${uiText.sheet.rangeDuration} ${formatPaddedDurationTimecode(project, rangeSelection.frameEnd - rangeSelection.frameStart + 1)}`

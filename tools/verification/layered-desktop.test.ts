@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { sha256 } from './evidence.mjs'
 import { desktopArtifacts, computerUseScenarios, readComputerUseAcceptance } from './computer-use-desktop.mjs'
 import { webviewScenarios, explorerScenarios, extraWebviewScreenshots, scenarioApp } from './desktop-scenarios.mjs'
-import { collectLayeredAcceptance, prepareLayeredAcceptance, validateLayeredAcceptance, validateLayeredReports } from './layered-desktop.mjs'
+import { collectLayeredAcceptance, evidenceFiles, prepareLayeredAcceptance, recordScreenshot, validateLayeredAcceptance, validateLayeredReports } from './layered-desktop.mjs'
 
 const roots: string[] = []
 afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })))
@@ -84,7 +84,64 @@ function fixture() {
     validate: () => validateLayeredReports(root, references, identity, artifacts) }
 }
 
+function recordedCaptures(f: ReturnType<typeof fixture>, kind: 'webview' | 'explorer') {
+  const report = f[kind]
+  report.schemaVersion = 2
+  const files = report.files.filter(file => kind === 'webview' ? file.path.endsWith('.png') : file.path.endsWith('-result.png'))
+  const captures = files.map(file => ({ path: file.path, sha256: file.sha256, capturedAt: file.capturedAt }))
+  for (const file of files) Object.assign(file, { captureClock: 'node-date', fileModifiedAt: new Date(Date.parse(report.finishedAt) + 2).toISOString() })
+  if (kind === 'webview') {
+    const corrector = ['corrector-entry', 'draft-recovery', 'corrector-editor', 'recovered-editor']
+    for (const phase of f.webview.phases) {
+      Object.assign(phase, { captures: captures.filter(capture => corrector.some(name => capture.path === `screenshots/${name}.png`) === (phase.phase === 'corrector')) })
+      f.add('webview', `${phase.phase}/result.json`, Object.fromEntries(Object.entries(phase).filter(([key]) => key !== 'osObservation')))
+    }
+  } else Object.assign(report, { captures })
+  f.save()
+  return captures
+}
+
 describe('Layered EXE acceptance', () => {
+  it('records awaited pixels with the case clock while preserving a different filesystem clock', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xsheet-capture-')); roots.push(root)
+    fs.mkdirSync(path.join(root, 'screenshots'))
+    const before = Date.now(), future = new Date(before + 60_000)
+    const capture = await recordScreenshot(root, 'screenshots/result.png', async (file: string) => {
+      fs.writeFileSync(file, png)
+      fs.utimesSync(file, future, future)
+      return png
+    })
+    expect(Date.parse(capture.capturedAt)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(capture.capturedAt)).toBeLessThanOrEqual(Date.now())
+    const [file] = evidenceFiles(root, [capture.path], [capture])
+    expect(file).toEqual({ ...capture, captureClock: 'node-date', fileModifiedAt: future.toISOString() })
+    await expect(recordScreenshot(root, capture.path, async () => png)).rejects.toThrow('overwrite')
+    fs.writeFileSync(path.join(root, capture.path), Buffer.concat([png, Buffer.from('changed')]))
+    expect(() => evidenceFiles(root, [capture.path], [capture])).toThrow('observation/hash')
+  })
+  it.each(['webview', 'explorer'] as const)('validates %s capture records independently from filesystem clock skew', kind => {
+    const f = fixture()
+    recordedCaptures(f, kind)
+    expect(f.validate().map(s => s.checks)).toEqual([11, 2])
+  })
+  it.each(['webview', 'explorer'] as const)('rejects missing, altered and late %s recorder evidence', kind => {
+    const f = fixture(), captures = recordedCaptures(f, kind)
+    const capture = captures[0], file = f[kind].files.find(file => file.path === capture.path)!
+    const original = structuredClone(capture)
+    capture.sha256 = 'altered'; f.save(); expect(f.validate).toThrow('observation differs')
+    Object.assign(capture, original)
+    const item = f[kind].cases[0]
+    capture.capturedAt = new Date(Date.parse(item.finishedAt) + 1).toISOString()
+    file.capturedAt = capture.capturedAt
+    if (kind === 'webview') {
+      f.add('webview', 'corrector/result.json', Object.fromEntries(Object.entries(f.webview.phases[0]).filter(([key]) => key !== 'osObservation')))
+    }
+    f.save(); expect(f.validate).toThrow('outside case observation')
+    const other = fixture(); recordedCaptures(other, kind)
+    if (kind === 'webview') Object.assign(other.webview.phases[0], { captures: [] })
+    else Object.assign(other.explorer, { captures: [] })
+    other.save(); expect(other.validate).toThrow('screenshot observations')
+  })
   it('preserves all 13 functional observations and separates eleven protocol cases from two OS drops', () => {
     expect([...webviewScenarios, ...explorerScenarios].map(([id]) => id).sort()).toEqual(computerUseScenarios.flatMap(s => s.checks).map(([id]) => id).sort())
     const f = fixture(); expect(f.validate().map(s => s.checks)).toEqual([11, 2])

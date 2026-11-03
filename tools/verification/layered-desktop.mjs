@@ -25,17 +25,38 @@ function interval(start, end, minimum, maximum, label) {
   assert(Number.isFinite(a) && Number.isFinite(b) && a >= minimum && a < b && b <= maximum, `Invalid ${label} observation times`)
   return [a, b]
 }
-function captureWithin(capturedAt, minimum, maximum, label) {
-  // Windows file mtimes and JS Date can differ by one millisecond at their
-  // sub-ms rounding boundary. This is timestamp precision, not a wait/retry.
-  // Preserve the original times and reject any larger discrepancy.
+function captureWithin(capturedAt, minimum, maximum, label, tolerance = 1) {
+  // Preserve schema 1's one-ms boundary for historical filesystem timestamps.
+  // Recorder timestamps use the same clock as the case and allow no skew.
   const value = timestamp(capturedAt)
-  assert(Number.isFinite(value) && value >= minimum - 1 && value <= maximum + 1, `${label} outside case observation`)
+  assert(Number.isFinite(value) && value >= minimum - tolerance && value <= maximum + tolerance, `${label} outside case observation`)
 }
-export function evidenceFiles(directory, relatives) {
+export async function recordScreenshot(directory, relative, capture) {
+  assert(nonempty(relative) && !path.isAbsolute(relative), 'Screenshot path must be relative')
+  const parent = within(directory, path.dirname(relative))
+  const file = path.join(parent, path.basename(relative))
+  assert(!fs.existsSync(file), 'Never overwrite a screenshot observation')
+  const bytes = await capture(file)
+  // The awaited capture and its case boundaries use the same JS clock. File
+  // mtimes use a separate Windows clock and are retained only as metadata.
+  const capturedAt = new Date().toISOString()
+  assert(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), 'Screenshot is not PNG')
+  const hash = sha256(bytes)
+  assert.equal(sha256(fs.readFileSync(file)), hash, 'Saved screenshot differs from captured pixels')
+  return { path: relative, sha256: hash, capturedAt }
+}
+export function evidenceFiles(directory, relatives, captures = []) {
+  const recorded = new Map(captures.map(capture => [capture.path, capture]))
+  assert.equal(recorded.size, captures.length, 'Duplicate screenshot observations')
+  for (const capture of captures) assert(relatives.includes(capture.path), 'Screenshot observation missing from inventory')
   return relatives.map(relative => {
     const file = within(directory, relative)
-    return { path: relative, sha256: sha256(fs.readFileSync(file)), capturedAt: fs.statSync(file).mtime.toISOString() }
+    const hash = sha256(fs.readFileSync(file)), fileModifiedAt = fs.statSync(file).mtime.toISOString()
+    const capture = recorded.get(relative)
+    if (!capture) return { path: relative, sha256: hash, capturedAt: fileModifiedAt }
+    assert.equal(capture.sha256, hash, 'Screenshot observation/hash differs')
+    assert(Number.isFinite(timestamp(capture.capturedAt)), 'Missing screenshot observation time')
+    return { ...capture, captureClock: 'node-date', fileModifiedAt }
   })
 }
 function checkedFile(directory, item, image = false) {
@@ -58,7 +79,7 @@ function artifactMatches(actual, expected, root, diagnostic) {
 function readReport(root, reference, identity, artifacts, kind, now, diagnostic) {
   const bytes = checkedFile(root, reference)
   const report = JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/, ''))
-  assert.equal(report.schemaVersion, 1); assert.equal(report.scenarioVersion, 1)
+  assert([1, 2].includes(report.schemaVersion), 'Unknown desktop report schema'); assert.equal(report.scenarioVersion, 1)
   assert.equal(report.status, 'passed', `${kind} report failed`)
   assert.equal(report.scope, diagnostic ? 'working-tree-diagnostic' : 'current-candidate', 'Diagnostic/baseline evidence cannot certify acceptance')
   assert.equal(report.testedSourceCommit, identity.commit, 'Wrong tested source')
@@ -73,6 +94,18 @@ function readReport(root, reference, identity, artifacts, kind, now, diagnostic)
     assert(found, `Required evidence file missing: ${relative}`)
     return found
   }
+  if (report.schemaVersion === 2) {
+    const captures = kind === 'webview' ? report.phases.flatMap(phase => phase.captures) : report.captures
+    assert(Array.isArray(captures) && captures.every(capture => nonempty(capture?.path)), 'Missing screenshot observations')
+    const expected = report.files.filter(file => kind === 'webview' ? file.path.endsWith('.png') : file.path.endsWith('-result.png'))
+    exactIds(captures.map(capture => ({ id: capture.path })), expected.map(file => file.path), 'screenshot observations')
+    for (const capture of captures) {
+      const file = requireFile(capture.path)
+      assert.equal(file.captureClock, 'node-date', 'Screenshot must use the recorder clock')
+      assert.deepEqual({ path: file.path, sha256: file.sha256, capturedAt: file.capturedAt }, capture, 'Screenshot observation differs from raw report')
+      assert(Number.isFinite(timestamp(file.fileModifiedAt)), 'Missing filesystem timestamp metadata')
+    }
+  }
   const expectations = kind === 'webview' ? webviewScenarios : explorerScenarios
   exactIds(report.cases, expectations.map(([id]) => id), `${kind} cases`)
   const playwright = readJson(path.join(root, 'node_modules/playwright/package.json')).version
@@ -82,7 +115,7 @@ function readReport(root, reference, identity, artifacts, kind, now, diagnostic)
     assert.equal(item.artifact, scenarioApp(item.id), 'Wrong case EXE')
     const bounds = interval(item.startedAt, item.finishedAt, ...times, item.id)
     const screenshot = requireFile(`screenshots/${item.id}${kind === 'webview' ? '' : '-result'}.png`)
-    captureWithin(screenshot.capturedAt, ...bounds, `Screenshot ${item.id}`)
+    captureWithin(screenshot.capturedAt, ...bounds, `Screenshot ${item.id}`, report.schemaVersion === 2 ? 0 : 1)
   }
   if (kind === 'webview') {
     assert.equal(report.fault, null, 'Fault diagnostics cannot certify acceptance')
@@ -106,6 +139,7 @@ function readReport(root, reference, identity, artifacts, kind, now, diagnostic)
       assert.equal(os.inputDesktopBefore, os.inputDesktopAfter); assert.equal(os.driverExitCode, 0)
       interval(os.startedAt, os.finishedAt, ...times, `${phase.phase} desktop`)
       const phaseTimes = interval(phase.startedAt, phase.finishedAt, ...times, phase.phase)
+      if (report.schemaVersion === 2) for (const capture of phase.captures) captureWithin(capture.capturedAt, ...phaseTimes, `Screenshot ${capture.path}`, 0)
       for (const item of phase.cases) {
         assert.equal(item.artifact, phase.phase); assert.equal(item.inputMode, 'cdp')
         interval(item.startedAt, item.finishedAt, ...phaseTimes, item.id)

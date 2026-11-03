@@ -7,7 +7,7 @@ import { encodeProjectArchive } from '../../packages/adapters/src/projectArchive
 import { sourceIdentity, sha256 } from '../verification/evidence.mjs'
 import { webviewArtifact } from '../verification/webview-evidence.mjs'
 import { webviewScenarios, scenarioApp } from '../verification/desktop-scenarios.mjs'
-import { evidenceFiles } from '../verification/layered-desktop.mjs'
+import { evidenceFiles, recordScreenshot } from '../verification/layered-desktop.mjs'
 import { assertSupportedRuntime, runtimeIdentity } from '../checks/runtime.mjs'
 import { waitForPaperPaint } from './paper-paint-contract'
 import { clipLayerNamed, enterClipAssembly } from './clip-workspace'
@@ -37,7 +37,7 @@ if (stage === 'prepare') {
   fs.writeFileSync(path.join(run, '001.png'), png)
   const project = createDefaultProject(); project.cut.cut = 'INTERACTION_BOUNDARY'
   fs.writeFileSync(path.join(run, 'document.xsr'), await encodeProjectArchive(createProjectDocumentFromCutProject(project)))
-  write('prepared.json', { schemaVersion: 1, scenarioVersion: 1, preparedAt: new Date().toISOString(), fault,
+  write('prepared.json', { schemaVersion: 2, scenarioVersion: 1, preparedAt: new Date().toISOString(), fault,
     scope: remap.scope, testedSourceCommit: remap.testedSourceCommit, harnessIdentity: identity,
     artifacts: { remap: remap.artifact, corrector: corrector.artifact } })
 } else if (stage === 'finish') {
@@ -59,7 +59,7 @@ if (stage === 'prepare') {
   const files = evidenceFiles(run, [
     ...fs.readdirSync(path.join(run, 'screenshots')).map(file => `screenshots/${file}`),
     ...['corrector', 'remap'].flatMap(app => fs.readdirSync(path.join(run, app)).filter(file => /(?:result|os-observation)\.json$|trace\.zip$/.test(file)).map(file => `${app}/${file}`)),
-  ])
+  ], phases.flatMap(phase => phase.captures))
   write('result.json', { ...prepared, status: 'passed', inputMode: 'cdp-and-native-ipc', osDropReceipt: false, cases, phases,
     startedAt: phases[0].osObservation.startedAt, finishedAt: new Date().toISOString(), files })
   console.log('[interaction] 11 functional observations passed; Explorer OS receipt remains separate')
@@ -67,7 +67,13 @@ if (stage === 'prepare') {
   assert(argument === 'corrector' || argument === 'remap')
   const phase = argument, prepared = read('prepared.json'), port = Number(process.env.XSHEET_WEBVIEW_TEST_PORT)
   const cases: { id: string; expected: string; status: string; startedAt: string; finishedAt?: string; screenshot?: string; sha256?: string }[] = []
-  const errors: string[] = [], report: Record<string, unknown> = { phase, fault, status: 'failed', startedAt: new Date().toISOString(), cases }
+  const captures: Awaited<ReturnType<typeof recordScreenshot>>[] = []
+  const errors: string[] = [], report: Record<string, unknown> = { phase, fault, status: 'failed', startedAt: new Date().toISOString(), cases, captures }
+  async function screenshot(page: Page, relative: string) {
+    const capture = await recordScreenshot(run, relative, (file: string) => page.screenshot({ path: file }))
+    captures.push(capture)
+    return capture
+  }
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined, currentPage: Page | undefined
   const childBrowsers: Awaited<ReturnType<typeof chromium.connectOverCDP>>[] = []
   try {
@@ -97,9 +103,8 @@ if (stage === 'prepare') {
       const item = { id, expected: expectations[id], artifact: scenarioApp(id), inputMode: 'cdp', status: 'failed', startedAt: new Date().toISOString() }
       cases.push(item)
       await action()
-      const screenshot = `screenshots/${id}.png`
-      await page.screenshot({ path: path.join(run, screenshot) })
-      Object.assign(item, { status: 'passed', finishedAt: new Date().toISOString(), screenshot, sha256: sha256(fs.readFileSync(path.join(run, screenshot))) })
+      const capture = await screenshot(page, `screenshots/${id}.png`)
+      Object.assign(item, { status: 'passed', finishedAt: new Date().toISOString(), screenshot: capture.path, sha256: capture.sha256 })
       console.log(`[interaction] ${id} passed`)
     }
     async function blockInput(page: Page, id: string, event: string) {
@@ -144,7 +149,7 @@ if (stage === 'prepare') {
         await editor.getByLabel('名前', { exact: true }).fill('Native recovery draft')
         await expect.poll(() => recoveredName(editor!)).toBe('Native recovery draft')
         await expect(selection).toHaveValue(before)
-        await editor.screenshot({ path: path.join(run, 'screenshots/corrector-editor.png') })
+        await screenshot(editor, 'screenshots/corrector-editor.png')
       })
       await record('draft-recovery', main, async () => {
         if (fault === 'draft-recovery') await clearDraft(editor!)
@@ -158,7 +163,7 @@ if (stage === 'prepare') {
         await editor.getByRole('complementary', { name: 'テンプレート構成' }).getByRole('button', { name: '用紙と見た目', exact: true }).click()
         await expect(editor.getByLabel('名前', { exact: true })).toHaveValue('Native recovery draft')
         await expect(selection).toHaveValue(before)
-        await editor.screenshot({ path: path.join(run, 'screenshots/recovered-editor.png') })
+        await screenshot(editor, 'screenshots/recovered-editor.png')
       })
     } else {
       await expect(main.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
@@ -198,7 +203,7 @@ if (stage === 'prepare') {
         await p.mouse.down(); await p.mouse.move(x - 4, y + 5, { steps: 5 })
         await paint(p)
         await expect(p.locator('.templateRegionSnapshotSvg')).toHaveAttribute('data-canvaskit-ready', 'true')
-        await p.screenshot({ path: path.join(run, `screenshots/${id}-held.png`) })
+        await screenshot(p, `screenshots/${id}-held.png`)
         await p.mouse.up(); await paint(p)
         const moved = await readout.innerText(); expect(moved).not.toBe(beforeDrag)
         if (id === 'numeric-drag-history') {
@@ -231,7 +236,7 @@ if (stage === 'prepare') {
         if (fault === 'quick-look') await preview.locator('img').evaluate(el => { el.style.display = 'none' })
         await expect(preview.locator('img')).toBeVisible()
         expect(await preview.locator('img').evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(1)
-        await main.screenshot({ path: path.join(run, 'screenshots/quick-look-open.png') })
+        await screenshot(main, 'screenshots/quick-look-open.png')
         await main.keyboard.press('Escape'); await expect(preview).toHaveCount(0); await expect(layer).toBeVisible()
       })
       await record('layer-assignment-history', main, async () => {
@@ -274,7 +279,7 @@ if (stage === 'prepare') {
         await main.mouse.move(from.x, from.y); await main.mouse.down(); await main.mouse.move(to.x, to.y, { steps: 5 })
         await expect(main.locator('.timingDragGhostCell')).toHaveCount(3)
         expect(await events(main)).toEqual(before)
-        await main.screenshot({ path: path.join(run, `screenshots/${id}-held.png`) })
+        await screenshot(main, `screenshots/${id}-held.png`)
         if (id === 'range-outside') {
           await main.mouse.move(3, 3); await expect(main.locator('.timingDragStatus')).toHaveAttribute('data-drag-validity', 'invalid')
           await main.mouse.up(); await expect(main.locator('.timingDragPreview')).toHaveCount(0)
@@ -301,7 +306,7 @@ if (stage === 'prepare') {
     report.error = error instanceof Error ? error.stack : String(error)
     report.targets = await fetch(`http://127.0.0.1:${port}/json/list`).then(r => r.json()).catch(() => [])
     if (currentPage && !currentPage.isClosed()) {
-      await currentPage.screenshot({ path: path.join(run, `screenshots/${phase}-failure.png`) }).catch(() => {})
+      await screenshot(currentPage, `screenshots/${phase}-failure.png`).catch(() => {})
       write(`${phase}/failure-ui.json`, { body: await currentPage.locator('body').innerText().catch(() => ''), errors })
     }
     process.exitCode = 1

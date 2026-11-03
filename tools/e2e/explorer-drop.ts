@@ -7,7 +7,7 @@ import { decodeProjectFileBytes, encodeProjectArchive } from '../../packages/ada
 import { sha256, sourceIdentity } from '../verification/evidence.mjs'
 import { webviewArtifact } from '../verification/webview-evidence.mjs'
 import { explorerScenarios } from '../verification/desktop-scenarios.mjs'
-import { evidenceFiles } from '../verification/layered-desktop.mjs'
+import { evidenceFiles, recordScreenshot } from '../verification/layered-desktop.mjs'
 import { assertSupportedRuntime, runtimeIdentity } from '../checks/runtime.mjs'
 import { clipLayerNamed, enterClipAssembly } from './clip-workspace'
 
@@ -39,7 +39,7 @@ if (stage === 'prepare') {
     const project = createDefaultProject(); project.cut.cut = spec.id
     fs.writeFileSync(path.join(run, `${spec.id}.xsr`), await encodeProjectArchive(createProjectDocumentFromCutProject(project)))
   }
-  write('prepared.json', { schemaVersion: 1, scenarioVersion: 1, preparedAt: new Date().toISOString(), ...provenance, specifications,
+  write('prepared.json', { schemaVersion: 2, scenarioVersion: 1, preparedAt: new Date().toISOString(), ...provenance, specifications,
     inputTool: { name: 'Win32.SendInput + ShellFolderView/UIAutomation', version: sha256(fs.readFileSync('tools/e2e/explorer-input.cs')) } })
 } else if (stage === 'finish') {
   const report = read('result.json'), os = read('os-observation.json')
@@ -48,13 +48,14 @@ if (stage === 'prepare') {
   assert.equal(os.inputDesktopBefore, os.inputDesktopAfter)
   assert.deepEqual(sourceIdentity(root), report.harnessIdentity)
   const files = evidenceFiles(run, [...fs.readdirSync(path.join(run, 'screenshots')).map(file => `screenshots/${file}`),
-    ...specifications.flatMap(spec => [`${spec.id}-input.json`, `${spec.id}-geometry.json`, `${spec.id}.xsr`]), 'trace.zip', 'os-observation.json'])
+    ...specifications.flatMap(spec => [`${spec.id}-input.json`, `${spec.id}-geometry.json`, `${spec.id}.xsr`]), 'trace.zip', 'os-observation.json'], report.captures)
   write('result.json', { ...report, startedAt: os.startedAt, finishedAt: new Date().toISOString(), files })
 } else if (stage === 'execute') {
   const prepared = read('prepared.json'), errors: string[] = [], cases: Record<string, unknown>[] = []
+  const captures: Awaited<ReturnType<typeof recordScreenshot>>[] = []
   const report: Record<string, unknown> = { ...prepared, status: 'failed', inputMode: 'os-input', osDropReceipt: false,
     selectionMode: 'ShellFolderView.SelectItem', pointerMode: 'Win32.SendInput', assertionMode: 'WebView2 CDP + saved XSR bytes',
-    startedAt: new Date().toISOString(), cases }
+    startedAt: new Date().toISOString(), cases, captures }
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined, page: Page | undefined
   try {
     const port = Number(process.env.XSHEET_WEBVIEW_TEST_PORT)
@@ -130,7 +131,7 @@ if (stage === 'prepare') {
         return { width: image.naturalWidth, height: image.naturalHeight, rgba: Array.from(ctx.getImageData(0, 0, 1, 1).data) }
       })), images.map(node => node.imageDataUrl!))
       assert(pixels.every(pixel => pixel.width === 1 && pixel.height === 1 && JSON.stringify(pixel.rgba) === '[255,0,0,255]'))
-      await page.screenshot({ path: path.join(run, `screenshots/${spec.id}-result.png`) })
+      captures.push(await recordScreenshot(run, `screenshots/${spec.id}-result.png`, (file: string) => page!.screenshot({ path: file })))
       Object.assign(item, { status: 'passed', finishedAt: new Date().toISOString(), input, observedDrops: drops,
         importedNames: images.map(node => node.name), excludedNames: ['Unselected'], pixels, savedProject: { path: `${spec.id}.xsr`, sha256: sha256(bytes) } })
       write(`${spec.id}-complete.json`, { status: 'passed' })

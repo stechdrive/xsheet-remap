@@ -38,10 +38,19 @@ for (const template of [standardA3SheetTemplate, digitalStandardSheetTemplate]) 
     const size = page.getByRole('spinbutton', { name: '入力文字', exact: true })
     await expect(size).toHaveAttribute('placeholder', '混在')
     await expect(page.locator('.sheetTextSizeTarget')).toHaveText('CELL 3件')
-    const inputBox = (await size.boundingBox())!
-    for (const name of ['選択文字を小さく', '選択文字を大きく']) {
-      const button = (await page.getByRole('button', { name, exact: true }).boundingBox())!
-      expect(Math.abs(button.y + button.height / 2 - inputBox.y - inputBox.height / 2), 'size controls share one row').toBeLessThan(2)
+    // The portal can reposition between protocol calls. Compare all controls
+    // in one layout snapshot so movement of the whole menu is not a row error.
+    const geometry = await size.evaluate(input => {
+      const row = input.closest('.sheetTextSizeRow')!
+      return { input: input.getBoundingClientRect().toJSON(), buttons: ['選択文字を小さく', '選択文字を大きく'].map(name => {
+        const button = row.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)
+        if (!button) throw new Error(`Missing text-size control: ${name}`)
+        return { name, ...button.getBoundingClientRect().toJSON() }
+      }) }
+    })
+    await info.attach('text-size-control-geometry', { contentType: 'application/json', body: JSON.stringify(geometry) })
+    for (const button of geometry.buttons) {
+      expect(Math.abs(button.y + button.height / 2 - geometry.input.y - geometry.input.height / 2), 'size controls share one row').toBeLessThan(2)
       expect(button.width).toBeLessThan(40)
     }
     await size.fill('28'); await size.press('Enter')

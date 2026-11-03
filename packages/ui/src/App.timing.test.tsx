@@ -37,6 +37,7 @@ it('adds an empty reference, preserves it when typing, removes it independently 
     const menu = (frame: number, name: string) => {
       const point = templateFramePoint('cell', 'A', frame)
       fireEvent.contextMenu(sheet, { clientX: point.x, clientY: point.y })
+      fireEvent.click(screen.getByRole('menuitem', { name: '囲み' }))
       fireEvent.click(screen.getByRole('menuitem', { name }))
     }
     menu(1, '参考記号を付加（△）')
@@ -820,11 +821,13 @@ it('opens the sheet context menu on right click and prevents the browser menu', 
     expect(menuEvent.defaultPrevented).toBe(true)
     expect(screen.getByRole('menu')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '記号を入力' }))
     expect(screen.getByRole('menuitem', { name: 'カラセルを入力 ([X])' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: '中割記号○を入力 ([/])' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: '中割記号●を入力 ([.])' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'キーを削除 ([Del])' })).toBeTruthy()
 
+    fireEvent.click(screen.getByRole('menuitem', { name: '記号を入力' }))
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.setNullCell }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(document.querySelector('.eventBlankSymbol')).toBeTruthy()
@@ -1655,6 +1658,7 @@ it('requires a target range for range repeat paste', () => {
     fireEvent.contextMenu(sheet, { clientX: 255, clientY: 380 })
     const pasteMenuItem = screen.getByRole('menuitem', { name: uiText.actions.pasteOverwrite }) as HTMLButtonElement
     expect(pasteMenuItem.disabled).toBe(false)
+    fireEvent.click(screen.getByRole('menuitem', { name: '貼り付け方法' }))
     const repeatMenuItem = screen.getByRole('menuitem', { name: uiText.actions.repeatPaste }) as HTMLButtonElement
     expect(repeatMenuItem.disabled).toBe(true)
 
@@ -1715,6 +1719,7 @@ it('overwrites, cuts, and inserts timing ranges from the sheet context menu', ()
     clickTemplateFrame(sheet, 'cell', 'A', 1)
     menuPoint = templateFramePoint('cell', 'A', 1)
     fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: '貼り付け方法' }))
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteInsert }))
     expect(Array.from(document.querySelectorAll('.eventText')).map(element => element.textContent)).toEqual(['1', '2', '1', '2'])
   })
@@ -1733,6 +1738,7 @@ it('shows post-roll after insert paste beyond the cut end and clips XDTS output 
 
     const menuPoint = templateFramePoint('cell', 'A', 144)
     fireEvent.contextMenu(sheet, { clientX: menuPoint.x, clientY: menuPoint.y })
+    fireEvent.click(screen.getByRole('menuitem', { name: '貼り付け方法' }))
     fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.pasteInsert }))
 
     expect(within(openDisplaySettingsMenu()).getByText(uiText.sheet.postRollFrames(2))).toBeTruthy()

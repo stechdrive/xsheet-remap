@@ -10,7 +10,7 @@ import { applySheetLabelNormalizationPlan, updateSheetKeyDisplayLabel, type Shee
 import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
-import { setTimingReferenceAt, setTimingReferenceRange, buildActionCellTransferPlan, applyActionCellTransferPlan, type ActionCellTransferPlan, type TimingEnclosure } from '@xsheet-remap/core'
+import { addTimingCirclesToEntries, setTimingReferenceAt, setTimingReferenceRange, buildActionCellTransferPlan, applyActionCellTransferPlan, type ActionCellTransferPlan, type TimingEnclosure } from '@xsheet-remap/core'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
@@ -36,7 +36,7 @@ import { useSheetTextSizing, type NextCueTextSizes } from './useSheetTextSizing'
 import { resolveAnnotationTextFontSizePx } from './annotationTextLayout';
 import { calibrationPointsForSettings, getSheetPageImage } from './sheetImages';
 import { clampNumber, isTimingValueCharacter, modeShortcut, navigatePointEventSelection, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel } from './sheetInteraction';
-import { canPasteTimingClipboardMode, buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult } from './timingEditing';
+import { canPasteTimingClipboardMode, buildTimingClipboard, clearTimingRange, isPointEventRangeForUi, moveTimingEventsInRange, pasteResultRange, pasteTimingClipboardToProject, rangeContainsHit, rangePaperTracks, rippleDeleteTimingRange, timingPasteTarget, timingRangeSelectionForMoveResult, timingSelectionRange } from './timingEditing';
 import { detectSheetCalibrationPoints } from './sheetAutoCalibration';
 import { calibrationPointsSignature } from './sheetCalibrationUtils';
 import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationInput } from './CspLayerTree';
@@ -852,6 +852,11 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       : { role: hit.role, paperTracks: [hit.paperTrack], frameStart: hit.frame, frameEnd: hit.frame }
     commitProject(setTimingReferenceRange(sourceProject, range, enabled))
   }
+  function handleAddTimingCirclesToEntries(hit: SheetHit) {
+    if (activeSheetRevision.protected) return
+    const range = timingSelectionRange(hit, rangeContainsHit(rangeSelection, hit) ? rangeSelection : null)
+    if (range) commitProject(addTimingCirclesToEntries(commitTimingDraft(false), range))
+  }
   function handleToggleTimingInputCircle(hit: SheetHit) {
     if (hit.role !== 'action' && hit.role !== 'cell') return
     commitTimingDraft(false)
@@ -1014,16 +1019,18 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   }
 
   function copySelectedTimingRange(mode: TimingClipboard['mode'], rippleDelete: boolean = false) {
-    if (!isPointEventRange(rangeSelection)) return
+    const range = timingSelectionRange(selection.hit, rangeSelection)
+    if (!range) return
     const sourceProject = commitTimingDraft(false)
-    const clipboard = buildTimingClipboard(sourceProject, rangeSelection, mode)
+    const clipboard = buildTimingClipboard(sourceProject, range, mode)
     setTimingClipboard(clipboard)
     if (mode !== 'cut') return
     const next = rippleDelete
-      ? rippleDeleteTimingRange(sourceProject, rangeSelection)
-      : clearTimingRange(sourceProject, rangeSelection)
+      ? rippleDeleteTimingRange(sourceProject, range)
+      : clearTimingRange(sourceProject, range)
     commitProject(next)
-    setSelectionFromRange(rangeSelection, next)
+    if (rangeSelection) setSelectionFromRange(rangeSelection, next)
+    else setSelectionFromHit(range.anchorHit, next)
   }
 
   function pasteTimingClipboard(mode: TimingPasteMode, content: TimingPasteContent = 'auto') {
@@ -2308,12 +2315,12 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
         return
       }
       if (handleTimedRangeKeyDown(event)) return
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && rangeSelection) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && timingSelectionRange(selection.hit, rangeSelection)) {
         event.preventDefault()
         copySelectedTimingRange('copy')
         return
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'x' && rangeSelection) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'x' && timingSelectionRange(selection.hit, rangeSelection)) {
         event.preventDefault()
         copySelectedTimingRange('cut', false)
         return
@@ -2455,7 +2462,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, commitProject, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
-    timingInputCircles, handleToggleTimingInputCircle, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
+    timingInputCircles, handleToggleTimingInputCircle, handleAddTimingCirclesToEntries, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,

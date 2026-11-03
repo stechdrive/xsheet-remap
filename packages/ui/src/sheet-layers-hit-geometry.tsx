@@ -54,7 +54,7 @@ export function eventRectsForPages(
     const cached = options.cache?.get(event)
     const reference = !isSpecialTimingEvent(event) ? references.get(timingReferenceAddress(event)) : undefined
     const cachedReference = cached?.item.textLayout.reference
-    const cachedShape = cachedReference ? cachedReference.circle ? 'circle' : 'triangle' : undefined
+    const cachedShape = cachedReference ? cachedReference.ellipse ? 'circle' : 'triangle' : undefined
     if (cached && cached.key === key && cachedShape === reference && cached.item.hasAssetBinding === assetBoundKeyIds.has(event.keyId)) {
       result.get(cached.pageId)?.push(cached.item)
       continue

@@ -39,6 +39,6 @@ export function layoutTimingCellText(
   // A column-width clip guarantees horizontal containment even with fallback fonts.
   const layout = { text: visible, fullText: text, fontSizePx, overflow,
     clipRect: { x: rect.x, y: 0, w: rect.w, h: 1 } }
-  return reference === 'circle' ? layoutTimingCircle(layout, rect, pageSize)
+  return reference === 'circle' ? layoutTimingCircle(layout, rect, pageSize, measurement)
     : reference ? layoutTimingReference(layout, fit ? minimum : fontSizePx, rect, pageSize, measurement) : layout
 }

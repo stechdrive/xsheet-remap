@@ -12,6 +12,7 @@ import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, G
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { SheetContextMenu } from './SheetContextMenu'
+import { SheetContextSubmenu } from './SheetContextSubmenu'
 import { SheetColumnAddMenuItems } from './SheetColumnAddMenuItems'
 import { sheetColumnRoleLabel, type SheetColumnRole } from './sheetColumnModel'
 import { TimelineLaneInsertionOverlay } from './TimelineLaneInsertionOverlay'
@@ -66,68 +67,6 @@ function SheetPageSurface({
   </div>
 }
 
-function AeKeyframeDataCopySubmenu({
-  disabled,
-  openToLeft,
-  onCopyJapanese,
-  onCopyEnglish,
-}: {
-  disabled: boolean
-  openToLeft: boolean
-  onCopyJapanese: () => void
-  onCopyEnglish: () => void
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div
-      className={`sheetContextSubmenu${openToLeft ? ' openLeft' : ''}`}
-      onPointerEnter={() => {
-        if (!disabled) setOpen(true)
-      }}
-      onPointerLeave={() => setOpen(false)}
-      onBlur={event => {
-        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
-          setOpen(false)
-        }
-      }}
-    >
-      <button
-        type="button"
-        className="sheetContextSubmenuTrigger"
-        role="menuitem"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        onFocus={() => setOpen(true)}
-        onKeyDown={event => {
-          if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-            event.preventDefault()
-            setOpen(true)
-          } else if (event.key === 'ArrowLeft' || event.key === 'Escape') {
-            event.preventDefault()
-            setOpen(false)
-          }
-        }}
-      >
-        <span>{uiText.actions.copyAeKeyframeDataMenu}</span>
-        <span className="sheetContextSubmenuArrow" aria-hidden="true">›</span>
-      </button>
-      {open && (
-        <div className="sheetContextSubmenuMenu" role="menu" aria-label={uiText.actions.copyAeKeyframeDataMenu}>
-          <button type="button" role="menuitem" disabled={disabled} onClick={onCopyJapanese}>
-            {uiText.actions.copyAeKeyframeDataJapanese}
-          </button>
-          <button type="button" role="menuitem" disabled={disabled} onClick={onCopyEnglish}>
-            {uiText.actions.copyAeKeyframeDataEnglish}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function SheetCanvasView({ controller }: { controller: SheetCanvasController }) {
   const {
     props, columnMenuContext, startColumnInsert, timelineLaneInsertRequest, setTimelineLaneInsertRequest, draftRange, setDraftRange, hoveredHit, dropTargetPreview,
@@ -152,7 +91,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown,
     handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, handlePointerCancelCapture, handleLostPointerCapture,
     contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
-    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems,
+    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, canAddContextCircles, hasSheetContextMenuItems,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   } = controller
   const processDifferences = useMemo(() => props.clipShowProcessDifferences ? processTimingDifferences(props.project) : [], [props.clipShowProcessDifferences, props.project])
@@ -736,20 +675,27 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRange)}>{uiText.actions.cutRange}</button>
               <button role="menuitem" disabled={!canCopyContextRange} onClick={() => runContextMenuAction(props.onCutRangeRipple)}>{uiText.actions.cutRangeRipple}</button>
               <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite'))}>{uiText.actions.pasteOverwrite}</button>
-              <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'notation'))}>{uiText.actions.pasteNotation}</button>
-              <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'with-bindings'))}>{uiText.actions.pasteWithBindings}</button>
-              <button role="menuitem" disabled={!canPasteContextInsert} onClick={() => runContextMenuAction(() => props.onPasteTiming('insert'))}>{uiText.actions.pasteInsert}</button>
-              <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
-              <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'inbetween'))}>{uiText.actions.setInbetween}</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'reverse'))}>{uiText.actions.setReverseSheet}</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, true))}>参考記号を付加（△）</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, 'circle'))}>丸囲みを付加（○）</button>
-              <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, false))}>囲み（○・△）を解除</button>
-              <button role="menuitemcheckbox" aria-checked={Boolean(props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'])}
+              <SheetContextSubmenu label="貼り付け方法">
+                <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'notation'))}>{uiText.actions.pasteNotation}</button>
+                <button role="menuitem" disabled={!canPasteContextOverwrite} onClick={() => runContextMenuAction(() => props.onPasteTiming('overwrite', 'with-bindings'))}>{uiText.actions.pasteWithBindings}</button>
+                <button role="menuitem" disabled={!canPasteContextInsert} onClick={() => runContextMenuAction(() => props.onPasteTiming('insert'))}>{uiText.actions.pasteInsert}</button>
+                <button role="menuitem" disabled={!canPasteContextRepeatRange} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-range'))}>{uiText.actions.repeatPaste}</button>
+                <button role="menuitem" disabled={!canPasteContextRepeatToEnd} onClick={() => runContextMenuAction(() => props.onPasteTiming('repeat-to-end'))}>{uiText.actions.repeatPasteToEnd}</button>
+              </SheetContextSubmenu>
+              <SheetContextSubmenu label="記号を入力">
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetNullAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.setNullCell}</button>
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'inbetween'))}>{uiText.actions.setInbetween}</button>
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingSpecialAtHit(contextMenu.hit as SheetHit, 'reverse'))}>{uiText.actions.setReverseSheet}</button>
+              </SheetContextSubmenu>
+              <SheetContextSubmenu label="囲み">
+                <button role="menuitem" disabled={!canAddContextCircles} onClick={() => runContextMenuAction(() => props.onAddTimingCirclesToEntries?.(contextMenu.hit as SheetHit))}>記入のあるコマに○を付加</button>
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, true))}>参考記号を付加（△）</button>
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, 'circle'))}>丸囲みを付加（○）</button>
+                <button role="menuitem" onClick={() => runContextMenuAction(() => props.onSetTimingReferenceAtHit(contextMenu.hit as SheetHit, false))}>囲み（○・△）を解除</button>
+                <button role="menuitemcheckbox" aria-checked={Boolean(props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'])}
                 onClick={() => runContextMenuAction(() => props.onToggleTimingInputCircle?.(contextMenu.hit as SheetHit))}>
                 {props.timingInputCircles?.[contextMenu.hit?.role === 'action' ? 'action' : 'cell'] ? '✓ ' : ''}記入時に○を付ける</button>
+              </SheetContextSubmenu>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onOpenActionCellTransfer?.(contextMenu.transferTracks))}>ACTION→CELLに自動採番して転記…</button>
               <button role="menuitem" onClick={() => runContextMenuAction(() => props.onDeleteEventAtHit(contextMenu.hit as SheetHit))}>{uiText.actions.deleteEvent}</button>
             </>
@@ -803,12 +749,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           >
             {uiText.actions.renamePaperTrack}
           </button>
-          <AeKeyframeDataCopySubmenu
-            disabled={!paperTrackHeaderMenu.hit.paperTrack}
-            openToLeft={typeof window !== 'undefined' && paperTrackHeaderMenu.x > window.innerWidth - 320}
-            onCopyJapanese={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}
-            onCopyEnglish={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}
-          />
+          <SheetContextSubmenu label={uiText.actions.copyAeKeyframeDataMenu} disabled={!paperTrackHeaderMenu.hit.paperTrack}>
+            <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}>{uiText.actions.copyAeKeyframeDataJapanese}</button>
+            <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}>{uiText.actions.copyAeKeyframeDataEnglish}</button>
+          </SheetContextSubmenu>
           <button role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onOpenActionCellTransfer?.(
             props.rangeSelection && isPointEventRangeForUi(props.rangeSelection) ? rangePaperTracks(props.rangeSelection) : [paperTrackHeaderMenu.hit.paperTrack!],
           ))}>ACTION→CELLに自動採番して転記…</button>

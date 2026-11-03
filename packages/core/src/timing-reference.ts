@@ -2,6 +2,8 @@ import type { CutProject, PaperTrack, SheetTimingRole, TimingReferenceMark, Timi
 import { sheetTimingRoleForEvent, timingEventValueKind } from './project-shared'
 import { DEFAULT_SHEET_TIMING_ROLE } from './project-constants'
 
+type TimingReferenceRange = { role: SheetTimingRole; paperTracks: readonly string[]; frameStart: number; frameEnd: number }
+
 export function timingReferenceAddress(mark: { paperTrack: string; frame: number; sheetRole?: SheetTimingRole }): string {
   return JSON.stringify([mark.sheetRole ?? DEFAULT_SHEET_TIMING_ROLE, mark.paperTrack, mark.frame])
 }
@@ -26,7 +28,7 @@ export function normalizeTimingReferenceMarks(value: unknown, tracks: readonly P
 
 export function setTimingReferenceRange(
   project: CutProject,
-  range: { role: SheetTimingRole; paperTracks: readonly string[]; frameStart: number; frameEnd: number },
+  range: TimingReferenceRange,
   enabled: boolean | TimingEnclosure,
 ): CutProject {
   const before = project.logicalSheet.referenceMarks ?? []
@@ -51,6 +53,26 @@ export function setTimingReferenceRange(
   }
   if (referenceMarks.length === before.length && referenceMarks.every((mark, index) => mark === before[index])) return project
   return { ...project, logicalSheet: { ...project.logicalSheet, referenceMarks } }
+}
+
+/** Add circles to explicit text entries only; keep existing circles and triangles. */
+export function addTimingCirclesToEntries(project: CutProject, range: TimingReferenceRange): CutProject {
+  const keys = new Map(project.logicalSheet.keys.map(key => [key.keyId, key]))
+  const tracks = new Set(range.paperTracks.filter(name => project.logicalSheet.paperTracks.some(track => track.paperTrack === name)))
+  const before = project.logicalSheet.referenceMarks ?? []
+  const occupied = new Set(before.map(timingReferenceAddress))
+  const additions: TimingReferenceMark[] = []
+  for (const event of project.logicalSheet.events) {
+    if (sheetTimingRoleForEvent(event) !== range.role || !tracks.has(event.paperTrack)
+      || !(event.frame >= range.frameStart && event.frame <= range.frameEnd)
+      || timingEventValueKind(event) !== 'cell' || !keys.get(event.keyId)?.displayLabel.trim()) continue
+    const mark: TimingReferenceMark = { sheetRole: range.role, paperTrack: event.paperTrack, frame: event.frame, shape: 'circle' }
+    const address = timingReferenceAddress(mark)
+    if (occupied.has(address)) continue
+    occupied.add(address)
+    additions.push(mark)
+  }
+  return additions.length ? { ...project, logicalSheet: { ...project.logicalSheet, referenceMarks: [...before, ...additions] } } : project
 }
 
 export function setTimingReferenceAt(project: CutProject, paperTrack: string, frame: number, role: SheetTimingRole, enabled: boolean | TimingEnclosure): CutProject {

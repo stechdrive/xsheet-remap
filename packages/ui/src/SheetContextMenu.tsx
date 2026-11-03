@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { navigateContextMenu } from './SheetContextSubmenu'
 
 /** Measure real content, including headings, instead of guessing its row count. */
 export function SheetContextMenu({ x, y, className = '', label, children }: {
@@ -21,7 +22,7 @@ export function SheetContextMenu({ x, y, className = '', label, children }: {
     return () => { observer?.disconnect(); window.removeEventListener('resize', place) }
   }, [x, y])
   return <div ref={ref} className={`sheetContextMenu ${className}`} style={{ ...position, width: 240 }}
-    role="menu" aria-label={label} onPointerDown={event => event.stopPropagation()} onContextMenu={event => event.preventDefault()}>
+    role="menu" aria-label={label} onKeyDown={navigateContextMenu} onPointerDown={event => event.stopPropagation()} onContextMenu={event => event.preventDefault()}>
     {children}
   </div>
 }

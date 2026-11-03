@@ -2,14 +2,25 @@ import type { NormalizedRect } from '@xsheet-remap/core'
 import type { TimingCellTextLayout } from './timingCellTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, type TextMeasurementProvider } from './textMetrics'
 
-export type TimingReferenceGeometry = { points: number[]; circle?: { cx: number; cy: number; r: number }; strokeWidthPx: number }
+export type TimingReferenceGeometry = { points: number[]; ellipse?: { cx: number; cy: number; rx: number; ry: number }; strokeWidthPx: number }
 
-/** Keep ordinary typography; the halo lets long labels cross the circle. */
-export function layoutTimingCircle(base: TimingCellTextLayout, rect: NormalizedRect, page: { widthPx: number; heightPx: number }): TimingCellTextLayout {
-  const short = Math.min(rect.w * page.widthPx, rect.h * page.heightPx)
-  return { ...base, outlineWidthPx: Math.min(2.5, Math.max(.8, base.fontSizePx * .14)),
-    reference: { points: [], strokeWidthPx: Math.min(1.5, short * .045), circle: {
-      cx: (rect.x + rect.w / 2) * page.widthPx, cy: (rect.y + rect.h / 2) * page.heightPx, r: short * .47,
+/** Widen around the displayed text, keeping its size and clamping the stroke to the cell. */
+export function layoutTimingCircle(base: TimingCellTextLayout, rect: NormalizedRect, page: { widthPx: number; heightPx: number }, measurement: TextMeasurementProvider): TimingCellTextLayout {
+  const w = Math.max(0, rect.w * page.widthPx), h = Math.max(0, rect.h * page.heightPx), short = Math.min(w, h)
+  const strokeWidthPx = Math.min(1.5, short * .045)
+  const outlineWidthPx = Math.min(2.5, Math.max(.8, base.fontSizePx * .14))
+  const margin = Math.max(short * .03, strokeWidthPx / 2)
+  const ry = Math.max(0, short / 2 - margin), maxRx = Math.max(0, w / 2 - margin)
+  const metrics = measurement.measure(base.text, { family: SHEET_TEXT_FONT_FAMILY, sizePx: base.fontSizePx, weight: 800 })
+  // Account for the sloping sides of an ellipse. Cap growth when enlarged text
+  // is taller than the cell; the existing halo still protects the letters.
+  const textHalfHeight = (metrics.ascentPx + metrics.descentPx + outlineWidthPx) / 2
+  const verticalRatio = Math.min(.85, textHalfHeight / Math.max(1, ry))
+  const textRadius = base.text.trim() ? (metrics.widthPx / 2 + outlineWidthPx / 2 + strokeWidthPx) / Math.sqrt(1 - verticalRatio ** 2) : 0
+  const rx = Math.min(maxRx, Math.max(ry, textRadius))
+  return { ...base, outlineWidthPx,
+    reference: { points: [], strokeWidthPx, ellipse: {
+      cx: (rect.x + rect.w / 2) * page.widthPx, cy: (rect.y + rect.h / 2) * page.heightPx, rx, ry,
     } } }
 }
 

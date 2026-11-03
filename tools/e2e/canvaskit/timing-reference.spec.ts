@@ -43,6 +43,7 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     const ordinarySize = Number(await event(track).locator('.eventText').getAttribute('font-size'))
     if (track === 'C') ordinaryC = ordinarySize
     await contextMenu(track)
+    await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
     await activateControl(page, page.getByRole('menuitem', { name: '参考記号を付加（△）', exact: true }))
     await expect(event(track).locator('polygon.eventReferenceSymbol')).toHaveCount(1)
     const text = event(track).locator('.eventText')
@@ -51,25 +52,36 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     await expect(text).toHaveCSS('dominant-baseline', 'alphabetic')
   }
   await contextMenu('C')
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
   await activateControl(page, page.getByRole('menuitem', { name: '囲み（○・△）を解除', exact: true }))
   await expect(event('C').locator('polygon.eventReferenceSymbol')).toHaveCount(0)
   await expect(event('C').locator('.eventText')).toHaveText('123')
   await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
   await expect(event('C').locator('polygon.eventReferenceSymbol')).toHaveCount(1)
   await contextMenu('C')
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
   await activateControl(page, page.getByRole('menuitem', { name: '丸囲みを付加（○）', exact: true }))
-  await expect(event('C').locator('circle.eventReferenceSymbol')).toHaveCount(1)
+  await expect(event('C').locator('ellipse.eventReferenceSymbol')).toHaveCount(1)
   expect(Number(await event('C').locator('.eventText').getAttribute('font-size'))).toBe(ordinaryC)
+  await contextMenu('B')
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
+  await activateControl(page, page.getByRole('menuitem', { name: '丸囲みを付加（○）', exact: true }))
+  for (const track of ['B', 'C']) {
+    const oval = event(track).locator('ellipse.eventReferenceSymbol')
+    expect(Number(await oval.getAttribute('rx'))).toBeGreaterThan(Number(await oval.getAttribute('ry')) * 1.2)
+  }
   await ready()
   // Empty frame beneath A: uses the grid's ordinary pointer target.
   // SVG's transparent default stroke expands Playwright's boundingBox by a
   // normalized page unit. getBoundingClientRect measures the actual cell edges.
   const aBox = await event('A').locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
   await page.mouse.click(aBox!.x + aBox!.width / 2, aBox!.y + aBox!.height * 2.5, { button: 'right' })
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
   await activateControl(page, page.getByRole('menuitem', { name: '参考記号を付加（△）', exact: true }))
   await expect(page.locator('.timingReferenceGraphics')).toHaveAttribute('data-paper-primitive-count', '1')
   const bBox = await event('D').locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
   await page.mouse.click(bBox.x + bBox.width / 2, bBox.y + bBox.height * 1.5, { button: 'right' })
+  await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
   await activateControl(page, page.getByRole('menuitem', { name: '丸囲みを付加（○）', exact: true }))
   await expect(page.locator('.timingReferenceGraphics')).toHaveAttribute('data-paper-primitive-count', '2')
   await page.keyboard.press('Escape')
@@ -110,6 +122,19 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   expect(Math.abs(screenEnclosure.width - screenEnclosure.height)).toBeLessThanOrEqual(2)
   expect(screenEnclosure.width).toBeGreaterThan(Math.min(bBox.width, bBox.height) * .7 * await page.evaluate(() => devicePixelRatio))
 
+  for (const track of ['B', 'C']) {
+    const box = await event(track).locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
+    const oval = await event(track).locator('ellipse.eventReferenceSymbol').evaluate(element => element.getBoundingClientRect().toJSON())
+    const scale = await page.evaluate(() => devicePixelRatio)
+    const ink = await measureInk(direct.toString('base64'), { x: box.x, y: box.y, w: box.width, h: box.height }, scale, .01)
+    // At the paper template's initial zoom these outlines are only ~14 pixels
+    // wide. Compare both extents with the ellipse; edge quantization and the
+    // ink threshold can lose one pixel at each edge, distorting a ratio test.
+    expect(Math.abs(ink.width - oval.width * scale)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.height - oval.height * scale)).toBeLessThanOrEqual(2)
+    expect(ink.width).toBeGreaterThan(ink.height)
+    expect(ink.width).toBeLessThanOrEqual(box.width * scale)
+  }
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: '書き出し ›', exact: true }))
   await activateControl(page, page.getByRole('button', { name: 'タイムシート画像をPNG形式で書き出す', exact: true }))
@@ -129,6 +154,17 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     y: enclosureRect.y * context.pageSize.heightPx, w: enclosureRect.w * context.pageSize.widthPx, h: enclosureRect.h * context.pageSize.heightPx }, 1, .02)
   expect(Math.abs(pngEnclosure.width - pngEnclosure.height)).toBeLessThanOrEqual(1)
   expect(pngEnclosure.width).toBeGreaterThan(Math.min(enclosureRect.w * context.pageSize.widthPx, enclosureRect.h * context.pageSize.heightPx) * .7)
+  for (const track of ['B', 'C']) {
+    const rect = inputTextRenderItemsForPage(context, context.pages[0]).find(item => item.paperTrack === track)!.rect
+    const ink = await measureInk(readFileSync(saved).toString('base64'), { x: rect.x * context.pageSize.widthPx, y: rect.y * context.pageSize.heightPx, w: rect.w * context.pageSize.widthPx, h: rect.h * context.pageSize.heightPx }, 1, .01)
+    const oval = event(track).locator('ellipse.eventReferenceSymbol')
+    // Export uses the same page-pixel geometry, with the same raster edge
+    // quantization as the screen. Both dimensions must still match that shape.
+    expect(Math.abs(ink.width - Number(await oval.getAttribute('rx')) * 2)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.height - Number(await oval.getAttribute('ry')) * 2)).toBeLessThanOrEqual(2)
+    expect(ink.width).toBeGreaterThan(ink.height)
+    expect(ink.width).toBeLessThanOrEqual(rect.w * context.pageSize.widthPx)
+  }
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await activateControl(page, page.getByRole('button', { name: 'プロジェクト ›', exact: true }))
   const download = page.waitForEvent('download')
@@ -136,7 +172,7 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   const savedProject = info.outputPath('reference.xsr'); await (await download).saveAs(savedProject)
   const restored = activeCutProjectFromDocument((await decodeProjectFileBytes(new Uint8Array(readFileSync(savedProject)))).document)
   expect(restored.logicalSheet.referenceMarks).toHaveLength(5)
-  expect(restored.logicalSheet.referenceMarks?.filter(mark => mark.shape === 'circle')).toHaveLength(2)
+  expect(restored.logicalSheet.referenceMarks?.filter(mark => mark.shape === 'circle')).toHaveLength(3)
   expect(restored.logicalSheet.events).toEqual(project.logicalSheet.events)
   expect(restored.logicalSheet.keys).toEqual(project.logicalSheet.keys)
 

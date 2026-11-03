@@ -100,6 +100,7 @@ export type SheetCanvasProps = {
   onSetNullAtHit: (hit: SheetHit) => void
   onSetTimingSpecialAtHit: (hit: SheetHit, marker: TimingSpecialMarker) => void
   onSetTimingReferenceAtHit: (hit: SheetHit, enabled: boolean | 'triangle' | 'circle') => void
+  onAddTimingCirclesToEntries?: (hit: SheetHit) => void
   timingInputCircles?: { action: boolean; cell: boolean }
   onToggleTimingInputCircle?: (hit: SheetHit) => void
   onOpenActionCellTransfer?: (tracks?: string[]) => void

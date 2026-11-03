@@ -40,6 +40,7 @@ it('copies Japanese and English AE Keyframe Data from the cell column header men
   expect(copySubmenuTrigger.getAttribute('aria-haspopup')).toBe('menu')
   expect(copySubmenuTrigger.getAttribute('aria-expanded')).toBe('false')
   fireEvent.focus(copySubmenuTrigger)
+  fireEvent.keyDown(copySubmenuTrigger, { key: 'ArrowRight' })
   expect(copySubmenuTrigger.getAttribute('aria-expanded')).toBe('true')
   fireEvent.click(copySubmenuTrigger)
   expect(copySubmenuTrigger.getAttribute('aria-expanded')).toBe('true')

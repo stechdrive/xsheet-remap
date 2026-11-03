@@ -1,3 +1,4 @@
+import { addTimingCirclesToEntries } from '@xsheet-remap/core'
 import { paperTrackDisplayRole } from '@xsheet-remap/core'
 import type { SheetColumnAddContext, SheetColumnAddKind } from './sheetColumnModel'
 import type { TimelineLaneInsertRequest } from './TimelineLaneInsertionOverlay'
@@ -16,7 +17,7 @@ import { ASSET_MULTI_DRAG_MIME, ASSET_DRAG_MIME, REGISTERED_CELL_DRAG_MIME, STAC
 import { createSheetRenderModelContext } from './sheetRenderModel';
 import { calibrationPointsForSettings } from './sheetImages';
 import { clampNumber, clampSheetZoom, handleNativeHorizontalWheelScroll, nativeWheelUsesApplicationZoom, rangeSelectionFromHits, sheetRoleForHit, sheetRoleLabel, nativeVerticalWheelDelta } from './sheetInteraction';
-import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell } from './timingEditing';
+import { canPasteTimingClipboardMode, isPointEventRangeForUi, rangeContainsHit, rangePaperTracks, sameSheetHitCell, timingSelectionRange } from './timingEditing';
 import { CalibrationPointKind, OverlayPaperTrackMenuState, PaperTrackEditorState, PaperTrackHeaderMenuState, SHEET_INTERACTION_ACTIVE_CLASS, SheetContextMenuState, StackGuideDropPreviewState, StackGuideHeaderMenuState, StackGuideInsertRequest, StackGuideInsertTarget, StackGuideInsertTool, TimedRangeLaneHeaderMenuState, TimelineLaneEditorState, TIMELINE_EVENT_DRAG_THRESHOLD_PX, TIMELINE_EVENT_LONG_PRESS_MS, keyIdFromRegisteredCellTextDragData, sheetHitStatusHint, sheetHitTargetLabel } from './app-foundation';
 import { OverlayPaperTrackDrag, frameOriginForPageHit, materializePageHit, nextAnnotationId, nextOverlayTrackNameForUi, overlayHitFromPoint, processMoveOptionsForSlot, rectForHit } from './app-sheet-layers';
 import { overlayPaperTracks, overlaySnapIndexFromPoint, paperTrackOrderForRole } from './app-sheet-geometry';
@@ -2377,11 +2378,13 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
   const cameraContext = contextMenu?.hit?.role === 'camera' || Boolean(props.selectedCameraCueId)
   const timelineMemoContext = Boolean(contextMenu?.timelineMemoIds?.length)
   const frameOperationContext = contextMenu?.hit?.role === 'action' || contextMenu?.hit?.role === 'cell' || contextMenu?.hit?.role === 'sound' || contextMenu?.hit?.role === 'camera'
+  const contextTimingRange = timingSelectionRange(contextMenu?.hit ?? null, rangeContainsHit(props.rangeSelection, contextMenu?.hit ?? null) ? props.rangeSelection : null)
+  const canAddContextCircles = Boolean(contextTimingRange && addTimingCirclesToEntries(props.project, contextTimingRange) !== props.project)
   const canCopyContextRange = soundContext
     ? Boolean(props.selectedSoundCueId || props.rangeSelection?.role === 'sound')
     : cameraContext
       ? Boolean(props.selectedCameraCueId || props.rangeSelection?.role === 'camera')
-      : isPointEventRangeForUi(props.rangeSelection)
+      : Boolean(timingSelectionRange(props.selectedHit, props.rangeSelection))
   const contextPasteRole = props.rangeSelection?.role === 'action' || props.rangeSelection?.role === 'cell'
     ? props.rangeSelection.role
     : props.selectedHit ? sheetRoleForHit(props.selectedHit) : 'cell'
@@ -2434,7 +2437,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     openOverlayPaperTrackEditor, openOverlayPaperTrackMenu, submitPaperTrackEditor, handlePointerUp, handleDrop, handleDragOver,
     handleViewportDragOver, handleViewportDragLeave, handleViewportDrop, handleViewportPointerDown, ...touchNavigation, contextProcessMove, contextProcessMoveOptions, canCopyContextRange,
     handlePointerDownCapture: handleViewportPointerDownCapture,
-    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, hasSheetContextMenuItems,
+    canPasteContextOverwrite, canPasteContextInsert, canPasteContextRepeatRange, canPasteContextRepeatToEnd, canAddContextCircles, hasSheetContextMenuItems,
     overlayPaperTrackMenuTrack, hoverPreviewItems, hoverPreviewPosition, activeRange, soundContext, cameraContext, timelineMemoContext, viewportClassName,
   }
 }

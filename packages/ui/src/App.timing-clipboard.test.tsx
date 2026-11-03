@@ -14,6 +14,54 @@ function text(role: 'action' | 'cell', track: string, frame: number) {
   return document.querySelector(`[data-timeline-event-role="${role}"][data-timeline-event-track="${track}"][data-timeline-event-frame="${frame}"] .eventText`)?.textContent
 }
 
+it.each(['action', 'cell'] as const)('copies and cuts a clicked single %s frame through both menu and keyboard', role => {
+  render(<App />)
+  const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+  setSheetRect(sheet, 0, 0)
+  clickTemplateFrame(sheet, role, 'A', 1)
+  enterTimingValue('12')
+  clickTemplateFrame(sheet, role, 'A', 1)
+  expectSelectedHit(role, 'A', 1)
+  const point = templateFramePoint(role, 'A', 1)
+  fireEvent.contextMenu(sheet, { clientX: point.x, clientY: point.y })
+  const copy = screen.getByRole('menuitem', { name: uiText.actions.copyRange }) as HTMLButtonElement
+  expect(copy.disabled).toBe(false)
+  fireEvent.click(copy)
+  clickTemplateFrame(sheet, role, 'A', 5)
+  fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+  expect(text(role, 'A', 5)).toBe('12')
+  expect(text(role, 'A', 6)).toBeUndefined()
+  clickTemplateFrame(sheet, role, 'A', 1)
+  fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+  clickTemplateFrame(sheet, role, 'B', 7)
+  fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+  expect(text(role, 'B', 7)).toBe('12')
+  clickTemplateFrame(sheet, role, 'A', 1)
+  fireEvent.keyDown(window, { key: 'x', ctrlKey: true })
+  expect(text(role, 'A', 1)).toBeUndefined()
+  expectSelectedHit(role, 'A', 1)
+  fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+  expect(text(role, 'A', 1)).toBe('12')
+})
+
+it('makes a click and a drag extended then returned to one frame equally copyable', () => {
+  render(<App />)
+  const sheet = screen.getByLabelText(uiText.sheet.canvasLabel)
+  setSheetRect(sheet, 0, 0)
+  const first = templateFramePoint('action', 'A', 1), second = templateFramePoint('action', 'A', 2)
+  fireEvent.pointerDown(sheet, { pointerId: 41, pointerType: 'mouse', button: 0, buttons: 1, clientX: first.x, clientY: first.y })
+  for (const point of [second, first]) fireEvent.pointerMove(sheet, { pointerId: 41, pointerType: 'mouse', buttons: 1, clientX: point.x, clientY: point.y })
+  fireEvent.pointerUp(sheet, { pointerId: 41, pointerType: 'mouse', button: 0, buttons: 0, clientX: first.x, clientY: first.y })
+  expectSelectedRange('action', 'A', 1, 1)
+  fireEvent.contextMenu(sheet, { clientX: first.x, clientY: first.y })
+  expect((screen.getByRole('menuitem', { name: uiText.actions.copyRange }) as HTMLButtonElement).disabled).toBe(false)
+  fireEvent.keyDown(window, { key: 'Escape' })
+  clickTemplateFrame(sheet, 'action', 'A', 1)
+  expectSelectedHit('action', 'A', 1)
+  fireEvent.contextMenu(sheet, { clientX: first.x, clientY: first.y })
+  expect((screen.getByRole('menuitem', { name: uiText.actions.copyRange }) as HTMLButtonElement).disabled).toBe(false)
+})
+
 it.each(['action', 'cell'] as const)('pastes a copied %s range into the other role, renumbers independently and supports undo', sourceRole => {
   render(<App />)
   const targetRole = sourceRole === 'action' ? 'cell' : 'action'
@@ -52,6 +100,7 @@ it('enables cross-role paste and explicit content choices in the context menu', 
   fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
   const point = templateFramePoint('cell', 'A', 8)
   fireEvent.contextMenu(sheet, { clientX: point.x, clientY: point.y })
+  fireEvent.click(screen.getByRole('menuitem', { name: '貼り付け方法' }))
   for (const name of [uiText.actions.pasteOverwrite, uiText.actions.pasteNotation, uiText.actions.pasteWithBindings]) {
     expect((screen.getByRole('menuitem', { name }) as HTMLButtonElement).disabled).toBe(false)
   }

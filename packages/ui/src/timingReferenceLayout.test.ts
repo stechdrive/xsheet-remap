@@ -7,9 +7,10 @@ import type { TextMeasurementProvider } from './textMetrics'
 
 const measurement: TextMeasurementProvider = { measure: (text, font) => ({ widthPx: text.length * font.sizePx * .6, ascentPx: font.sizePx * .8, descentPx: font.sizePx * .2, exact: true }) }
 describe('readable reference triangles', () => {
-  it('keeps identical typography and a true circular enclosure for long labels and enlarged text', () => {
-    for (const text of ['1', '123', 'あいう', '000123456789']) for (const size of [18, 42]) {
-      const page = { widthPx: 1200, heightPx: 2400 }, rect = { x: .1, y: .2, w: 90 / 1200, h: 20 / 2400 }
+  it('widens the enclosure around text without changing typography or crossing cell edges', () => {
+    for (const [w, h] of [[90, 20], [35, 35], [20, 80], [1, 1], [0, 0]])
+      for (const text of ['', '1', '12', '123', 'あいう', '000123456789']) for (const size of [18, 42]) {
+      const page = { widthPx: 1200, heightPx: 2400 }, rect = { x: .1, y: .2, w: w / 1200, h: h / 2400 }
       const base = layoutTimingCellText(text, size, 6, rect, page, measurement)
       const circle = layoutTimingCellText(text, size, 6, rect, page, measurement, 'circle')
       expect(circle.fontSizePx).toBe(base.fontSizePx)
@@ -17,7 +18,15 @@ describe('readable reference triangles', () => {
       expect(circle.clipRect).toEqual(base.clipRect)
       expect(circle.textPosition).toBe(base.textPosition)
       expect(circle.outlineWidthPx).toBeGreaterThan(0)
-      expect(circle.reference?.circle?.r).toBeCloseTo(9.4)
+      const { rx, ry, cx, cy } = circle.reference!.ellipse!
+      const halfStroke = circle.reference!.strokeWidthPx / 2
+      expect(rx).toBeGreaterThanOrEqual(ry)
+      expect(rx + halfStroke).toBeLessThanOrEqual(w / 2 + 1e-8)
+      expect(ry + halfStroke).toBeLessThanOrEqual(h / 2 + 1e-8)
+      expect(cx).toBeCloseTo(rect.x * page.widthPx + w / 2)
+      expect(cy).toBeCloseTo(rect.y * page.heightPx + h / 2)
+      if (w === 90 && text === '12') expect(rx).toBeGreaterThan(ry * 1.3)
+      if (!text) expect(rx).toBe(ry)
     }
   })
   for (const [w, h] of [[90, 20], [35, 35], [20, 80]]) for (const text of ['', '1', '12', '123', '000123456789']) {
@@ -50,7 +59,7 @@ describe('readable reference triangles', () => {
       expect(screen.textLayout).toEqual(inputTextRenderItemsForPage(context, page)[0].textLayout)
       const circled = setTimingReferenceAt(project, 'A', 1, 'cell', 'circle')
       const circle = eventRectsForPages(circled, template, context.pages, { cache }).get(page.pageId)![0]
-      expect(circle.textLayout.reference?.circle).toBeDefined()
+      expect(circle.textLayout.reference?.ellipse).toBeDefined()
       expect(circle.textLayout.fontSizePx).toBe(first.textLayout.fontSizePx)
       expect(circle.textLayout).toEqual(inputTextRenderItemsForPage(createSheetRenderModelContext(circled, template), page)[0].textLayout)
       expect(referenceOnlyRenderItemsForPage(context, page).map(item => item.frame)).toEqual([3])

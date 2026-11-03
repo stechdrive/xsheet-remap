@@ -59,7 +59,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     setStatusHint, switchPanel, activeStatusHint, statusSelectionText, statusHintText, runProjectCommand, handleClipCorrespondence, handleApplyPaperTranscription,
     recordDropDiagnostic, setActivePageIndex, updateTiming, updateTimingExportRole, updateTimingExportOptions, updateXdtsImportDialog, handleRangeSelect,
     handleCellClick, handleCellSelect, handleSetNullAtHit, handleSetTimingSpecialAtHit, handleSetTimingReferenceAtHit, handleDeleteEventAtHit, handleTimingCharacterInput, handleTimingInputBackspace, handleTimingInputCommit, handleTimingInputMove, handleKeySelect, handleStackGuideSelect,
-    timingInputCircles, handleToggleTimingInputCircle, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
+    timingInputCircles, handleToggleTimingInputCircle, handleAddTimingCirclesToEntries, actionCellTransferPlan, actionCellTransferGhost, setActionCellTransferPlan, handleOpenActionCellTransfer, handleApplyActionCellTransfer,
     handleSoundCueSelect, handleAudioPlayheadChange, handleDialogueAudioSelectionChange, handleDialogueAudioFocus, openSoundCueEditor, openSoundCueEditorForRange, submitSoundCueDialog, handleTransformSoundCue, openSoundCueEditorForAudioCandidate, handleAutoCreateDialogueRegions,
     handleCameraCueSelect, openCameraCueEditor, openCameraCueEditorForRange, submitCameraCueDialog, handleTransformCameraCue,
     handleActiveCorrectionLayerChange, handleClearSelection, startCalibrationWithLoupe, closeCalibrationLoupe, handleDeleteEvent, handleDeleteCspCard,
@@ -426,6 +426,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onSetNullAtHit={handleSetNullAtHit}
             onSetTimingSpecialAtHit={handleSetTimingSpecialAtHit}
             onSetTimingReferenceAtHit={handleSetTimingReferenceAtHit}
+            onAddTimingCirclesToEntries={handleAddTimingCirclesToEntries}
             timingInputCircles={timingInputCircles}
             onToggleTimingInputCircle={handleToggleTimingInputCircle}
             onOpenActionCellTransfer={handleOpenActionCellTransfer}

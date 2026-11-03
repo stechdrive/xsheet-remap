@@ -36,7 +36,7 @@ test('ACTION transfer previews hidden dummy frames and saves independent enclose
   await expect(preview).toBeVisible()
   const ghost = (frame: number) => page.locator(`[data-transfer-track="A"][data-transfer-frame="${frame}"]`)
   await expect(ghost(2).locator('.eventText')).toHaveText('2')
-  await expect(ghost(2).locator('circle.eventReferenceSymbol')).toHaveCount(1)
+  await expect(ghost(2).locator('ellipse.eventReferenceSymbol')).toHaveCount(1)
   await expect(ghost(4).locator('polygon.eventReferenceSymbol')).toHaveCount(1)
   await expect(event('cell', 2)).toHaveCount(0)
   await activateControl(page, preview.getByText('採番についての確認事項', { exact: true }))
@@ -61,7 +61,7 @@ test('ACTION transfer previews hidden dummy frames and saves independent enclose
   expect(await event('cell', 2).locator('.eventRect').evaluate(element => ({
     x: element.getAttribute('x'), y: element.getAttribute('y'), width: element.getAttribute('width'), height: element.getAttribute('height'),
   }))).toEqual(ghostRect)
-  await expect(event('cell', 2).locator('circle.eventReferenceSymbol')).toHaveCount(1)
+  await expect(event('cell', 2).locator('ellipse.eventReferenceSymbol')).toHaveCount(1)
   await expect(event('cell', 4).locator('polygon.eventReferenceSymbol')).toHaveCount(1)
   await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
   await expect(event('cell', 2)).toHaveCount(0)

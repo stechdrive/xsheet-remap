@@ -98,6 +98,17 @@ export function rangePaperTracks(range: SheetRangeSelection | null): string[] {
   return range.paperTracks.length > 0 ? range.paperTracks : range.paperTrack ? [range.paperTrack] : []
 }
 
+/** Resolve command targets without changing the cursor/range navigation state. */
+export function timingSelectionRange(selectedHit: SheetHit | null, range: SheetRangeSelection | null):
+  (SheetRangeSelection & { role: SheetTimingRole; paperTrack: string }) | null {
+  if (isPointEventRangeForUi(range)) return range
+  if (!selectedHit?.paperTrack || (selectedHit.role !== 'action' && selectedHit.role !== 'cell')) return null
+  return { role: selectedHit.role, inputMode: 'point-event', paperTrack: selectedHit.paperTrack,
+    paperTracks: [selectedHit.paperTrack], columnId: selectedHit.columnId,
+    frameStart: selectedHit.frame, frameEnd: selectedHit.frame, anchorFrame: selectedHit.frame, focusFrame: selectedHit.frame,
+    anchorHit: selectedHit, focusHit: selectedHit }
+}
+
 export function canPasteTimingClipboardMode(
   clipboard: TimingClipboard | null,
   selectedHit: SheetHit | null,

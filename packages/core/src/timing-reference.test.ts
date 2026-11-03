@@ -1,11 +1,38 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createDefaultProject, createKey, setEvent, setTimingSpecialEvent, setTimingReferenceAt, setTimingReferenceRange,
+  createDefaultProject, createKey, setEvent, setTimingSpecialEvent, setTimingReferenceAt, setTimingReferenceRange, addTimingCirclesToEntries,
   createProjectDocumentFromCutProject, parseProjectDocument, activeCutProjectFromDocument, addSheetRevisionToProjectDocument,
   applyCutTimelineFrameEdit, createProjectHistory, commitHistory, undoHistory, redoHistory,
 } from './index'
 
 describe('reference notation', () => {
+  it('circles only explicit nonempty entries in selected tracks/role, preserving enclosures and undoing atomically', () => {
+    let source = createDefaultProject()
+    for (const [role, track, frame, label] of [
+      ['action', 'A', 1, '12'], ['action', 'A', 5, '12'], ['action', 'A', 9, 'あ'],
+      ['action', 'B', 3, '2'], ['action', 'C', 1, '3'], ['cell', 'A', 1, '4'], ['action', 'A', 12, '5'],
+    ] as const) {
+      const created = createKey(source, track, label, 'manual', undefined, role)
+      source = setEvent(created.project, track, frame, created.key.keyId, role)
+    }
+    for (const [frame, marker] of [[2, 'inbetween'], [4, 'reverse'], [6, 'blank']] as const) source = setTimingSpecialEvent(source, 'A', frame, marker, 'action')
+    source = setTimingReferenceAt(setTimingReferenceAt(source, 'A', 9, 'action', true), 'A', 5, 'action', 'circle')
+    const range = { role: 'action' as const, paperTracks: ['A', 'B'], frameStart: 1, frameEnd: 10 }
+    const result = addTimingCirclesToEntries(source, range)
+    expect(result.logicalSheet.referenceMarks).toEqual([
+      ...source.logicalSheet.referenceMarks!,
+      { sheetRole: 'action', paperTrack: 'A', frame: 1, shape: 'circle' },
+      { sheetRole: 'action', paperTrack: 'B', frame: 3, shape: 'circle' },
+    ])
+    expect(result.logicalSheet.events).toBe(source.logicalSheet.events)
+    expect(result.logicalSheet.keys).toBe(source.logicalSheet.keys)
+    expect(result.bindings).toBe(source.bindings)
+    expect(addTimingCirclesToEntries(result, range)).toBe(result)
+    expect(addTimingCirclesToEntries(source, { ...range, frameStart: 7, frameEnd: 8 })).toBe(source)
+    const history = commitHistory(createProjectHistory(source), result)
+    expect(undoHistory(history).present).toEqual(source)
+    expect(redoHistory(undoHistory(history)).present).toEqual(result)
+  })
   it('marks occurrences without changing registered cels, event holds or bindings; survives typing and removes independently', () => {
     const created = createKey(createDefaultProject(), 'A', '123', 'manual', undefined, 'cell')
     const source = setEvent(setEvent(created.project, 'A', 1, created.key.keyId, 'cell'), 'A', 5, created.key.keyId, 'cell')

@@ -26,6 +26,7 @@ describe('Pages cache policy', () => {
     expect(classifyPagesAsset('assets/psd-text-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('assets/clip-preview.worker-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('assets/clip-document.worker-a1.js')).toBe('runtime')
+    expect(classifyPagesAsset('assets/license-data-a1.js')).toBe('runtime')
     expect(classifyPagesAsset('assets/worker-a1.js')).toBe('app')
     expect(classifyPagesAsset('vad/models/silero_vad.onnx')).toBe('runtime')
     expect(classifyPagesAsset('sw.js')).toBe('metadata')
@@ -39,7 +40,7 @@ describe('Pages cache policy', () => {
     expect(isBundledClipSeed('assets/company.clip', CLIP_SEED_SHA256)).toBe(false)
   })
 
-  it.each(['psd-text', 'clip-preview.worker', 'clip-document.worker'])('loads %s on demand and changes its cache revision with its bytes', async name => {
+  it.each(['psd-text', 'clip-preview.worker', 'clip-document.worker', 'license-data'])('loads %s on demand and changes its cache revision with its bytes', async name => {
     const file = `assets/${name}-a1.js`
     const plan = (sha: string) => createPagesCachePlan('0.1.1', [
       { path: 'index.html', bytes: 20, sha256: APP_SHA },

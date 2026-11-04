@@ -17,7 +17,10 @@ const outputRoot = path.join(repoRoot, 'apps', 'web', 'dist-pages')
 const MAX_FILES = 1000
 // Silero VADはモデルとWASMを初回音声解析時にだけ取得する。
 // CanvasKit adds one 7 MiB runtime; keep it content-revisioned alongside VAD.
-const MAX_TOTAL_BYTES = 56 * 1024 * 1024
+// Complete in-app license notices add a 1,066,646-byte lazy chunk. The measured
+// candidate is 59,258,719 bytes; allow 1 MiB more total without expanding the
+// initial app precache, individual-runtime or WASM budgets.
+const MAX_TOTAL_BYTES = 57 * 1024 * 1024
 const MAX_SINGLE_FILE_BYTES = 20 * 1024 * 1024
 // celcodec 0.2.0 adds shared native validation and both BINC layouts. The
 // inspected app precache is 4,606,159 bytes. Add 64 KiB to the prior budget;

@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 . (Join-Path $repoRoot "tools\release\local-settings.ps1")
+. (Join-Path $repoRoot "tools\release\release-inventory.ps1")
 
 $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "release-local"))
 $destinationDirectory = Resolve-XsheetHandoffDirectory `
@@ -35,40 +36,20 @@ if (
 }
 
 $zipName = "xsheet-remap.zip"
-$checksumName = "xsheet-remap.zip.sha256"
 $zipPath = Join-Path $releaseRoot $zipName
-$checksumPath = Join-Path $releaseRoot $checksumName
-
-function Get-Sha256Hex {
-  param([string]$Path)
-
-  $sha256 = [System.Security.Cryptography.SHA256]::Create()
-  $stream = [System.IO.File]::OpenRead($Path)
-  try {
-    $hashBytes = $sha256.ComputeHash($stream)
-    return (($hashBytes | ForEach-Object { $_.ToString("x2") }) -join "")
-  } finally {
-    $stream.Dispose()
-    $sha256.Dispose()
-  }
-}
+$verificationPath = Join-Path $releaseRoot "package-verification.json"
 
 if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
   throw "missing local release ZIP: $zipPath. Run npm run build:release:all first."
 }
-if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
-  throw "missing local release ZIP checksum: $checksumPath. Run npm run build:release:all first."
-}
-
-$checksumText = (Get-Content -LiteralPath $checksumPath -Raw -Encoding UTF8).Trim()
-if ($checksumText -notmatch '^([0-9a-fA-F]{64})\s+\*?xsheet-remap\.zip$') {
-  throw "invalid ZIP checksum file: $checksumPath"
-}
-$expectedHash = $Matches[1].ToUpperInvariant()
-$actualHash = (Get-Sha256Hex $zipPath).ToUpperInvariant()
-if ($actualHash -ne $expectedHash) {
-  throw "ZIP checksum mismatch: expected $expectedHash, got $actualHash"
-}
+Assert-ReleaseZipChecksum -ArchivePath $zipPath -VerificationPath $verificationPath
+Assert-ReleaseZipInventory -ArchivePath $zipPath -ExpectedRootNames @(Get-ReleasePackageFileNames)
+$version = (Get-Content -LiteralPath (Join-Path $repoRoot "VERSION") -Raw).Trim()
+$commit = (& git -C $repoRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw "could not determine handoff source commit" }
+Assert-ReleaseZipBuildIdentity -ArchivePath $zipPath -ExpectedVersion $version -ExpectedCommit $commit `
+  -BuildStatePath (Join-Path $repoRoot "dev-local/build-state.json") `
+  -VerificationPath $verificationPath -ReadmePath (Join-Path $repoRoot "release-assets/README.txt")
 
 if (-not $SkipLeakCheck) {
   & (Join-Path $repoRoot "tools/checks/repo-hygiene.ps1") -IncludeLocalRelease
@@ -79,5 +60,4 @@ if (-not $SkipLeakCheck) {
 
 New-Item -ItemType Directory -Force -Path $normalizedDestination | Out-Null
 Copy-Item -LiteralPath $zipPath -Destination (Join-Path $normalizedDestination $zipName) -Force
-Copy-Item -LiteralPath $checksumPath -Destination (Join-Path $normalizedDestination $checksumName) -Force
-Write-Host "[publish-handoff] copied $zipName and $checksumName to $normalizedDestination"
+Write-Host "[publish-handoff] copied $zipName to $normalizedDestination"

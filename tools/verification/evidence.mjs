@@ -27,7 +27,7 @@ export function sourceIdentity(root = process.cwd()) {
 export function desktopSourceSha256(root = process.cwd(), selectedFiles = null) {
   const files = selectedFiles ?? execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\0').filter(Boolean)
   return hashSourceFiles(root, files.filter(file => !/^(?:tools\/(?:e2e|verification)\/|\.github\/)/.test(file)
-    && !/\.(?:md|test\.[cm]?[jt]sx?|spec\.[cm]?[jt]sx?)$/.test(file)))
+    && (file === 'THIRD_PARTY_NOTICES.md' || !/\.(?:md|test\.[cm]?[jt]sx?|spec\.[cm]?[jt]sx?)$/.test(file))))
 }
 export function reusableEvidence(record, identity, phase, artifactSha256 = null, execution = null) {
   return record?.schemaVersion === 1 && record.status === 'passed' && record.phase === phase

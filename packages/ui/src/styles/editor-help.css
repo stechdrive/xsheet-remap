@@ -116,6 +116,22 @@
   line-height: 1.6;
 }
 
+.licenseEntry {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid #d4d8d0;
+  border-radius: 6px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+.licenseEntry summary { cursor: pointer; }
+.licenseEntry summary span { color: #58635d; font-size: 12px; }
+.licenseEntry a { color: #214854; }
+.licenseSearch { display: grid; gap: 6px; margin-top: 16px; }
+.licenseSearch input { box-sizing: border-box; width: 100%; padding: 8px; }
+.licenseCount { color: #58635d; font-size: 12px; }
+
 .editorHelpManual {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);

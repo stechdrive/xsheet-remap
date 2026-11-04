@@ -1,7 +1,16 @@
 # Third-Party Notices
 
 This project is licensed under the MIT License. It also uses third-party
-packages and assets under their own licenses.
+packages and assets under their own licenses. Both applications provide the
+project license, dependency versions, full license texts and source locations
+under Help → Licenses and acknowledgements (「ライセンス・謝辞」).
+The dependency notices are embedded in the applications; separate license files
+are not required alongside the two executables.
+
+The complete, versioned catalog is [licenses/catalog.json](licenses/catalog.json).
+It includes the JavaScript dependencies, Windows Rust dependencies (including
+their build-time dependencies), font and audio assets. Identical license texts
+are shared without removing component-specific copyright notices.
 
 ## Direct Runtime Dependencies
 
@@ -20,6 +29,7 @@ packages and assets under their own licenses.
 | pako 2.1.0 | MIT AND Zlib | Compression used by ag-psd; licenses reproduced below |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files and extracted vertical glyph outlines (copyright LY Corporation) |
 | sql.js 1.15.1 / SQLite | MIT / Public domain | Direct CLIP database editing |
+| celcodec 0.8.0 | MIT | CLIP parsing, material restoration and document editing |
 
 ## Transitive Dependencies
 
@@ -27,9 +37,10 @@ The npm and Cargo dependency graphs include permissive licenses such as MIT,
 Apache-2.0, BSD, ISC, Zlib, Unicode-3.0, and Unlicense. They also include a few
 notice-bearing dependencies such as MPL-2.0 packages and CC-BY-4.0 data.
 
-Before publishing a binary release, regenerate or review the dependency
-license list from the lockfiles and include the required third-party license
-texts with the release package.
+The in-app catalog contains the license texts associated with the locked
+dependencies. Source links are included for packages distributed under MPL-2.0
+and the LAME encoder. The application source is available from
+https://github.com/stechdrive/xsheet-remap.
 
 Relevant lockfiles and manifests:
 
@@ -87,7 +98,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## sql.js
 
-Version: 1.14.2. Source: https://github.com/sql-js/sql.js/tree/v1.14.2
+Version: 1.15.1. Source: https://github.com/sql-js/sql.js/tree/v1.15.1
 The complete license from the distributed package follows, including its
 Makefile attribution and SQLite public-domain notice.
 
@@ -329,11 +340,13 @@ freely, subject to the following restrictions:
 
 ## csp-paperback material preview engine
 
-The material/raster/vector decoder, single-material renderer and vector tests under
-`packages/adapters/src/clip/material/` were adapted from
+The earlier material/raster/vector decoder, single-material renderer and vector
+tests were adapted from
 https://github.com/stechdrive/csp-paperback at commit
 `2809271ba06b6ed03322abbc45f8a4e7a81c44ff`, with material diagnostics and layer
-effects updated from `a4547482bcad1a65ca1515072bb7a14269c502f2`. Native effect and vector goldens are controlled
+effects updated from `a4547482bcad1a65ca1515072bb7a14269c502f2`. These implementations
+are now provided through celcodec; their original attribution is retained.
+Native effect and vector goldens are controlled
 synthetic stroke captures, not production artwork. Format research credits
 (clip-tools, clipfile-rs and clipparse) are retained in the sources and notices.
 
@@ -361,10 +374,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## celcodec 0.7.0 (and the fixed 0.2.0 test oracle)
+## celcodec 0.8.0
 
 Native CLIP containers, materials, BINC, timelines, audio and document writing
-are provided by the local celcodec package. It consolidates MIT code from
+are provided by celcodec. It consolidates MIT code from
 csp-paperback (9256c0326dcbb628ed8c601bf17253c3ca2300dd) and xsheet-remap
 (6fb67280fdebb2ecd93e0fd0e369b47b4f29a6e8). Format-research notices above are
 retained. See docs/celcodec.md and celcodec's THIRD_PARTY_NOTICES.md.

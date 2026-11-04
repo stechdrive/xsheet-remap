@@ -1,6 +1,10 @@
 ﻿$ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Get-ReleasePackageFileNames {
+  return @("README.txt", "xsheet-corrector.exe", "xsheet-remap.exe")
+}
+
 function Get-NormalizedExpectedReleaseRoots {
   param([string[]]$ExpectedRootNames)
 
@@ -85,24 +89,43 @@ function Get-ReleaseFileSha256Hex {
 function Assert-ReleaseZipChecksum {
   param(
     [string]$ArchivePath,
-    [string]$ArchiveChecksumPath,
-    [string]$ExpectedArchiveName
+    [string]$VerificationPath
   )
 
-  if (-not (Test-Path -LiteralPath $ArchiveChecksumPath -PathType Leaf)) {
-    throw "release checksum file does not exist: $ArchiveChecksumPath"
+  $verification = Read-ReleasePackageVerification -Path $VerificationPath
+  if ([System.IO.Path]::GetFileName($ArchivePath) -cne $verification.archive.name) {
+    throw "release ZIP name differs from the package verification record"
   }
-  $checksumText = (Get-Content -LiteralPath $ArchiveChecksumPath -Raw -Encoding UTF8).Trim()
-  $escapedArchiveName = [regex]::Escape($ExpectedArchiveName)
-  if ($checksumText -notmatch "^([0-9A-Fa-f]{64})\s+\*?$escapedArchiveName$") {
-    throw "release checksum file has an invalid format: $ArchiveChecksumPath"
-  }
-
-  $expectedHash = $Matches[1].ToLowerInvariant()
+  $expectedHash = $verification.archive.sha256
   $actualHash = Get-ReleaseFileSha256Hex -Path $ArchivePath
   if ($actualHash -ne $expectedHash) {
     throw "release ZIP checksum mismatch: expected $expectedHash, got $actualHash"
   }
+}
+
+function Read-ReleasePackageVerification {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "release package verification record does not exist: $Path"
+  }
+  $record = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+  if ($record.schemaVersion -ne 1 -or $record.archive.name -cne "xsheet-remap.zip" -or
+      $record.archive.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+      $record.version -notmatch '^\d+\.\d+\.\d+$' -or $record.commit -cnotmatch '^[a-f0-9]{40}$' -or
+      [string]::IsNullOrWhiteSpace($record.buildSessionId)) {
+    throw "invalid release package verification record: $Path"
+  }
+  $expected = @(Get-ReleasePackageFileNames)
+  $names = @($record.files | ForEach-Object { $_.path })
+  Assert-ReleaseInventorySet -ActualRootNames $names -ExpectedRootNames $expected -Context "package verification record"
+  if ($names.Count -ne $expected.Count) { throw "duplicate package verification file record" }
+  foreach ($file in $record.files) {
+    if ($expected -cnotcontains $file.path -or $file.sha256 -cnotmatch '^[a-f0-9]{64}$') {
+      throw "invalid package verification file record"
+    }
+  }
+  return $record
 }
 
 function Assert-ReleaseZipInventory {
@@ -122,30 +145,27 @@ function Assert-ReleaseZipInventory {
     $invalidPaths = New-Object System.Collections.Generic.List[string]
 
     foreach ($entry in $archive.Entries) {
-      $entryName = ([string]$entry.FullName).Replace("\", "/")
+      $entryName = [string]$entry.FullName
       if ([string]::IsNullOrWhiteSpace($entryName)) {
         $invalidPaths.Add("(empty)")
         continue
       }
 
-      $segments = @($entryName -split '/' | Where-Object { $_ -ne "" })
-      $hasUnsafeSegment = @($segments | Where-Object { $_ -in @(".", "..") }).Count -gt 0
       if (
-        $entryName.StartsWith("/", [System.StringComparison]::Ordinal) -or
-        $entryName.Contains("//") -or
-        $segments.Count -eq 0 -or
-        $hasUnsafeSegment
+        $entryName -match '[\\/:]' -or $entryName -in @(".", "..") -or
+        $actualRootNames -contains $entryName -or
+        ($ExpectedRootNames -contains $entryName -and $ExpectedRootNames -cnotcontains $entryName)
       ) {
         $invalidPaths.Add($entryName)
         continue
       }
 
-      $actualRootNames.Add($segments[0])
+      $actualRootNames.Add($entryName)
     }
 
     if ($invalidPaths.Count -gt 0) {
       throw (
-        "release ZIP '$ArchivePath' contains unsafe paths: " +
+        "release ZIP '$ArchivePath' contains non-flat, duplicate or unsafe paths: " +
         (@($invalidPaths | Sort-Object -Unique) -join ", ")
       )
     }
@@ -164,35 +184,45 @@ function Assert-ReleaseZipBuildIdentity {
     [string]$ArchivePath,
     [string]$ExpectedVersion,
     [string]$ExpectedCommit,
-    [string]$BuildStatePath
+    [string]$BuildStatePath,
+    [string]$VerificationPath,
+    [string]$ReadmePath
   )
 
   $buildState = Get-Content -LiteralPath $BuildStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
   if ($buildState.mode -ne "coherent") { throw "release requires a coherent desktop build" }
+  $verification = Read-ReleasePackageVerification -Path $VerificationPath
+  if ($verification.version -ne $ExpectedVersion -or $verification.commit -ne $ExpectedCommit) {
+    throw "release ZIP does not match the current version and commit"
+  }
+  Assert-ReleaseZipChecksum -ArchivePath $ArchivePath -VerificationPath $VerificationPath
+  Assert-ReleaseZipInventory -ArchivePath $ArchivePath -ExpectedRootNames @(Get-ReleasePackageFileNames)
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
   try {
-    $manifestEntries = @($archive.Entries | Where-Object { $_.FullName -eq "RELEASE.json" })
-    if ($manifestEntries.Count -ne 1) { throw "release ZIP must contain exactly one RELEASE.json" }
-    $reader = [System.IO.StreamReader]::new($manifestEntries[0].Open())
-    try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-    if ($manifest.version -ne $ExpectedVersion -or $manifest.commit -ne $ExpectedCommit) {
-      throw "release ZIP does not match the current version and commit"
-    }
     foreach ($app in @("remap", "corrector")) {
       $record = $buildState.applications.$app
       $name = "xsheet-$app.exe"
       if ($record.version -ne $ExpectedVersion -or $record.commit -ne $ExpectedCommit -or
-          $record.workingTreeDirty -ne $false -or $record.executable -ne $name) {
+          $record.workingTreeDirty -ne $false -or $record.executable -cne $name -or
+          $record.buildSessionId -ne $verification.buildSessionId) {
         throw "release build record for $name does not match the current clean commit"
       }
-      $entries = @($archive.Entries | Where-Object { $_.FullName -eq $name })
-      if ($entries.Count -ne 1) { throw "release ZIP must contain exactly one $name" }
-      $stream = $entries[0].Open()
+    }
+    foreach ($file in $verification.files) {
+      $name = $file.path
+      $expectedHash = if ($name -eq "README.txt") {
+        Get-ReleaseFileSha256Hex -Path $ReadmePath
+      } else {
+        $app = $name.Replace("xsheet-", "").Replace(".exe", "")
+        $buildState.applications.$app.sha256
+      }
+      if ($file.sha256 -ne $expectedHash) { throw "release package $name differs from current build or guide" }
+      $stream = $archive.GetEntry($name).Open()
       $hasher = [System.Security.Cryptography.SHA256]::Create()
       try {
         $actual = ($hasher.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") }) -join ""
-        if ($actual -ne $record.sha256) { throw "release ZIP $name differs from the verified desktop build" }
+        if ($actual -ne $expectedHash) { throw "release ZIP $name differs from the verified desktop build or guide" }
       } finally { $stream.Dispose(); $hasher.Dispose() }
     }
   } finally { $archive.Dispose() }

@@ -1,160 +1,153 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { Zip, ZipPassThrough, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(currentDirectory, '../..')
 const inventoryScript = path.join(currentDirectory, 'release-inventory-check.ps1')
-const windowsPowerShell = path.join(
-  process.env.SystemRoot ?? 'C:\\Windows',
-  'System32',
-  'WindowsPowerShell',
-  'v1.0',
-  'powershell.exe',
-)
-
-function runInventory(options: { releaseRoot?: string; zipPath?: string; checksumPath?: string; expectedRoots: string[]; expectedVersion?: string; expectedCommit?: string; buildStatePath?: string }) {
-  const args = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    inventoryScript,
-    '-ExpectedRootsBase64',
-    Buffer.from(options.expectedRoots.join('\n'), 'utf8').toString('base64'),
-  ]
-  if (options.releaseRoot) args.push('-ReleaseRoot', options.releaseRoot)
-  if (options.zipPath) args.push('-ZipPath', options.zipPath)
-  if (options.checksumPath) args.push('-ChecksumPath', options.checksumPath)
-  if (options.expectedVersion) args.push('-ExpectedVersion', options.expectedVersion)
-  if (options.expectedCommit) args.push('-ExpectedCommit', options.expectedCommit)
-  if (options.buildStatePath) args.push('-BuildStatePath', options.buildStatePath)
-  return spawnSync(windowsPowerShell, args, { encoding: 'utf8' })
+const windowsPowerShell = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+const fileNames = ['README.txt', 'xsheet-corrector.exe', 'xsheet-remap.exe']
+const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex')
+function runScript(script: string, args: string[] = []) {
+  return spawnSync(windowsPowerShell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, ...args], { encoding: 'utf8' })
+}
+function runInventory(options: { releaseRoot?: string; zipPath?: string; verificationPath?: string; expectedVersion?: string; expectedCommit?: string; buildStatePath?: string; readmePath?: string }) {
+  return runScript(inventoryScript, Object.entries(options).flatMap(([key, value]) => [`-${key}`, value]))
+}
+function output(result: ReturnType<typeof runScript>) { return `${result.stdout}\n${result.stderr}` }
+function createZip(root: string, zipPath: string, names = fileNames) {
+  const chunks: Uint8Array[] = []
+  const archive = new Zip((error, bytes) => { if (error) throw error; chunks.push(bytes) })
+  for (const name of names) {
+    const entry = new ZipPassThrough(name)
+    archive.add(entry)
+    entry.push(readFileSync(path.join(root, path.basename(name))), true)
+  }
+  archive.end()
+  writeFileSync(zipPath, Buffer.concat(chunks))
+}
+function fixture(directory: string, commit = 'a'.repeat(40)) {
+  const version = '0.1.1', buildSessionId = 'same-build-session'
+  for (const name of fileNames) writeFileSync(path.join(directory, name), name)
+  const applications = Object.fromEntries(['remap', 'corrector'].map(app => {
+    const executable = `xsheet-${app}.exe`
+    return [app, { executable, version, commit, buildSessionId, workingTreeDirty: false, sha256: sha256(executable) }]
+  }))
+  const buildStatePath = path.join(directory, 'build-state.json')
+  writeFileSync(buildStatePath, JSON.stringify({ mode: 'coherent', applications }))
+  const zipPath = path.join(directory, 'xsheet-remap.zip')
+  const verificationPath = path.join(directory, 'package-verification.json')
+  function saveVerification() {
+    writeFileSync(verificationPath, JSON.stringify({ schemaVersion: 1, version, commit, buildSessionId,
+      archive: { name: 'xsheet-remap.zip', sha256: sha256(readFileSync(zipPath)) },
+      files: fileNames.map(name => ({ path: name, sha256: sha256(readFileSync(path.join(directory, name))) })),
+    }))
+  }
+  createZip(directory, zipPath); saveVerification()
+  return { options: { zipPath, verificationPath, expectedVersion: version, expectedCommit: commit, buildStatePath, readmePath: path.join(directory, 'README.txt') }, applications, saveVerification }
 }
 
-function createZip(stageRoot: string, zipPath: string, entryNames: string[]) {
-  const result = spawnSync('tar.exe', ['-a', '-cf', zipPath, '-C', stageRoot, ...entryNames], { encoding: 'utf8' })
-  expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
-}
-
-function compactPowerShellOutput(result: ReturnType<typeof runInventory>) {
-  return `${result.stdout}\n${result.stderr}`.replace(/\s+/g, '')
-}
-
-describe.skipIf(process.platform !== 'win32')('release inventory', () => {
-  it('accepts the two distributed EXEs and rejects a leftover Template EXE', () => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'xsheet-two-apps-'))
-    const zipPath = path.join(directory, 'release.zip')
-    const expectedRoots = ['xsheet-remap.exe', 'xsheet-corrector.exe']
+describe.skipIf(process.platform !== 'win32')('three-file release package', () => {
+  it('accepts exactly the two EXEs and README, and rejects removed files or a missing EXE', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'xsheet-inventory-'))
     try {
-      for (const name of [...expectedRoots, 'xsheet-template.exe']) writeFileSync(path.join(directory, name), name)
-      createZip(directory, zipPath, expectedRoots)
-      expect(runInventory({ zipPath, expectedRoots }).status).toBe(0)
-      createZip(directory, zipPath, [...expectedRoots, 'xsheet-template.exe'])
-      const stale = runInventory({ zipPath, expectedRoots })
-      expect(stale.status).not.toBe(0)
-      expect(compactPowerShellOutput(stale)).toContain('unexpected=[xsheet-template.exe]')
-    } finally { rmSync(directory, { recursive: true, force: true }) }
-  })
-
-  it('rejects a valid ZIP from another version, commit or desktop build before publication', () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-identity-'))
-    try {
-      const expectedVersion = '0.1.1', expectedCommit = 'a'.repeat(40)
-      const zipPath = path.join(testRoot, 'xsheet-remap.zip')
-      const buildStatePath = path.join(testRoot, 'build-state.json')
-      const applications = Object.fromEntries(['remap', 'corrector'].map(app => {
-        const executable = `xsheet-${app}.exe`
-        writeFileSync(path.join(testRoot, executable), executable)
-        return [app, { executable, version: expectedVersion, commit: expectedCommit, workingTreeDirty: false,
-          sha256: createHash('sha256').update(executable).digest('hex') }]
-      }))
-      writeFileSync(buildStatePath, JSON.stringify({ mode: 'coherent', applications }))
-      writeFileSync(path.join(testRoot, 'RELEASE.json'), JSON.stringify({ version: expectedVersion, commit: expectedCommit }))
-      const expectedRoots = ['RELEASE.json', ...Object.values(applications).map(app => app.executable)]
-      createZip(testRoot, zipPath, expectedRoots)
-      const options = { zipPath, expectedRoots, expectedVersion, expectedCommit, buildStatePath }
-      const valid = runInventory(options)
-      expect(valid.status, `${valid.stdout}\n${valid.stderr}`).toBe(0)
-      for (const alteration of [{ expectedVersion: '0.1.2' }, { expectedCommit: 'b'.repeat(40) }]) {
-        const stale = runInventory({ ...options, ...alteration })
-        expect(stale.status).not.toBe(0)
-        expect(compactPowerShellOutput(stale)).toContain('doesnotmatchthecurrentversionandcommit')
+      const { options } = fixture(root)
+      expect(runInventory({ zipPath: options.zipPath }).status).toBe(0)
+      for (const extra of ['xsheet-template.exe', 'RELEASE.json', 'CHECKSUMS.sha256', 'THIRD_PARTY_NOTICES.md', 'LICENSE.txt', 'package-verification.json', 'sample.xdts']) {
+        writeFileSync(path.join(root, extra), extra)
+        createZip(root, options.zipPath, [...fileNames, extra])
+        const result = runInventory({ zipPath: options.zipPath })
+        expect(result.status, extra).not.toBe(0)
+        expect(output(result).replace(/\s+/g, '')).toContain(`unexpected=[${extra}]`)
       }
-      writeFileSync(path.join(testRoot, 'xsheet-remap.exe'), 'another build of the same source')
-      createZip(testRoot, zipPath, expectedRoots)
-      const swapped = runInventory(options)
-      expect(swapped.status).not.toBe(0)
-      expect(compactPowerShellOutput(swapped)).toContain('differsfromtheverifieddesktopbuild')
-    } finally { rmSync(testRoot, { recursive: true, force: true }) }
-  }, 20_000)
-
-  it('rejects an unexpected file left in the release root', () => {
-    const releaseRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-root-'))
-    try {
-      const expectedRoots = ['README.txt', 'xsheet-editor.exe']
-      for (const fileName of expectedRoots) writeFileSync(path.join(releaseRoot, fileName), fileName)
-
-      const cleanResult = runInventory({ releaseRoot, expectedRoots })
-      expect(cleanResult.status, `${cleanResult.stdout}\n${cleanResult.stderr}`).toBe(0)
-
-      writeFileSync(path.join(releaseRoot, 'xdts-multi-timetable-csp-test.xdts'), 'test fixture')
-      const contaminatedResult = runInventory({ releaseRoot, expectedRoots })
-      expect(contaminatedResult.status).not.toBe(0)
-      expect(compactPowerShellOutput(contaminatedResult)).toContain(
-        'unexpected=[xdts-multi-timetable-csp-test.xdts]',
-      )
-    } finally {
-      rmSync(releaseRoot, { recursive: true, force: true })
-    }
+      createZip(root, options.zipPath, ['README.txt', 'xsheet-remap.exe'])
+      expect(runInventory({ zipPath: options.zipPath }).status).not.toBe(0)
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
 
-  it('accepts an exact flat ZIP and rejects an unexpected file at its root', () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-zip-'))
-    const zipPath = path.join(testRoot, 'xsheet-remap.zip')
-    const checksumPath = path.join(testRoot, 'xsheet-remap.zip.sha256')
-    const contaminatedZipPath = path.join(testRoot, 'xsheet-remap-contaminated.zip')
-    const expectedRoots = ['README.txt', 'xsheet-editor.exe']
+  it('rejects nested paths, duplicate entries and filename case collisions', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'xsheet-paths-'))
     try {
-      for (const fileName of expectedRoots) writeFileSync(path.join(testRoot, fileName), fileName)
-      createZip(testRoot, zipPath, expectedRoots)
-      const zipHash = createHash('sha256').update(readFileSync(zipPath)).digest('hex')
-      writeFileSync(checksumPath, `${zipHash}  xsheet-remap.zip\n`)
-
-      const cleanResult = runInventory({ zipPath, checksumPath, expectedRoots })
-      expect(cleanResult.status, `${cleanResult.stdout}\n${cleanResult.stderr}`).toBe(0)
-
-      writeFileSync(path.join(testRoot, 'rogue-test.xdts'), 'test fixture')
-      createZip(testRoot, contaminatedZipPath, [...expectedRoots, 'rogue-test.xdts'])
-      const contaminatedResult = runInventory({ zipPath: contaminatedZipPath, expectedRoots })
-      expect(contaminatedResult.status).not.toBe(0)
-      expect(compactPowerShellOutput(contaminatedResult)).toContain(
-        'unexpected=[rogue-test.xdts]',
-      )
-    } finally {
-      rmSync(testRoot, { recursive: true, force: true })
-    }
+      const { options } = fixture(root)
+      writeFileSync(path.join(root, 'readme.txt'), 'case collision')
+      for (const names of [fileNames.map(name => `xsheet-remap/${name}`), [...fileNames, 'README.txt'], [...fileNames, 'readme.txt'], [...fileNames, 'README.txt/README.txt'], [...fileNames, '../README.txt']]) {
+        createZip(root, options.zipPath, names)
+        const result = runInventory({ zipPath: options.zipPath })
+        expect(result.status, names.join(',')).not.toBe(0)
+        expect(output(result)).toContain('unsafe paths')
+      }
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
 
-  it('rejects the former xsheet-remap wrapper folder layout', () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'xsheet-release-wrapper-'))
-    const packageName = 'xsheet-remap'
-    const packageRoot = path.join(testRoot, packageName)
-    const zipPath = path.join(testRoot, 'xsheet-remap.zip')
-    const expectedRoots = ['README.txt', 'xsheet-editor.exe']
+  it('validates the archive, both build identities and the current guide using metadata outside the ZIP', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'xsheet-identity-'))
     try {
-      mkdirSync(packageRoot)
-      for (const fileName of expectedRoots) writeFileSync(path.join(packageRoot, fileName), fileName)
-      createZip(testRoot, zipPath, [packageName])
+      const { options, applications, saveVerification } = fixture(root)
+      const valid = runInventory(options)
+      expect(valid.status, output(valid)).toBe(0)
+      for (const alteration of [{ expectedVersion: '0.1.2' }, { expectedCommit: 'b'.repeat(40) }]) {
+        expect(runInventory({ ...options, ...alteration }).status).not.toBe(0)
+      }
+      for (const alteration of [{ buildSessionId: 'another-session' }, { workingTreeDirty: true }, { sha256: '0'.repeat(64) }]) {
+        writeFileSync(options.buildStatePath, JSON.stringify({ mode: 'coherent', applications: { ...applications, corrector: { ...applications.corrector, ...alteration } } }))
+        expect(runInventory(options).status).not.toBe(0)
+      }
+      writeFileSync(options.buildStatePath, JSON.stringify({ mode: 'coherent', applications }))
+      writeFileSync(options.readmePath, 'current guide differs from old package')
+      expect(runInventory(options).status).not.toBe(0)
+      writeFileSync(options.readmePath, 'README.txt')
+      writeFileSync(path.join(root, 'xsheet-corrector.exe'), 'swapped executable')
+      createZip(root, options.zipPath)
+      expect(output(runInventory(options))).toContain('checksum mismatch')
+      saveVerification()
+      expect(output(runInventory(options))).toContain('differs from current build')
+      rmSync(options.verificationPath)
+      expect(runInventory(options).status).not.toBe(0)
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 30_000)
 
-      const result = runInventory({ zipPath, expectedRoots })
-      expect(result.status).not.toBe(0)
-      expect(compactPowerShellOutput(result)).toContain('unexpected=[xsheet-remap]')
-    } finally {
-      rmSync(testRoot, { recursive: true, force: true })
-    }
+  it('rejects unexpected files in the unpacked payload', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'xsheet-payload-'))
+    try {
+      for (const name of fileNames) writeFileSync(path.join(root, name), name)
+      expect(runInventory({ releaseRoot: root }).status).toBe(0)
+      writeFileSync(path.join(root, 'production.xdts'), 'private fixture')
+      expect(runInventory({ releaseRoot: root }).status).not.toBe(0)
+    } finally { rmSync(root, { recursive: true, force: true }) }
   })
+
+  it('packages through the real script, keeps verification outside, removes retired outputs and fails on unknown leftovers', () => {
+    // A temporary source tree inside this checkout inherits its read-only Git identity.
+    // Synthetic bytes exercise packaging; they are never launched or published as EXEs.
+    const scratch = path.join(repoRoot, '.tmp/release-tests'); mkdirSync(scratch, { recursive: true })
+    const root = mkdtempSync(path.join(scratch, 'package-'))
+    try {
+      for (const dir of ['tools/release', 'release-assets', 'dev-local', '.cache/cargo-target/release', 'release-local']) mkdirSync(path.join(root, dir), { recursive: true })
+      for (const name of ['local-package.ps1', 'release-inventory.ps1']) copyFileSync(path.join(currentDirectory, name), path.join(root, 'tools/release', name))
+      const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).stdout.trim()
+      const { applications } = fixture(root, commit)
+      writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '0.1.1' }))
+      writeFileSync(path.join(root, 'dev-local/build-state.json'), JSON.stringify({ mode: 'coherent', applications }))
+      copyFileSync(path.join(root, 'README.txt'), path.join(root, 'release-assets/README.txt'))
+      for (const app of Object.values(applications)) copyFileSync(path.join(root, app.executable), path.join(root, '.cache/cargo-target/release', app.executable))
+      for (const retired of ['RELEASE.json', 'CHECKSUMS.sha256', 'THIRD_PARTY_NOTICES.md', 'xsheet-remap.zip.sha256', 'xsheet-template.exe']) writeFileSync(path.join(root, 'release-local', retired), retired)
+      const script = path.join(root, 'tools/release/local-package.ps1')
+      const packaged = runScript(script, ['-SkipLeakCheck'])
+      expect(packaged.status, output(packaged)).toBe(0)
+      const zipPath = path.join(root, 'release-local/xsheet-remap.zip')
+      expect(Object.keys(unzipSync(readFileSync(zipPath))).sort()).toEqual(fileNames)
+      expect(existsSync(path.join(root, 'release-local/xsheet-remap.zip.sha256'))).toBe(false)
+      const verified = runInventory({ zipPath, verificationPath: path.join(root, 'release-local/package-verification.json'), expectedVersion: '0.1.1', expectedCommit: commit,
+        buildStatePath: path.join(root, 'dev-local/build-state.json'), readmePath: path.join(root, 'release-assets/README.txt') })
+      expect(verified.status, output(verified)).toBe(0)
+      writeFileSync(path.join(root, 'release-local/private.xdts'), 'must not be removed or packaged')
+      expect(runScript(script, ['-SkipLeakCheck']).status).not.toBe(0)
+      expect(existsSync(path.join(root, 'release-local/private.xdts'))).toBe(true)
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  }, 30_000)
 })

@@ -20,6 +20,7 @@ const expectedScripts = {
   'check:rust-audit': 'node tools/checks/rust-audit.mjs',
   'setup:rust-audit': 'node tools/checks/install-rust-audit.mjs',
   'check:embedded-dependencies': 'node tools/checks/embedded-dependency-policy.mjs',
+  'check:licenses': 'node tools/checks/license-notices.mjs',
 }
 for (const [name, command] of Object.entries(expectedScripts)) {
   if (scripts[name] !== command) throw new Error(`build contract mismatch for ${name}: expected "${command}"`)

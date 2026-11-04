@@ -2,7 +2,7 @@
   [string]$TagName = "latest",
   [string]$ReleaseTitle = "xsheet-remap",
   [string]$ZipPath = "",
-  [string]$ChecksumPath = "",
+  [string]$VerificationPath = "",
   [switch]$SkipBuildArtifactCheck,
   [switch]$SkipMainPush,
   [switch]$KeepUnexpectedAssets,
@@ -15,20 +15,13 @@ Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $versionPath = Join-Path $repoRoot "VERSION"
 $defaultZipPath = Join-Path $repoRoot "release-local\xsheet-remap.zip"
-$defaultChecksumPath = Join-Path $repoRoot "release-local\xsheet-remap.zip.sha256"
+$defaultVerificationPath = Join-Path $repoRoot "release-local\package-verification.json"
 $releaseZipPath = if ($ZipPath) { [System.IO.Path]::GetFullPath($ZipPath) } else { $defaultZipPath }
-$releaseChecksumPath = if ($ChecksumPath) { [System.IO.Path]::GetFullPath($ChecksumPath) } else { $defaultChecksumPath }
-$expectedAssetNames = @("xsheet-remap.zip", "xsheet-remap.zip.sha256")
-$expectedPackageRootNames = @(
-  "CHECKSUMS.sha256",
-  "README.txt",
-  "RELEASE.json",
-  "THIRD_PARTY_NOTICES.md",
-  "xsheet-corrector.exe",
-  "xsheet-remap.exe"
-)
+$releaseVerificationPath = if ($VerificationPath) { [System.IO.Path]::GetFullPath($VerificationPath) } else { $defaultVerificationPath }
+$expectedAssetNames = @("xsheet-remap.zip")
 
 . (Join-Path $PSScriptRoot "release-inventory.ps1")
+$expectedPackageRootNames = @(Get-ReleasePackageFileNames)
 
 function Invoke-ExternalCommand {
   param(
@@ -133,6 +126,8 @@ try {
 
   Assert-CleanWorktree
   Assert-OnMainBranch
+  & npm.cmd run check:licenses
+  if ($LASTEXITCODE -ne 0) { throw "In-app license notices do not match the release dependencies." }
   # Publication requires all 11 WebView2 and two Explorer observations of these EXEs,
   # including when this publisher is invoked directly after manual acceptance.
   & npm.cmd run verify:desktop
@@ -141,11 +136,10 @@ try {
 
   if (-not $SkipBuildArtifactCheck) {
     Assert-AssetPath -Path $releaseZipPath -ExpectedName "xsheet-remap.zip"
-    Assert-AssetPath -Path $releaseChecksumPath -ExpectedName "xsheet-remap.zip.sha256"
+    Assert-AssetPath -Path $releaseVerificationPath -ExpectedName "package-verification.json"
     Assert-ReleaseZipChecksum `
       -ArchivePath $releaseZipPath `
-      -ArchiveChecksumPath $releaseChecksumPath `
-      -ExpectedArchiveName "xsheet-remap.zip"
+      -VerificationPath $releaseVerificationPath
     Assert-ReleaseZipInventory `
       -ArchivePath $releaseZipPath `
       -ExpectedRootNames $expectedPackageRootNames
@@ -153,7 +147,9 @@ try {
       -ArchivePath $releaseZipPath `
       -ExpectedVersion $version `
       -ExpectedCommit $head `
-      -BuildStatePath (Join-Path $repoRoot "dev-local/build-state.json")
+      -BuildStatePath (Join-Path $repoRoot "dev-local/build-state.json") `
+      -VerificationPath $releaseVerificationPath `
+      -ReadmePath (Join-Path $repoRoot "release-assets/README.txt")
   }
 
   if ($DryRun) {
@@ -162,7 +158,7 @@ try {
     Write-Host "[github-release] dry-run: release notes: $version"
     Write-Host "[github-release] dry-run: release commit: $head"
     Write-Host "[github-release] dry-run: asset: $releaseZipPath"
-    Write-Host "[github-release] dry-run: asset: $releaseChecksumPath"
+    Write-Host "[github-release] dry-run: local verification: $releaseVerificationPath"
     return
   }
 
@@ -182,7 +178,6 @@ try {
       -ArgumentList @(
         "release", "create", $TagName,
         $releaseZipPath,
-        $releaseChecksumPath,
         "--title", $ReleaseTitle,
         "--notes", $version,
         "--latest",
@@ -208,7 +203,6 @@ try {
       -ArgumentList @(
         "release", "upload", $TagName,
         $releaseZipPath,
-        $releaseChecksumPath,
         "--clobber"
       )
     $release = Get-ReleaseJson -Tag $TagName

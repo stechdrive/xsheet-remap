@@ -1,5 +1,4 @@
 ﻿param(
-  [switch]$SkipDesktop,
   [switch]$SkipLeakCheck,
   [string]$OutputDir = ""
 )
@@ -47,21 +46,6 @@ function Assert-PathInsideRepository {
   }
 }
 
-function Remove-DirectorySafely {
-  param([string]$Path)
-
-  if (-not (Test-Path -LiteralPath $Path)) {
-    return
-  }
-
-  $fullPath = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path)
-  if (-not (Test-IsInsideOrEqualPath -Path $fullPath -Directory $releaseRoot)) {
-    throw "refusing to remove directory outside local release root: $fullPath"
-  }
-
-  Remove-Item -LiteralPath $fullPath -Recurse -Force
-}
-
 function Remove-ReleasePathSafely {
   param([string]$Path)
 
@@ -93,11 +77,6 @@ function Remove-RepositoryTempPathSafely {
   Remove-Item -LiteralPath $fullPath -Recurse -Force
 }
 
-function Get-RepoRelativePath {
-  param([string]$Path)
-  return Get-RelativePath -BasePath $repoRoot -Path $Path
-}
-
 function Get-ReleaseRelativePath {
   param([string]$Path)
   return Get-RelativePath -BasePath $releaseRoot -Path $Path
@@ -123,8 +102,7 @@ function Copy-RequiredFile {
   param(
     [string]$SourceRelativePath,
     [string]$DestinationName,
-    [string]$ComponentName,
-    [System.Collections.Generic.List[object]]$Components
+    [string]$ComponentName
   )
 
   $sourcePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $SourceRelativePath))
@@ -134,33 +112,7 @@ function Copy-RequiredFile {
 
   $destinationPath = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot $DestinationName))
   Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
-  $Components.Add([pscustomobject]@{
-    name = $ComponentName
-    type = "file"
-    status = "copied"
-    path = Get-ReleaseRelativePath $destinationPath
-  })
   Write-Host "[local-package] copied $ComponentName to $(Get-ReleaseRelativePath $destinationPath)"
-}
-
-function Add-PreservedFile {
-  param(
-    [string]$DestinationName,
-    [string]$ComponentName,
-    [System.Collections.Generic.List[object]]$Components
-  )
-
-  $path = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot $DestinationName))
-  if (-not (Test-Path -LiteralPath $path)) {
-    return
-  }
-
-  $Components.Add([pscustomobject]@{
-    name = $ComponentName
-    type = "file"
-    status = "preserved"
-    path = Get-ReleaseRelativePath $path
-  })
 }
 
 function Get-Sha256Hex {
@@ -184,9 +136,8 @@ function New-LocalReleaseZip {
   )
 
   $zipPath = Join-Path $releaseRoot "$PackageName.zip"
-  $zipChecksumPath = Join-Path $releaseRoot "$PackageName.zip.sha256"
   Remove-ReleasePathSafely $zipPath
-  Remove-ReleasePathSafely $zipChecksumPath
+  Remove-ReleasePathSafely (Join-Path $releaseRoot "package-verification.json")
   Assert-ReleaseRootInventory `
     -RootPath $releaseRoot `
     -ExpectedRootNames $ExpectedRootNames
@@ -213,9 +164,6 @@ function New-LocalReleaseZip {
       -ArchivePath $zipPath `
       -ExpectedRootNames $ExpectedRootNames
 
-    $zipHash = Get-Sha256Hex $zipPath
-    ("{0}  {1}" -f $zipHash, "$PackageName.zip") |
-      Set-Content -LiteralPath $zipChecksumPath -Encoding UTF8
     Write-Host "[local-package] packaged $PackageName.zip with release files at the archive root"
   } finally {
     Remove-RepositoryTempPathSafely $stageRoot
@@ -225,7 +173,6 @@ function New-LocalReleaseZip {
 Assert-PathInsideRepository $releaseRoot
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 
-$components = New-Object System.Collections.Generic.List[object]
 $packageJson = Get-Content -LiteralPath (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
 $expectedReleaseVersion = [string]$packageJson.version
 $releaseGuideName = "README.txt"
@@ -235,13 +182,6 @@ if (-not (Test-Path -LiteralPath $releaseGuideSource)) {
   throw "missing release guide: $releaseGuideSource"
 }
 Copy-Item -LiteralPath $releaseGuideSource -Destination $releaseGuidePath -Force
-$thirdPartyNoticeName = "THIRD_PARTY_NOTICES.md"
-$thirdPartyNoticeSource = Join-Path $repoRoot $thirdPartyNoticeName
-$thirdPartyNoticePath = Join-Path $releaseRoot $thirdPartyNoticeName
-if (-not (Test-Path -LiteralPath $thirdPartyNoticeSource)) {
-  throw "missing third-party notices: $thirdPartyNoticeSource"
-}
-Copy-Item -LiteralPath $thirdPartyNoticeSource -Destination $thirdPartyNoticePath -Force
 
 $desktopComponents = @(
   [pscustomobject]@{
@@ -311,81 +251,50 @@ function Assert-CoherentDesktopBuildState {
   if (@($sessionIds | Sort-Object -Unique).Count -ne 1) {
     throw "desktop outputs were produced by different build sessions. Run npm run build:release:desktop before packaging."
   }
+  return $state
 }
 
-if (-not $SkipDesktop) {
-  Assert-CoherentDesktopBuildState `
-    -DesktopComponents $desktopComponents `
-    -ExpectedVersion $expectedReleaseVersion
+$buildState = Assert-CoherentDesktopBuildState -DesktopComponents $desktopComponents -ExpectedVersion $expectedReleaseVersion
+$commit = (& git -C $repoRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $commit -cnotmatch '^[a-f0-9]{40}$') { throw "could not determine package source commit" }
+foreach ($component in $desktopComponents) {
+  if ($buildState.applications.($component.Key).commit -ne $commit) { throw "desktop build does not match the current commit" }
 }
 
 Remove-ReleasePathSafely (Join-Path $releaseRoot "xsheet-template-editor.exe")
 
 foreach ($desktopComponent in $desktopComponents) {
-  if ($SkipDesktop) {
-    Add-PreservedFile `
-      -DestinationName $desktopComponent.Destination `
-      -ComponentName $desktopComponent.Name `
-      -Components $components
-  } else {
-    Copy-RequiredFile `
-      -SourceRelativePath $desktopComponent.Source `
-      -DestinationName $desktopComponent.Destination `
-      -ComponentName $desktopComponent.Name `
-      -Components $components
-  }
+  Copy-RequiredFile `
+    -SourceRelativePath $desktopComponent.Source `
+    -DestinationName $desktopComponent.Destination `
+    -ComponentName $desktopComponent.Name
 }
 
 # Remove only known retired product outputs inside the validated release root.
-foreach ($retired in @("xsheet-template.exe", "xsheet-editor.exe", "xsheet-importer.exe", "xsheet-csp-import-helper.exe", "xsheet-csp-import-helper.bat", "csp-import-helper", "csp-import-helper-cli", "assets", "_internal")) {
+foreach ($retired in @("xsheet-template.exe", "xsheet-editor.exe", "xsheet-importer.exe", "xsheet-csp-import-helper.exe", "xsheet-csp-import-helper.bat", "csp-import-helper", "csp-import-helper-cli", "assets", "_internal", "LICENSE", "LICENSE.txt", "THIRD_PARTY_NOTICES.md", "RELEASE.json", "CHECKSUMS.sha256", "xsheet-remap.zip.sha256")) {
   Remove-ReleasePathSafely (Join-Path $releaseRoot $retired)
 }
 
-$commit = ""
-try {
-  $commit = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
-} catch {
-  $commit = ""
-}
-
-$releaseManifest = [ordered]@{
-  schemaVersion = 1
-  name = "xsheet-remap local release"
-  version = $packageJson.version
-  commit = $commit
-  generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-  components = $components
-}
-$releaseManifestPath = Join-Path $releaseRoot "RELEASE.json"
-$releaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $releaseManifestPath -Encoding UTF8
-
-$checksumTargets = @(
-  "xsheet-remap.exe",
-  "xsheet-corrector.exe",
-  "README.txt",
-  "THIRD_PARTY_NOTICES.md",
-  "RELEASE.json"
-)
-$checksumLines = New-Object System.Collections.Generic.List[string]
-foreach ($relativePath in $checksumTargets) {
-  $targetPath = Join-Path $releaseRoot ($relativePath -replace "/", "\")
-  if (Test-Path -LiteralPath $targetPath) {
-    $checksumLines.Add(("{0}  {1}" -f (Get-Sha256Hex $targetPath), $relativePath))
-  }
-}
-$checksumLines | Set-Content -LiteralPath (Join-Path $releaseRoot "CHECKSUMS.sha256") -Encoding UTF8
-
-$expectedReleaseRootNames = New-Object System.Collections.Generic.List[string]
-@("README.txt", "THIRD_PARTY_NOTICES.md", "RELEASE.json", "CHECKSUMS.sha256") |
-  ForEach-Object { $expectedReleaseRootNames.Add($_) }
-foreach ($desktopComponent in $desktopComponents) {
-  if (Test-Path -LiteralPath (Join-Path $releaseRoot $desktopComponent.Destination) -PathType Leaf) {
-    $expectedReleaseRootNames.Add($desktopComponent.Destination)
-  }
-}
+$expectedReleaseRootNames = @(Get-ReleasePackageFileNames)
 New-LocalReleaseZip `
   -PackageName $releasePackageName `
   -ExpectedRootNames @($expectedReleaseRootNames)
+
+# Local verification metadata is deliberately outside the three-file ZIP.
+$verification = [ordered]@{
+  schemaVersion = 1
+  version = $expectedReleaseVersion
+  commit = $commit
+  buildSessionId = $buildState.applications.remap.buildSessionId
+  generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+  archive = [ordered]@{ name = "$releasePackageName.zip"; sha256 = Get-Sha256Hex (Join-Path $releaseRoot "$releasePackageName.zip") }
+  files = @($expectedReleaseRootNames | ForEach-Object {
+    [ordered]@{ path = $_; sha256 = Get-Sha256Hex (Join-Path $releaseRoot $_) }
+  })
+}
+$verificationPath = Join-Path $releaseRoot "package-verification.json"
+$verification | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $verificationPath -Encoding UTF8
+Assert-ReleaseZipChecksum -ArchivePath (Join-Path $releaseRoot "$releasePackageName.zip") -VerificationPath $verificationPath
 
 if (-not $SkipLeakCheck) {
   & (Join-Path $repoRoot "tools/checks/repo-hygiene.ps1") -IncludeLocalRelease

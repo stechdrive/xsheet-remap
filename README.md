@@ -138,7 +138,7 @@ CLIPの読み込み・保存・再出力はブラウザ版でも利用できま�
 
 [GitHub Releasesのlatest](https://github.com/stechdrive/xsheet-remap/releases/tag/latest)から`xsheet-remap.zip`をダウンロードし、ZIP全体を展開します。インストールは不要です。
 
-Editorの編集機能とTemplateのテンプレート作成機能は`xsheet-remap.exe`へ統合されました。以前の`.xsr`とテンプレートJSONをそのまま利用できます。Correctorの「テンプレートを作成・編集」も、同じフォルダーのRemapを開きます。
+ZIPには`xsheet-remap.exe`、`xsheet-corrector.exe`、SmartScreenの案内`README.txt`を同梱しています。タイムシートの編集とテンプレート作成はRemap、紙タイムシートの補正はCorrectorで行います。Correctorの「テンプレートを作成・編集」は、同じフォルダーのRemapを開きます。
 
 テンプレート専用のショートカットを作る場合は、Remapのリンク先の末尾に` --template`を付けると、シートを開かずにテンプレート作成の開始画面を直接開けます。
 
@@ -166,4 +166,4 @@ Editorの編集機能とTemplateのテンプレート作成機能は`xsheet-rema
 
 ## ライセンス
 
-このリポジトリの自作コードと自作ドキュメントはMIT Licenseです。第三者依存パッケージ、フォント、同梱ランタイムはそれぞれのライセンスに従います。概要は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
+このリポジトリの自作コードと自作ドキュメントはMIT Licenseです。第三者依存パッケージ、フォント、同梱ランタイムはそれぞれのライセンスに従います。両アプリの「ヘルプ」→「ライセンス・謝辞」で、ライブラリ名を検索し、著作権表示・ライセンス全文・出典を確認できます。概要は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。

@@ -1,0 +1,50 @@
+{
+  "packages": {
+    "npm:onnxruntime-web@1.30.0": ["onnxruntime-license.txt", "onnxruntime-third-party.txt"],
+    "npm:onnxruntime-common@1.30.0": ["onnxruntime-license.txt"],
+    "npm:guid-typescript@1.0.9": ["guid-typescript-isc.txt"],
+    "npm:@fontsource/line-seed-jp@5.3.2": ["line-seed-jp-ofl.txt"],
+    "cargo:alloc-stdlib@0.3.0": ["alloc-stdlib-license.txt"],
+    "cargo:selectors@0.38.0": ["mpl-2.0.txt"],
+    "cargo:tauri-plugin@2.7.2": ["tauri-plugin-license.txt"],
+    "cargo:webview2-com@0.39.1": ["webview2-license.txt"],
+    "cargo:webview2-com-sys@0.39.1": ["webview2-license.txt"],
+    "cargo:webview2-com-macros@0.8.1": ["webview2-macros-license.txt"]
+  },
+  "sources": {
+    "onnxruntime-license.txt": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
+    "onnxruntime-third-party.txt": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/ThirdPartyNotices.txt",
+    "guid-typescript-isc.txt": "https://github.com/NicolasDeveloper/guid-typescript/blob/master/package.json",
+    "line-seed-jp-ofl.txt": "https://raw.githubusercontent.com/google/fonts/6b65ef9a3991c80dbffedd0e9419fce0a9bee67a/ofl/lineseedjp/OFL.txt",
+    "silero-vad-license.txt": "https://raw.githubusercontent.com/snakers4/silero-vad/066409f3d9db45a30d21dfcbf9147826ffdd7052/LICENSE",
+    "lame-copying.txt": "https://raw.githubusercontent.com/lameproject/lame/1f5cc9487284d5950343aa5d4f70de433468070a/COPYING",
+    "alloc-stdlib-license.txt": "https://raw.githubusercontent.com/dropbox/rust-alloc-no-stdlib/0a81fd6928ea3b33c8cd484aa4575d50ffb98012/LICENSE",
+    "mpl-2.0.txt": "https://www.mozilla.org/en-US/MPL/2.0/",
+    "tauri-plugin-license.txt": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE-MIT",
+    "webview2-license.txt": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE",
+    "webview2-macros-license.txt": "https://raw.githubusercontent.com/wravery/webview2-rs/dffa41a8a46d3f5565eefbff2de57d38d399f158/LICENSE"
+  },
+  "assets": [
+    {
+      "name": "Silero VAD model",
+      "version": "6.2.0 / 16k OP15",
+      "license": "MIT",
+      "source": "https://github.com/snakers4/silero-vad",
+      "files": ["silero-vad-license.txt"],
+      "bundledPath": "apps/web/public/vad/models/silero_vad.onnx"
+    },
+    {
+      "name": "LAME MP3 encoder",
+      "version": "3.100",
+      "license": "LGPL-2.0-or-later",
+      "source": "https://sourceforge.net/projects/lame/files/lame/3.100/",
+      "files": ["lame-copying.txt"],
+      "information": "MP3出力にLAMEを使用しています。LAME本体は上記の配布元から、WebAssemblyへのビルド手順・接続コードはMediabunnyのソースから入手できます。アプリ側でLAME本体の変更は行っていません。ライブラリの変更・再ビルド・差し替えのためのソースは以下を参照してください。",
+      "links": [
+        "https://lame.sourceforge.io/",
+        "https://github.com/Vanilagy/mediabunny/tree/v1.62.0/packages/mp3-encoder",
+        "https://github.com/stechdrive/xsheet-remap"
+      ]
+    }
+  ]
+}

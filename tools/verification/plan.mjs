@@ -3,7 +3,7 @@
 export const browserProjects = ['chromium', 'webkit', 'chromium-touch', 'webkit-touch']
 export const ciBrowserTestFiles = ['startup.spec.ts', 'pwa.spec.ts']
 export const checks = {
-  check: ['check:ae-template', 'lint', 'typecheck', 'test', 'check:architecture', 'check:build-contract', 'check:pages-contract', 'check:embedded-dependencies', 'check:repo-hygiene'],
+  check: ['check:ae-template', 'lint', 'typecheck', 'test', 'check:architecture', 'check:build-contract', 'check:pages-contract', 'check:embedded-dependencies', 'check:licenses', 'check:repo-hygiene'],
   native: ['check:after-effects-native', 'check:corrector-native'],
   importer: ['test:clip'],
   pages: ['build:pages', 'check:pages-artifact'],
@@ -60,6 +60,12 @@ export function selectChecks(files, { release = false, packageChanges = {} } = {
   }
   if (release) reasons.push({ file: null, category: 'release', phases: Object.keys(selected) })
   for (const file of normalized) {
+    if (file === 'THIRD_PARTY_NOTICES.md' || file === 'LICENSE' || file.startsWith('licenses/')) {
+      require(file, 'in-app-licenses', ['check', 'pages'], [], ['licenses.spec.ts']); continue
+    }
+    if (file.startsWith('tools/release/') || file.startsWith('release-assets/')) {
+      require(file, 'release-packaging', ['check']); continue
+    }
     if (/\.(?:md|txt)$/.test(file) || /^(?:LICENSE|AGENTS\.md)$/.test(file)) {
       reasons.push({ file, category: 'documentation', phases: ['hygiene'] }); continue
     }
@@ -84,7 +90,8 @@ export function selectChecks(files, { release = false, packageChanges = {} } = {
     if (/^packages\/ui\/src\//.test(file)) {
       const inputBoundary = /(?:native|internalDrag|PointerDrag|app-foundation|app-shell-controller|ClipLayerPanel|clipLayerDrop|app-sheet-canvas-controller)/i.test(file)
       const nativeBoundary = inputBoundary || /(?:clipImageImport|sheetImages|persistence|ProjectFile|projectFile|TemplateEditorApp|sheet-corrector-app)/i.test(file)
-      const specs = /(?:clip|nativeFile|internalDrag)/i.test(file) ? ['clip-drag-feedback.spec.ts', 'clip-process.spec.ts']
+      const specs = /(?:LicenseNotices|license-data)/.test(file) ? ['licenses.spec.ts']
+        : /(?:clip|nativeFile|internalDrag)/i.test(file) ? ['clip-drag-feedback.spec.ts', 'clip-process.spec.ts']
         : /(?:template)/i.test(file) ? ['template-authoring.spec.ts']
           : /(?:timing|PointerDrag|app-sheet-canvas-controller)/i.test(file) ? ['timing-drag.spec.ts'] : []
       require(file, inputBoundary ? 'input-boundary' : nativeBoundary ? 'desktop-ui' : 'ui',

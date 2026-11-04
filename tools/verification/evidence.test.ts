@@ -2,10 +2,22 @@ import path from 'node:path'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { describe, expect, it } from 'vitest'
-import { hashSourceFiles, reusableEvidence, sha256, verifyExecutable } from './evidence.mjs'
+import { desktopSourceSha256, hashSourceFiles, reusableEvidence, sha256, verifyExecutable } from './evidence.mjs'
 import { browserProjects, ciBrowserTestFiles, selectChecks, withoutGeneratedVersion } from './plan.mjs'
 
 describe('verification evidence and change selection', () => {
+  it('invalidates desktop evidence when an embedded license notice changes', () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), 'xsheet-license-evidence-'))
+    try {
+      writeFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), 'original notice')
+      const files = ['THIRD_PARTY_NOTICES.md']
+      const previous = desktopSourceSha256(root, files)
+      writeFileSync(path.join(root, 'THIRD_PARTY_NOTICES.md'), 'updated copyright notice')
+      expect(desktopSourceSha256(root, files)).not.toBe(previous)
+      expect(selectChecks(files)).toMatchObject({ check: true, pages: true, native: false })
+      expect(selectChecks(['tools/release/local-package.ps1'])).toMatchObject({ check: true, native: false, desktop: false })
+    } finally { rmSync(root, { recursive: true, force: true }) }
+  })
   it('identifies the same candidate before and after staging deletions, but rejects changed contents', () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'xsheet-evidence-'))
     try {

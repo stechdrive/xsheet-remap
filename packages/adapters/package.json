@@ -1,6 +1,6 @@
 {
   "name": "@xsheet-remap/adapters",
-  "version": "0.1.861",
+  "version": "0.1.863",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -11,7 +11,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@xsheet-remap/core": "*",
-    "celcodec": "file:../../vendor/celcodec-0.8.0-ac2a1c3c0758.tgz",
+    "celcodec": "file:../../vendor/celcodec-0.8.10-5638eb4d5a9b.tgz",
     "fflate": "^0.8.3",
     "sql.js": "1.15.1"
   },

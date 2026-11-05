@@ -3,8 +3,8 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 
-const filename = 'celcodec-0.8.0-ac2a1c3c0758.tgz'
-const sha256 = 'ac2a1c3c075874e090ad36a47fe45a78669af1ef7e6c6e5a82f9b302da8e8e83'
+const filename = 'celcodec-0.8.10-5638eb4d5a9b.tgz'
+const sha256 = '5638eb4d5a9b360e8ad9cb2618391af68c621649d254d96fbbc005d19bc3ad7b'
 
 export function checkPinnedCelcodec(root) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'packages/adapters/package.json'), 'utf8'))
@@ -17,7 +17,7 @@ export function checkPinnedCelcodec(root) {
   const codecs = Object.entries(lock.packages).filter(([name]) => name.endsWith('/node_modules/celcodec') || name === 'node_modules/celcodec')
   if (codecs.length !== 1) throw new Error('celcodec must have exactly one locked package')
   const installed = codecs[0][1]
-  if (installed?.version !== '0.8.0' || installed.link || installed.resolved !== `file:vendor/${filename}`) throw new Error('celcodec lock must resolve the pinned archive')
+  if (installed?.version !== '0.8.10' || installed.link || installed.resolved !== `file:vendor/${filename}`) throw new Error('celcodec lock must resolve the pinned archive')
   const bytes = fs.readFileSync(path.join(root, 'vendor', filename))
   if (crypto.createHash('sha256').update(bytes).digest('hex') !== sha256) throw new Error('celcodec archive differs from the audited bytes')
   if (installed.integrity !== `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`) throw new Error('celcodec lock integrity mismatch')
@@ -39,5 +39,5 @@ export function checkPinnedCelcodec(root) {
   const legacyBytes = fs.readFileSync(path.join(root, 'vendor/celcodec-0.2.0.tgz'))
   if (crypto.createHash('sha256').update(legacyBytes).digest('hex') !== '7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0'
     || legacy.integrity !== `sha512-${crypto.createHash('sha512').update(legacyBytes).digest('base64')}`) throw new Error('legacy celcodec differs from the audited comparison package')
-  return { version: '0.8.0', sha256, files: names.length }
+  return { version: '0.8.10', sha256, files: names.length }
 }

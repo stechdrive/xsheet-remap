@@ -94,7 +94,13 @@ describe('embedded vector paper', () => {
   })
   it('places tips by distance independently of straight-line control subdivision; duplicate controls do not add clicks', () => {
     const b = brushes()
-    const render = (points: number[][]) => renderVectors(readVectorStrokes(vectorBytes({ points, flags: 17 })), b, 32, 32)
+    const render = (points: number[][]) => {
+      const strokes = readVectorStrokes(vectorBytes({ points, flags: 17 }))
+      // New geometry has no saved control-boundary continuation state.
+      // Independent CSP captures in celcodec cover native image-tip restarts.
+      for (const stroke of strokes) for (const point of stroke.points) delete point.dabState
+      return renderVectors(strokes, b, 32, 32)
+    }
     expect(render([[4, 8], [13.25, 8]])).toEqual(render([[4, 8], [7.1, 8], [13.25, 8]]))
     expect(render([[8, 8], [8, 8]])).toEqual(render([[8, 8]]))
   })

@@ -1,14 +1,14 @@
 # celcodecによるCLIP形式処理
 
-CLIPの形式処理はcelcodec **0.8.0**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
+CLIPの形式処理はcelcodec **0.8.10**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
 
 ## 固定した配布依存
 
-依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.8.0-ac2a1c3c0758.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
+依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.8.10-5638eb4d5a9b.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
 
-- 提供元コミット: `9d5c753f0b5fd04d2f2c331920f512f86fe513f2`
-- SHA-256: `ac2a1c3c075874e090ad36a47fe45a78669af1ef7e6c6e5a82f9b302da8e8e83`
-- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの218ファイル。CLIPや採取資料は含まない。
+- 提供元コミット: `2bcecef2546acee59bad349098962a6b62dac972`
+- SHA-256: `5638eb4d5a9b360e8ad9cb2618391af68c621649d254d96fbbc005d19bc3ad7b`
+- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの248ファイル。CLIPや採取資料は含まない。
 
 [固定依存の監査](../tools/checks/vendor-celcodec.mjs)がmanifest・lock・tarballの版、hash、ファイル一覧を検査する。symlinkや兄弟checkoutへの依存には切り替えない。
 
@@ -32,11 +32,15 @@ ACTION/CEL、工程、カット、入力セル名、対応付け、丸め、Undo
 
 [Worker](../packages/adapters/src/clip/clip-document.worker.ts)は、アプリが従来から保持している `packages/adapters/src/clip/blank.clip` をURLとして読み、createDocumentと編集計画へ渡す。廃止されたcelcodec/blank.clip exportは使わない。既存seedのSHA-256は `6fb3efa8066af90b2d0e042ddc3d2aee7572691e5cc658f89cdb02467e377a82`。今回新しいCLIPや採取値を追加していない。Pagesの内容監査もこの許可済みhashを検査する。
 
-既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.8.0だけを使う。
+既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.8.10だけを使う。
 
 旧writerで作ったCLIPに対して、現行readerとのモデル一致、無編集のバイト一致、セル並べ替え、レイヤー移動、選択タイムラインの編集、画像・音声の保持を検証する。既存のCSP採取値は独立した比較基準として維持する。ベクターの合成テスト用コントロールはネイティブの継続状態を含まないため、ゼロ埋め領域を実際のRNG・間隔リセットとして扱わない。ネイティブ継続記録の検証はライブラリ側の資料庫回帰で行う。
 
 ## 共同開発と検証
+
+0.8.10では画像先端の最小幅・方向、押印間隔、紙質の座標・階調の改善を取り込んだ。複数先端・色・未解明入力などの未対応は原因別の案内を表示し、近似診断を維持する。独立CSP採取値による描画回帰は提供側で検証し、Remapの合成テストをその代わりにはしない。
+
+合成ベクターの細線・紙質周期・継続状態のテストは、同じライブラリを使うPaperbackの`4cc3c0ab2cc39f10e9f6b9e546887b8d68ff8ed7`にある`src/test/engine/clip-vector-image.test.ts`と`clip-vector-texture.test.ts`を参照して更新した。ゼロ埋めの合成制御点を保存済み継続状態と扱わず、新しい形状として検証する。既存のCSP画像goldenと許容差は変更しない。
 
 接続・検証・並行作業の正本はcelcodec側のdocs/linked-development.md。consumer名はxsheet-remap、登録時は `--workspace packages/adapters` を指定する。同期はこのconsumerだけを選ぶ。tarballはルートのvendor/、依存指定はfile:../../vendor/...、lockはルートに置く。登録は依存やAPIの移行を意味しない。
 

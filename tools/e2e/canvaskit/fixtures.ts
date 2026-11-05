@@ -23,11 +23,13 @@ export const test = base.extend<{ browserDiagnostics: void }>({
         diagnostics.requested++
         return request(time => { diagnostics.completed++; diagnostics.lastFrame = performance.now(); callback(time) })
       }
-      for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'gotpointercapture', 'lostpointercapture', 'focusin', 'focusout', 'compositionstart', 'compositionend']) {
+      for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'click', 'dblclick', 'gotpointercapture', 'lostpointercapture', 'focusin', 'focusout', 'compositionstart', 'compositionend']) {
         document.addEventListener(type, event => {
           const target = event.target instanceof Element ? event.target : null
           diagnostics.events.push({ type, time: performance.now(), trusted: event.isTrusted,
-            pointerType: (event as PointerEvent).pointerType, label: target?.getAttribute('aria-label'), tag: target?.tagName })
+            pointerType: (event as PointerEvent).pointerType, label: target?.getAttribute('aria-label'), tag: target?.tagName,
+            control: target?.closest('button,summary')?.getAttribute('aria-label'),
+            x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY, detail: (event as MouseEvent).detail })
           if (diagnostics.events.length > 80) diagnostics.events.shift()
         }, true)
       }

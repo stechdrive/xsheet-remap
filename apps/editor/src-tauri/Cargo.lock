@@ -4446,7 +4446,7 @@ dependencies = [
 
 [[package]]
 name = "xsheet-editor"
-version = "0.1.863"
+version = "0.1.864"
 dependencies = [
  "tauri",
  "tauri-build",

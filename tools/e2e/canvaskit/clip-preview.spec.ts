@@ -83,7 +83,11 @@ async function openSavedPreview(page: Page, kind: 'vector' | '3d', option?: 'mis
   await activateControl(page, page.locator(`[data-clip-layer-id="${folderId}"]`).getByRole('button', { name: 'Aを展開', exact: true }))
   const name = kind === '3d' ? '3D-cel' : 'vector-cel'
   await activateControl(page, page.getByRole('button', { name: `${name}をクイックルック`, exact: true }))
-  return page.getByRole('dialog', { name: `${name}のプレビュー`, exact: true })
+  const preview = page.getByRole('dialog', { name: `${name}のプレビュー`, exact: true })
+  // Quick Look is mounted after its worker finishes. Observe that transition
+  // with wall-clock polling before asking WebKit for the image's visibility.
+  await expect.poll(() => preview.count()).toBe(1)
+  return preview
 }
 
 for (const kind of ['vector', '3d'] as const) test(`saved ${kind} previews use CLIP pixels without approximation warnings`, async ({ page }) => {

@@ -6,7 +6,9 @@ import {
   type SheetTemplate,
 } from '@xsheet-remap/core'
 import type { SheetPrecisionWarp } from './appTypes'
-import { calibrationTargetRectForTemplate, defaultSheetImageSettings, loadImage, warpSheetImageData } from './sheetImages'
+import { calibrationTargetRectForTemplate, computeHomography, loadImage } from './sheetImages'
+import { fullSheetRect, sheetAnalysisSize, templateReferenceRaster, type SheetRaster } from './sheet-reference-raster'
+import { identitySheetTransform, precisionGuideInk } from './sheet-precision-ink'
 import { precisionWarpDisplacementAt } from './sheetPrecisionWarp'
 
 export type PrecisionGuideAnchor = {
@@ -40,6 +42,34 @@ export type PrecisionGridPitch = {
   rowPx: number
 }
 
+type AnalysisPlan = {
+  anchors: PrecisionGuideAnchor[]
+  pitch: PrecisionGridPitch | null
+  raster: SheetRaster | null
+  reference: Map<string, PrecisionControlMatch> | null
+}
+const analysisPlans = new WeakMap<SheetTemplate, AnalysisPlan>()
+
+function matchKey(p: { x: number; y: number }): string { return `${p.x},${p.y}` }
+
+function precisionPlan(template: SheetTemplate, raster: SheetRaster | null, width: number, height: number): AnalysisPlan {
+  const previous = analysisPlans.get(template)
+  if (previous && previous.raster === raster) return previous
+  const anchors = precisionGuideAnchors(template, width, height)
+  let reference: AnalysisPlan['reference'] = null
+  if (raster && anchors.length) {
+    try {
+      const ink = precisionGuideInk(raster, identitySheetTransform, width, height, anchors)
+      reference = new Map(matchInk(ink, width, height, anchors).map(point => [matchKey(point), point]))
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'SecurityError')) throw error
+    }
+  }
+  const plan = { anchors, pitch: precisionGridPitch(template, width, height), raster, reference }
+  analysisPlans.set(template, plan)
+  return plan
+}
+
 export async function detectSheetPrecisionWarp(
   imageUrl: string,
   points: SheetCalibrationPointPair[],
@@ -48,28 +78,38 @@ export async function detectSheetPrecisionWarp(
   const bounds = calibrationTargetRectForTemplate(template)
   if (!bounds) return null
   await yieldToBrowser()
-  const image = await loadImage(imageUrl)
-  const analysisWidth = Math.max(1, Math.min(PRECISION_ANALYSIS_MAX_WIDTH, Math.round(template.page.widthPx)))
-  const analysisHeight = Math.max(1, Math.round(analysisWidth * template.page.heightPx / template.page.widthPx))
-  const rectified = warpSheetImageData(
-    image,
-    {
-      ...defaultSheetImageSettings(),
-      calibration: { enabled: true, points },
-    },
-    template,
-    analysisWidth,
-  )
-  if (!rectified) return null
+  const h = computeHomography(points.map(p => p.target), points.map(p => p.source))
+  if (!h || !h.every(Number.isFinite)) return null
+  const [image, raster] = await Promise.all([loadImage(imageUrl), templateReferenceRaster(template)])
+  const { width, height } = sheetAnalysisSize(template, PRECISION_ANALYSIS_MAX_WIDTH, 2550)
+  const { anchors, pitch, reference } = precisionPlan(template, raster, width, height)
+  if (!anchors.length || (reference && reference.size < PRECISION_MIN_INLIERS)) return null
+  let ink: Uint8Array
+  try {
+    ink = precisionGuideInk({ image, rect: fullSheetRect }, h, width, height, anchors)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'SecurityError') return null
+    throw error
+  }
+  const matches = matchInk(ink, width, height, anchors)
+  const training: PrecisionControlMatch[] = [], validation: PrecisionControlMatch[] = []
+  const tileCounts = new Uint32Array(16)
+  for (const observed of matches) {
+    const base = reference?.get(matchKey(observed))
+    if (reference && !base) continue
+    const match = base ? {
+      x: observed.x + base.dxPx/width, y: observed.y + base.dyPx/height,
+      dxPx: observed.dxPx - base.dxPx, dyPx: observed.dyPx - base.dyPx,
+      confidence: Math.min(observed.confidence, base.confidence),
+    } : observed
+    if (pitch && normalizedPitchDisplacement(match.dxPx, match.dyPx, pitch) > PRECISION_SEARCH_RADIUS_PITCH_RATIO) continue
+    const tile = coverageTile(match, bounds)
+    if (tileCounts[tile]++ % 4 === 0) validation.push(match)
+    else training.push(match)
+  }
   await yieldToBrowser()
-  const anchors = precisionGuideAnchors(template, analysisWidth, analysisHeight)
-  const matches = detectPrecisionControlMatches(rectified, anchors)
-  const pitch = precisionGridPitch(template, analysisWidth, analysisHeight)
-  const plausibleMatches = pitch
-    ? matches.filter(match => normalizedPitchDisplacement(match.dxPx, match.dyPx, pitch) <= PRECISION_SEARCH_RADIUS_PITCH_RATIO)
-    : matches
-  const inliers = filterPrecisionMatchOutliers(plausibleMatches, analysisWidth, analysisHeight)
-  return buildPrecisionWarpFromMatches(inliers, bounds, analysisWidth, analysisHeight, anchors.length, matches.length, pitch)
+  return buildPrecisionWarpFromMatches(filterPrecisionMatchOutliers(training, width, height), bounds, width, height,
+    anchors.length, matches.length, pitch, filterPrecisionMatchOutliers(validation, width, height))
 }
 
 export function precisionGridPitch(
@@ -145,15 +185,18 @@ export function detectPrecisionControlMatches(
   image: ImageData,
   anchors: PrecisionGuideAnchor[],
 ): PrecisionControlMatch[] {
-  const darkness = buildDarknessMap(image)
+  return matchInk(buildDarknessMap(image), image.width, image.height, anchors)
+}
+
+function matchInk(darkness: Uint8Array, width: number, height: number, anchors: PrecisionGuideAnchor[]) {
   const matches: PrecisionControlMatch[] = []
   for (const anchor of anchors) {
-    const expectedX = anchor.x * image.width
-    const expectedY = anchor.y * image.height
+    const expectedX = anchor.x * width
+    const expectedY = anchor.y * height
     const vertical = findDirectionalLine(
       darkness,
-      image.width,
-      image.height,
+      width,
+      height,
       'vertical',
       expectedX,
       expectedY,
@@ -162,8 +205,8 @@ export function detectPrecisionControlMatches(
     )
     const horizontal = findDirectionalLine(
       darkness,
-      image.width,
-      image.height,
+      width,
+      height,
       'horizontal',
       expectedY,
       expectedX,
@@ -192,11 +235,16 @@ export function buildPrecisionWarpFromMatches(
   totalAnchorCount = matches.length,
   matchedAnchorCount = matches.length,
   pitch?: PrecisionGridPitch | null,
+  validation?: PrecisionControlMatch[],
 ): SheetPrecisionWarp | null {
   const coverage = precisionMatchCoverage(matches, bounds)
   const minimumInliers = pitch ? PRECISION_MIN_INLIERS : 18
   const minimumCoverage = pitch ? PRECISION_MIN_COVERAGE : 0.25
   if (matches.length < minimumInliers || coverage < minimumCoverage) return null
+  const evaluation = validation ?? matches
+  if (validation && (validation.length < 12 || precisionMatchCoverage(validation, bounds) < 0.375)) return null
+  const rmsBeforePx = rootMeanSquare(evaluation.map(match => Math.hypot(match.dxPx, match.dyPx)))
+  if (rmsBeforePx < 0.25) return null
   const columns = Math.round(clamp(bounds.w * imageWidth / PRECISION_CONTROL_TARGET_X_PX + 1, 6, 12))
   const rows = Math.round(clamp(bounds.h * imageHeight / PRECISION_CONTROL_TARGET_Y_PX + 1, 8, 16))
   const nodeCount = columns * rows
@@ -270,8 +318,7 @@ export function buildPrecisionWarpFromMatches(
     offsets,
     diagnostics: placeholderDiagnostics,
   }
-  const rmsBeforePx = rootMeanSquare(matches.map(match => Math.hypot(match.dxPx, match.dyPx)))
-  const rmsAfterPx = rootMeanSquare(matches.map(match => {
+  const rmsAfterPx = rootMeanSquare(evaluation.map(match => {
     const fitted = precisionWarpDisplacementAt(warp, match.x, match.y)
     return Math.hypot(match.dxPx - fitted.x * imageWidth, match.dyPx - fitted.y * imageHeight)
   }))
@@ -287,6 +334,7 @@ export function buildPrecisionWarpFromMatches(
     totalAnchorCount,
     matchedAnchorCount,
     inlierCount: matches.length,
+    validationCount: validation?.length,
     coverage,
     confidence,
     rmsBeforePx,
@@ -295,7 +343,7 @@ export function buildPrecisionWarpFromMatches(
     maxDisplacementPitchRatio,
   }
   if (confidence < (pitch ? PRECISION_MIN_CONFIDENCE : 0.3)) return null
-  if (rmsBeforePx >= 0.45 && rmsAfterPx > rmsBeforePx * (pitch ? 1 - PRECISION_MIN_RESIDUAL_IMPROVEMENT : 0.94)) return null
+  if (rmsAfterPx > rmsBeforePx * (pitch ? 1 - PRECISION_MIN_RESIDUAL_IMPROVEMENT : 0.94) || rmsBeforePx - rmsAfterPx < 0.1) return null
   return warp
 }
 
@@ -364,7 +412,7 @@ function findDirectionalLine(
     ? clamp(0.5 * (left - right) / denominator, -0.5, 0.5)
     : 0
   return {
-    position: expectedFixed + (bestIndex - radius) + subpixel,
+    position: Math.round(expectedFixed) + (bestIndex - radius) + subpixel,
     confidence,
   }
 }
@@ -464,15 +512,13 @@ function neighborNodeIndices(row: number, column: number, rows: number, columns:
 }
 
 function precisionMatchCoverage(matches: PrecisionControlMatch[], bounds: NormalizedRect): number {
-  const columns = 4
-  const rows = 4
-  const occupied = new Set<number>()
-  for (const match of matches) {
-    const column = Math.floor(clamp((match.x - bounds.x) / bounds.w, 0, 0.9999) * columns)
-    const row = Math.floor(clamp((match.y - bounds.y) / bounds.h, 0, 0.9999) * rows)
-    occupied.add(row * columns + column)
-  }
-  return occupied.size / (columns * rows)
+  return new Set(matches.map(match => coverageTile(match, bounds))).size / 16
+}
+
+function coverageTile(match: PrecisionControlMatch, bounds: NormalizedRect): number {
+  const column = Math.floor(clamp((match.x - bounds.x) / bounds.w, 0, 0.9999) * 4)
+  const row = Math.floor(clamp((match.y - bounds.y) / bounds.h, 0, 0.9999) * 4)
+  return row * 4 + column
 }
 
 function maximumNodeDisplacementPx(warp: SheetPrecisionWarp, imageWidth: number, imageHeight: number): number {

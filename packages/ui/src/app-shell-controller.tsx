@@ -1326,7 +1326,8 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
       if (!commitProject(applied.project)) return
       setEditMode('calibrate')
       setAutoCalibrationOverlay({ pageId: applied.pageId, ...result.debugOverlay })
-      setAutoCalibrationMessage(uiText.sheet.autoCalibrationSucceeded(Math.round(result.confidence * 100), result.detectedLineCount))
+      setAutoCalibrationMessage(uiText.sheet.autoCalibrationSucceeded(Math.round(result.confidence * 100), result.detectedLineCount)
+        + uiText.sheet.estimatedCorners(result.debugOverlay.estimatedCorners))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setAutoCalibrationMessage(uiText.sheet.autoCalibrationError(message))

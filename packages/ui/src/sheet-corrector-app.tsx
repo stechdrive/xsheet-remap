@@ -6,6 +6,7 @@ import { collectAssetFilesFromDrop, hasFileTransferPayload } from './assetFiles'
 import { compareFileNameLikeText } from './naturalSort'
 import { detectSheetCalibrationPoints, type AutoCalibrationResult } from './sheetAutoCalibration'
 import { detectSheetPrecisionWarp } from './sheetPrecisionCorrection'
+import { uiText } from './i18n'
 import { evaluateSheetCalibrationDiagnostic, type SheetCalibrationDiagnostic } from './sheetCalibrationDiagnostics'
 import { CalibrationLoupeDialog } from './sheetCalibrationLoupe'
 import { calibrationPointsSignature } from './sheetCalibrationUtils'
@@ -91,6 +92,7 @@ export function SheetCorrectorApp() {
   const [lastSelectedPath, setLastSelectedPath] = useState<string | null>(null)
   const [queueStates, setQueueStates] = useState<Record<string, QueueState>>({})
   const [correctionDrafts, setCorrectionDrafts] = useState<Record<string, SheetCorrectionDraft>>({})
+  const detectedEstimates = useRef(new WeakMap<SheetCalibrationPointPair[], number[]>())
   const [status, setStatus] = useState('フォルダまたはシート画像をドロップしてください。')
   const [autoCalibrationMessage, setAutoCalibrationMessage] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -584,7 +586,7 @@ export function SheetCorrectorApp() {
   ) => {
     setCorrectionDrafts(current => ({
       ...current,
-      [path]: { templateId: selectedTemplate.templateId, points, applied, precisionWarp, precisionEvaluated },
+      [path]: { templateId: selectedTemplate.templateId, points, applied, precisionWarp, precisionEvaluated, estimatedCorners: detectedEstimates.current.get(points) },
     }))
   }, [selectedTemplate.templateId])
 
@@ -613,23 +615,11 @@ export function SheetCorrectorApp() {
     setAutoCalibrationMessage('通常補正を適用しました。')
   }
 
-  const detectCalibrationResultForItem = useCallback(async (
-    item: SheetCorrectorInput,
-    imageUrlOverrides?: Record<string, string>,
-  ): Promise<AutoCalibrationResult | null> => {
-    const imageUrl = imageUrlForItem(item, browserFileUrls, nativeFileUrls, imageUrlOverrides)
-      ?? await createNativeSheetImageDataUrl(item)
-    if (!imageUrl) return null
-    return await detectSheetCalibrationPoints(imageUrl, selectedTemplate)
-  }, [browserFileUrls, nativeFileUrls, selectedTemplate])
-
-  const detectCalibrationForItem = useCallback(async (
-    item: SheetCorrectorInput,
-    imageUrlOverrides?: Record<string, string>,
-  ): Promise<SheetCalibrationPointPair[] | null> => {
-    const result = await detectCalibrationResultForItem(item, imageUrlOverrides)
-    return result?.points ?? null
-  }, [detectCalibrationResultForItem])
+  const detectCalibrationForImage = useCallback(async (imageUrl: string) => {
+    const result = await detectSheetCalibrationPoints(imageUrl, selectedTemplate)
+    if (result?.debugOverlay.estimatedCorners?.length) detectedEstimates.current.set(result.points, result.debugOverlay.estimatedCorners)
+    return result
+  }, [selectedTemplate])
 
   const exportCorrectedPngItem = useCallback(async (
     item: SheetCorrectorInput,
@@ -664,7 +654,7 @@ export function SheetCorrectorApp() {
     let points = pointsOverride ?? (currentDraft?.applied ? currentDraft.points : undefined)
     let precisionWarp = precisionWarpOverride ?? (currentDraft?.applied ? currentDraft.precisionWarp : undefined)
     if (!points && detectIfMissing) {
-      points = await detectCalibrationForItem(item, imageUrlOverrides) ?? undefined
+      points = (await detectCalibrationForImage(imageUrl))?.points
       if (!points) return null
       updateDraftForPath(item.path, points, true)
       precisionWarp = undefined
@@ -688,7 +678,7 @@ export function SheetCorrectorApp() {
   }, [
     browserFileUrls,
     correctionDrafts,
-    detectCalibrationForItem,
+    detectCalibrationForImage,
     exportCorrectedPngItem,
     levelCorrectionSettings,
     nativeFileUrls,
@@ -698,17 +688,18 @@ export function SheetCorrectorApp() {
   ])
 
   async function autoDetectSelectedForLoupe(): Promise<SheetCalibrationPointPair[] | undefined> {
-    if (!selectedItem || autoCalibrationRunning) return undefined
+    if (!selectedImageUrl || autoCalibrationRunning) return undefined
     setAutoCalibrationRunning(true)
     setAutoCalibrationMessage('自動検出中...')
     try {
-      const points = await detectCalibrationForItem(selectedItem)
-      if (!points) {
+      const result = await detectCalibrationForImage(selectedImageUrl)
+      if (!result) {
         setAutoCalibrationMessage('自動検出できませんでした。手動で四隅を合わせてください。')
         return undefined
       }
-      setAutoCalibrationMessage('自動検出しました。必要なら四隅を微調整してください。')
-      return points
+      const estimated = uiText.sheet.estimatedCorners(result.debugOverlay.estimatedCorners)
+      setAutoCalibrationMessage(estimated ? `自動検出しました。${estimated}` : '自動検出しました。必要なら四隅を微調整してください。')
+      return result.points
     } catch (error) {
       setAutoCalibrationMessage(`自動検出エラー: ${error instanceof Error ? error.message : String(error)}`)
       return undefined
@@ -770,15 +761,12 @@ export function SheetCorrectorApp() {
         }
         try {
           const existingDraft = draftForTemplate(correctionDrafts[item.path], selectedTemplate.templateId)
-          let imageUrlOverrides = options.imageUrlOverrides
-          if (options.createImageUrl) {
-            const imageUrl = await options.createImageUrl(item)
-            if (!imageUrl) {
-              reviewCount += 1
-              setQueueStates(current => ({ ...current, [item.path]: 'review' }))
-              continue
-            }
-            imageUrlOverrides = { [item.path]: imageUrl }
+          const imageUrl = options.createImageUrl ? await options.createImageUrl(item)
+            : imageUrlForItem(item, browserFileUrls, nativeFileUrls, options.imageUrlOverrides) ?? await createNativeSheetImageDataUrl(item)
+          if (!imageUrl) {
+            reviewCount += 1
+            setQueueStates(current => ({ ...current, [item.path]: 'review' }))
+            continue
           }
           let points: SheetCalibrationPointPair[] | undefined
           let precisionWarp: SheetPrecisionWarp | undefined
@@ -786,7 +774,7 @@ export function SheetCorrectorApp() {
             points = existingDraft.points
             precisionWarp = existingDraft.precisionWarp
           } else {
-            const result = await detectCalibrationResultForItem(item, imageUrlOverrides)
+            const result = await detectCalibrationForImage(imageUrl)
             if (!result) {
               reviewCount += 1
               setQueueStates(current => ({ ...current, [item.path]: 'review' }))
@@ -795,7 +783,7 @@ export function SheetCorrectorApp() {
             points = result.points
             updateDraftForPath(item.path, points, true)
           }
-          const outputPath = await exportCorrectedItem(item, 'psd', points, precisionWarp, false, imageUrlOverrides)
+          const outputPath = await exportCorrectedItem(item, 'psd', points, precisionWarp, false, { [item.path]: imageUrl })
           if (outputPath) {
             exportedCount += 1
             setQueueStates(current => ({ ...current, [item.path]: 'exported' }))
@@ -843,7 +831,9 @@ export function SheetCorrectorApp() {
     }
   }, [
     correctionDrafts,
-    detectCalibrationResultForItem,
+    browserFileUrls,
+    nativeFileUrls,
+    detectCalibrationForImage,
     exportCorrectedItem,
     queueRunning,
     selectedTemplate.templateId,
@@ -880,16 +870,15 @@ export function SheetCorrectorApp() {
         }
         setQueueStates(current => ({ ...current, [item.path]: 'running' }))
         try {
+          const imageUrl = imageUrlForItem(item, browserFileUrls, nativeFileUrls) ?? await createNativeSheetImageDataUrl(item)
+          if (!imageUrl) throw new Error('補正画像を読み込めませんでした。')
           const points = existingDraft?.applied
             ? existingDraft.points
-            : (await detectCalibrationResultForItem(item))?.points
+            : (await detectCalibrationForImage(imageUrl))?.points
           if (!points) {
             reviewCount += 1
             setQueueStates(current => ({ ...current, [item.path]: 'review' }))
           } else {
-            const imageUrl = imageUrlForItem(item, browserFileUrls, nativeFileUrls)
-              ?? await createNativeSheetImageDataUrl(item)
-            if (!imageUrl) throw new Error('補正画像を読み込めませんでした。')
             const precisionWarp = existingDraft?.precisionWarp
               ?? await detectSheetPrecisionWarp(imageUrl, points, selectedTemplate)
               ?? undefined
@@ -916,7 +905,7 @@ export function SheetCorrectorApp() {
   }, [
     browserFileUrls,
     correctionDrafts,
-    detectCalibrationResultForItem,
+    detectCalibrationForImage,
     nativeFileUrls,
     queueRunning,
     selectedTemplate,
@@ -1329,6 +1318,7 @@ export function SheetCorrectorApp() {
           <div className="sheetCorrectorCorrectionHeader">
             <div>
               <strong>{selectedItem?.name ?? 'シート未選択'}</strong>
+              {Boolean(selectedDraft?.estimatedCorners?.length) && <span>{uiText.sheet.estimatedCorners(selectedDraft?.estimatedCorners)}</span>}
               <span>{selectedItem ? `${queueItemStateLabel(queueStates[selectedItem.path])} / ${correctionStateLabel(selectedDraft)}` : 'キューから画像を選択してください。'}</span>
             </div>
             <div className="sheetCorrectorCorrectionActions">

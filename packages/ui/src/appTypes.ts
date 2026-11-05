@@ -30,6 +30,7 @@ export type EditMode = 'new' | 'pen' | 'eraser' | 'text' | 'calibrate'
 export type CalibrationPointKind = 'source' | 'target'
 export type CalibrationStage = CalibrationPointKind
 export type SheetPrecisionWarpDiagnostics = {
+  validationCount?: number
   totalAnchorCount: number
   matchedAnchorCount: number
   inlierCount: number

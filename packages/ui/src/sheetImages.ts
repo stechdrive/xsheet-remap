@@ -457,12 +457,7 @@ export function warpSheetImageData(image: HTMLImageElement, imageSettings: Sheet
       }
       const source = applyHomography(homography, warpedTargetX, warpedTargetY)
       if (!source || source.x < 0 || source.x > 1 || source.y < 0 || source.y > 1) continue
-      const color = sampleImageData(sourceData, source.x * (sourceWidth - 1), source.y * (sourceHeight - 1))
-      const offset = (y * outputWidth + x) * 4
-      outputData.data[offset] = color[0]
-      outputData.data[offset + 1] = color[1]
-      outputData.data[offset + 2] = color[2]
-      outputData.data[offset + 3] = color[3]
+      sampleImageData(sourceData, source.x * sourceWidth - 0.5, source.y * sourceHeight - 0.5, outputData.data, (y * outputWidth + x) * 4)
     }
   }
   return imageSettings.levelCorrection?.enabled
@@ -524,33 +519,25 @@ export function applyHomography(h: Homography, x: number, y: number): Normalized
   }
 }
 
-function sampleImageData(imageData: ImageData, x: number, y: number): [number, number, number, number] {
+function sampleImageData(imageData: ImageData, x: number, y: number, output: Uint8ClampedArray, offset: number): void {
+  x = Math.max(0, Math.min(imageData.width - 1, x))
+  y = Math.max(0, Math.min(imageData.height - 1, y))
   const x0 = Math.floor(x)
   const y0 = Math.floor(y)
   const x1 = Math.min(imageData.width - 1, x0 + 1)
   const y1 = Math.min(imageData.height - 1, y0 + 1)
   const tx = x - x0
   const ty = y - y0
-  const c00 = imagePixel(imageData, x0, y0)
-  const c10 = imagePixel(imageData, x1, y0)
-  const c01 = imagePixel(imageData, x0, y1)
-  const c11 = imagePixel(imageData, x1, y1)
-  return [0, 1, 2, 3].map(channel => Math.round(
-    c00[channel] * (1 - tx) * (1 - ty) +
-    c10[channel] * tx * (1 - ty) +
-    c01[channel] * (1 - tx) * ty +
-    c11[channel] * tx * ty,
-  )) as [number, number, number, number]
-}
-
-function imagePixel(imageData: ImageData, x: number, y: number): [number, number, number, number] {
-  const offset = (y * imageData.width + x) * 4
-  return [
-    imageData.data[offset],
-    imageData.data[offset + 1],
-    imageData.data[offset + 2],
-    imageData.data[offset + 3],
-  ]
+  const at = (y0 * imageData.width + x0) * 4
+  const right = (y0 * imageData.width + x1) * 4
+  const below = (y1 - y0) * imageData.width * 4
+  const pixels = imageData.data
+  for (let channel = 0; channel < 4; channel++) {
+    const a = at + channel, b = right + channel
+    const top = pixels[a] + (pixels[b] - pixels[a]) * tx
+    const bottom = pixels[a + below] + (pixels[b + below] - pixels[a + below]) * tx
+    output[offset + channel] = Math.round(top + (bottom - top) * ty)
+  }
 }
 
 export function serializableImageRef(ref: FileRef): SheetPageImageRef {

@@ -318,6 +318,9 @@ export const uiText = {
     postRollMinimumTitle: (frames: number) => `終了後に${frames}Kを確保します。押し出されたコマが多い場合はその範囲まで表示します`,
     autoCalibrationRunning: 'OpenCVで罫線を検出中',
     autoCalibrationSucceeded: (confidence: number, lineCount: number) => `自動検出 ${confidence}% / ${lineCount}線`,
+    estimatedCorners: (indices: number[] = []) => indices.length
+      ? ` 推定位置の${indices.map(i => ['左上', '右上', '右下', '左下'][i]).join('・')}を確認してください。`
+      : '',
     autoCalibrationFailed: '自動検出できませんでした。手動で四隅を合わせてください。',
     autoCalibrationError: (message: string) => `自動検出エラー: ${message}`,
     autoCalibrationImportRunning: (count: number) => `${count}ページのシート画像を自動補正中`,

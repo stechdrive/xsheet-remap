@@ -78,6 +78,32 @@ describe('sheet precision correction', () => {
     expect(warp?.diagnostics.coverage).toBe(1)
   })
 
+  it('measures subpixel offsets relative to the sampled pixel center', () => {
+    const image = whiteImageData(128, 128)
+    drawVerticalLine(image, 70)
+    drawHorizontalLine(image, 66)
+    const [match] = detectPrecisionControlMatches(image, [{
+      x: 69.75 / 128, y: 66.25 / 128, horizontalSpanPx: 30, verticalSpanPx: 30, searchRadiusPx: 6,
+    }])
+    expect(match.dxPx).toBeCloseTo(0.25, 6)
+    expect(match.dyPx).toBeCloseTo(-0.25, 6)
+  })
+
+  it('only applies a mesh when separately measured, distributed points also improve', () => {
+    const bounds = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }
+    const training = distributedMatches(bounds, 10, 8, 2, -1)
+    const held = distributedMatches(bounds, 7, 5, 2, -1)
+    const fit = (validation: PrecisionControlMatch[]) => buildPrecisionWarpFromMatches(
+      training, bounds, 1000, 1400, 115, 115, { columnPx: 24, rowPx: 24 }, validation,
+    )
+    const accepted = fit(held)
+    expect(accepted?.diagnostics.validationCount).toBe(35)
+    expect(accepted!.diagnostics.rmsAfterPx).toBeLessThan(0.01)
+    expect(fit(held.map(p => ({ ...p, dxPx: -2, dyPx: 1 })))).toBeNull()
+    expect(fit(held.map(p => ({ ...p, dxPx: 0, dyPx: 0 })))).toBeNull()
+    expect(fit(held.slice(0, 9))).toBeNull()
+  })
+
   it('requires broad support and rejects displacement beyond the template-relative safety cap', () => {
     const bounds = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }
     const sparse = distributedMatches(bounds, 5, 4, 2, -1)

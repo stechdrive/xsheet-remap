@@ -29,7 +29,9 @@ export type AutoCalibrationResult = {
 }
 
 export type AutoCalibrationDebugOverlay = {
-  method: 'template-grid-fit' | 'horizontal-span-projection' | 'pixel-projection' | 'opencv-hough'
+  method: 'reference-image' | 'template-grid-fit' | 'horizontal-span-projection' | 'pixel-projection' | 'opencv-hough'
+  estimatedCorners?: number[]
+  referenceInliers?: number
   targetQuad: NormalizedPoint[]
   detectedQuad: NormalizedPoint[]
   localCornerMatches?: AutoCalibrationLocalCornerDebug[]

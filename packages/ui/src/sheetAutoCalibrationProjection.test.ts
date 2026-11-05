@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { resolveSheetTemplateGridLayout, standardA3SheetTemplate } from '@xsheet-remap/core'
+import { templateGridFitGuides } from './sheet-auto-calibration-grid-fit'
 import {
   buildDarkPixelIntegralImage,
   darkPixelsInColumn,
@@ -26,6 +28,21 @@ describe('dark pixel integral image', () => {
         .toBe(darkRatioInVerticalBand(image, x, 1.8, 27.1, 2))
     }
   })
+})
+
+it('scores the same unequal column boundaries that the registered paper actually draws', () => {
+  const template = structuredClone(standardA3SheetTemplate)
+  const region = template.regions.find(r => r.grid?.role === 'camera')!
+  template.regions = [region]
+  const grid = region.grid!
+  const first = grid.columns[0]
+  grid.columnSizing = { mode: 'fit-region', columns: { [first.columnId]: { weight: 3 } } }
+  const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks: template.defaults.paperTracks })!
+  const guides = templateGridFitGuides(template, layout.rect).vertical
+  const actualBoundary = layout.columns[0].w / layout.rect.w
+  expect(actualBoundary).toBeGreaterThan(1 / layout.columns.length + 0.05)
+  expect(guides.some(guide => Math.abs(guide.ratio - actualBoundary) < 1e-6)).toBe(true)
+  expect(guides.some(guide => Math.abs(guide.ratio - 1 / layout.columns.length) < 1e-6)).toBe(false)
 })
 
 function testImage(width: number, height: number): ImageData {

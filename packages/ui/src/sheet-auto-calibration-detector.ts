@@ -1,48 +1,62 @@
 import { type NormalizedPoint, type SheetCalibrationPointPair, type SheetTemplate } from '@xsheet-remap/core'
 import { calibrationTargetRectForTemplate, defaultCalibrationPoints, loadImage } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
-import opencvScriptUrl from '@techstark/opencv-js/dist/opencv.js?url'
-import { ProjectedLineResult, bestHorizontalLine, bestProjectedLine, bestVerticalLine, buildDarkPixelIntegralImage, darkPixelsInIntegralRect, intersectLines, isPlausibleCalibrationQuad, normalizePixelPoint, normalizedAxisAngleDeg } from './sheet-auto-calibration-projection'
+import { loadOpenCv, type OpenCvRuntime } from './sheet-opencv'
+import { fullSheetRect, sheetAnalysisSize, templateReferenceRaster } from './sheet-reference-raster'
+import { registerSheetImage } from './sheet-reference-registration'
+import { refineRegisteredCorners } from './sheet-reference-corners'
+import { ProjectedLineResult, bestHorizontalLine, bestProjectedLine, bestVerticalLine, buildDarkPixelIntegralImage, darkPixelsInIntegralRect, intersectLines, isPlausibleCalibrationQuad, isPlausibleRegisteredQuad, normalizePixelPoint, normalizedAxisAngleDeg } from './sheet-auto-calibration-projection'
 import { fitTemplateGridCalibration } from './sheet-auto-calibration-grid-fit'
 import { bestHorizontalSideSpan, refineHorizontalSpanCorner, stabilizeCornerSideExtents } from './sheet-auto-calibration-corners'
 import type { AutoCalibrationDebugOverlay, AutoCalibrationLocalCornerDebug, AutoCalibrationResult, DetectedLine, PixelPoint } from './sheet-auto-calibration-types'
 
-type OpenCvMat = {
-  rows: number
-  cols: number
-  data32S: Int32Array
-  delete: () => void
-}
-
-type OpenCvSize = { width: number; height: number }
-
-type OpenCvRuntime = {
-  Mat: new () => OpenCvMat
-  Size: new (width: number, height: number) => OpenCvSize
-  COLOR_RGBA2GRAY: number
-  BORDER_DEFAULT: number
-  imread: (source: HTMLCanvasElement) => OpenCvMat
-  cvtColor: (src: OpenCvMat, dst: OpenCvMat, code: number) => void
-  GaussianBlur: (src: OpenCvMat, dst: OpenCvMat, ksize: OpenCvSize, sigmaX: number, sigmaY: number, borderType: number) => void
-  Canny: (src: OpenCvMat, dst: OpenCvMat, threshold1: number, threshold2: number, apertureSize: number, l2gradient: boolean) => void
-  HoughLinesP: (image: OpenCvMat, lines: OpenCvMat, rho: number, theta: number, threshold: number, minLineLength: number, maxLineGap: number) => void
-  onRuntimeInitialized?: () => void
-}
-
 const MAX_AXIS_ANGLE_DEG = 12
-
 const MIN_LINE_SCORE = 4.5
-
-let openCvPromise: Promise<{ cv: OpenCvRuntime }> | null = null
 
 export async function detectSheetCalibrationPoints(imageUrl: string, template: SheetTemplate): Promise<AutoCalibrationResult | null> {
   const targetRect = calibrationTargetRectForTemplate(template)
   if (!targetRect) return null
 
-  const image = await loadImage(imageUrl)
-  const width = image.naturalWidth || image.width
-  const height = image.naturalHeight || image.height
-  if (width <= 0 || height <= 0) return null
+  const [image, raster] = await Promise.all([loadImage(imageUrl), templateReferenceRaster(template)])
+  const nativeWidth = image.naturalWidth || image.width, nativeHeight = image.naturalHeight || image.height
+  if (nativeWidth <= 0 || nativeHeight <= 0) return null
+  const defaults = defaultCalibrationPoints(template)
+  const targetQuad = defaults.map(point => point.target)
+  const scan = { image, rect: fullSheetRect }
+  const size = sheetAnalysisSize(template, 877, 1241)
+  const cornerSize = { width: size.width * 2, height: size.height * 2 }
+  let reference = raster
+  if (reference) {
+    try {
+      const cv = await loadOpenCv()
+      const fit = registerSheetImage(cv, reference, scan, targetQuad, size.width, size.height, template.page.widthPx, template.page.heightPx)
+      if (fit) {
+        const local = refineRegisteredCorners(reference, scan, targetQuad, fit.corners, cornerSize)
+        if (isPlausibleRegisteredQuad(local.corners, targetQuad)) {
+          const result = buildAutoCalibrationResult(defaults, local.corners, fit.confidence, 2 * (4-local.estimated.length), 'reference-image', targetQuad)
+          result.debugOverlay.estimatedCorners = local.estimated
+          result.debugOverlay.referenceInliers = fit.inliers
+          return result
+        }
+      }
+    } catch {
+      // Older sheets and offline sessions can still use their geometric guides.
+      reference = null
+    }
+  }
+
+  function validateFallback(result: AutoCalibrationResult) {
+    if (!reference) return result
+    const local = refineRegisteredCorners(reference, scan, targetQuad, result.debugOverlay.detectedQuad, cornerSize)
+    const confirmed = 4 - local.estimated.length
+    if (confirmed < local.measurable || (confirmed < 2 && result.confidence < 0.8) || !isPlausibleCalibrationQuad(local.corners)) return null
+    result.points = result.points.map((pair, i) => ({ ...pair, source: local.corners[i] }))
+    result.debugOverlay.detectedQuad = local.corners
+    result.debugOverlay.estimatedCorners = local.estimated
+    return result
+  }
+  const scale = Math.min(1, 3200 / Math.max(nativeWidth, nativeHeight), Math.sqrt(7_000_000 / (nativeWidth * nativeHeight)))
+  const width = Math.max(1, Math.round(nativeWidth * scale)), height = Math.max(1, Math.round(nativeHeight * scale))
 
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -57,11 +71,9 @@ export async function detectSheetCalibrationPoints(imageUrl: string, template: S
     right: (targetRect.x + targetRect.w) * width,
     bottom: (targetRect.y + targetRect.h) * height,
   }
-  const defaults = defaultCalibrationPoints(template)
-  const targetQuad = defaults.map(point => point.target)
   const projected = detectProjectionCalibrationCorners(context, canvas, rectPx, template)
   if (projected && isPlausibleCalibrationQuad(projected.corners)) {
-    return buildAutoCalibrationResult(defaults, projected.corners, projected.confidence, 4, projected.method, targetQuad, projected.localCornerMatches)
+    return validateFallback(buildAutoCalibrationResult(defaults, projected.corners, projected.confidence, 4, projected.method, targetQuad, projected.localCornerMatches))
   }
 
   const cv = await loadOpenCv()
@@ -74,7 +86,7 @@ export async function detectSheetCalibrationPoints(imageUrl: string, template: S
 
   const averageScore = (selected.top.score + selected.bottom.score + selected.left.score + selected.right.score) / 4
   const confidence = clampNumber(1 - averageScore / MIN_LINE_SCORE, 0.05, 0.98)
-  return buildAutoCalibrationResult(defaults, sourceCorners, confidence, lines.length, 'opencv-hough', targetQuad)
+  return validateFallback(buildAutoCalibrationResult(defaults, sourceCorners, confidence, lines.length, 'opencv-hough', targetQuad))
 }
 
 function buildAutoCalibrationResult(
@@ -116,132 +128,6 @@ function calibrationCornersFromSelectedLines(
   return [topLeft, topRight, bottomRight, bottomLeft].map(point => normalizePixelPoint(point, width, height))
 }
 
-async function loadOpenCv(): Promise<OpenCvRuntime> {
-  if (!openCvPromise) {
-    openCvPromise = loadOpenCvScript()
-  }
-  const loaded = await openCvPromise
-  return loaded.cv
-}
-
-function loadOpenCvScript(): Promise<{ cv: OpenCvRuntime }> {
-  const existing = globalOpenCvValue()
-  if (existing) return resolveOpenCvModule(existing)
-  return new Promise((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>('script[data-xsheet-opencv]')
-    const script = existingScript ?? document.createElement('script')
-    script.dataset.xsheetOpencv = 'true'
-    script.async = true
-    script.onload = () => {
-      const loaded = globalOpenCvValue()
-      if (!loaded) {
-        reject(new Error('OpenCV script loaded without a runtime'))
-        return
-      }
-      resolveOpenCvModule(loaded).then(resolve, reject)
-    }
-    script.onerror = () => reject(new Error('OpenCV script failed to load'))
-    if (!existingScript) {
-      script.src = opencvScriptUrl
-      document.head.appendChild(script)
-    }
-  })
-}
-
-function resolveOpenCvModule(loaded: unknown): Promise<{ cv: OpenCvRuntime }> {
-  if (isOpenCvRuntimeCandidate(loaded)) return waitForOpenCvRuntime(loaded)
-  const then = isObjectRecord(loaded) ? loaded.then : undefined
-  if (typeof then === 'function') {
-    return new Promise((resolve, reject) => {
-      try {
-        then.call(
-          loaded,
-          (value: unknown) => {
-            resolveOpenCvValue(value).then(resolve, reject)
-          },
-          (error: unknown) => reject(error),
-        )
-      } catch (error) {
-        const fallback = isOpenCvRuntimeCandidate(loaded)
-          ? loaded
-          : globalOpenCvCandidate()
-        if (fallback) {
-          waitForOpenCvRuntime(fallback).then(resolve, reject)
-        } else {
-          reject(error)
-        }
-      }
-    })
-  }
-  return resolveOpenCvValue(loaded)
-}
-
-function resolveOpenCvValue(value: unknown): Promise<{ cv: OpenCvRuntime }> {
-  if (isOpenCvRuntimeCandidate(value)) return waitForOpenCvRuntime(value)
-  const fallback = globalOpenCvCandidate()
-  if (fallback) return waitForOpenCvRuntime(fallback)
-  return Promise.reject(new Error('OpenCV runtime was not initialized'))
-}
-
-function waitForOpenCvRuntime(cv: OpenCvRuntime): Promise<{ cv: OpenCvRuntime }> {
-  const runtime = cv as Partial<OpenCvRuntime>
-  if (typeof runtime.Mat === 'function' && typeof runtime.imread === 'function') {
-    return Promise.resolve({ cv: sanitizeOpenCvRuntime(cv) })
-  }
-  return new Promise(resolve => {
-    const previous = cv.onRuntimeInitialized
-    cv.onRuntimeInitialized = () => {
-      previous?.()
-      resolve({ cv: sanitizeOpenCvRuntime(cv) })
-    }
-  })
-}
-
-function isOpenCvRuntimeCandidate(value: unknown): value is OpenCvRuntime {
-  if (!isObjectRecord(value)) return false
-  return typeof value.Mat === 'function' ||
-    typeof value.imread === 'function' ||
-    'onRuntimeInitialized' in value
-}
-
-function globalOpenCvCandidate(): OpenCvRuntime | null {
-  const value = globalOpenCvValue()
-  return isOpenCvRuntimeCandidate(value) ? value : null
-}
-
-function globalOpenCvValue(): unknown {
-  return (globalThis as typeof globalThis & { cv?: unknown }).cv
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return (typeof value === 'object' || typeof value === 'function') && value !== null
-}
-
-function sanitizeOpenCvRuntime(cv: OpenCvRuntime): OpenCvRuntime {
-  const maybeThenable = cv as OpenCvRuntime & { then?: unknown }
-  if ('then' in maybeThenable) {
-    try {
-      Object.defineProperty(maybeThenable, 'then', {
-        value: undefined,
-        configurable: true,
-        writable: true,
-      })
-    } catch {
-      try {
-        delete maybeThenable.then
-      } catch {
-        const runtime = Object.create(cv) as OpenCvRuntime & { then?: unknown }
-        Object.defineProperty(runtime, 'then', {
-          value: undefined,
-          configurable: true,
-          writable: true,
-        })
-        return runtime
-      }
-    }
-  }
-  return cv
-}
 
 function detectAxisLines(cv: OpenCvRuntime, canvas: HTMLCanvasElement): DetectedLine[] {
   const src = cv.imread(canvas)

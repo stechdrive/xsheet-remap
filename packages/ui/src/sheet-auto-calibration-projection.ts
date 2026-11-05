@@ -406,6 +406,17 @@ export function distance(a: NormalizedPoint, b: NormalizedPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
+export function isPlausibleRegisteredQuad(points: NormalizedPoint[], targets: NormalizedPoint[]): boolean {
+  if (points.length !== 4 || targets.length !== 4) return false
+  // A user can register a small or off-center frame. Judge its size relative to that frame.
+  return points.every((a, i) => {
+    const b = points[(i+1)%4], c = points[(i+2)%4]
+    const turn = (b.x-a.x)*(c.y-b.y) - (b.y-a.y)*(c.x-b.x)
+    const ratio = distance(a,b) / distance(targets[i], targets[(i+1)%4])
+    return a.x >= 0 && a.x <= 1 && a.y >= 0 && a.y <= 1 && turn > 0 && ratio >= 0.4 && ratio <= 2.5
+  })
+}
+
 function polygonArea(points: NormalizedPoint[]): number {
   let area = 0
   for (let index = 0; index < points.length; index += 1) {

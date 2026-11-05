@@ -3,12 +3,16 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { prepareOpenCvAsset } from './opencv-runtime'
 
 const webRoot = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ mode }) => {
   const isPages = mode === 'pages'
   return {
+    resolve: {
+      alias: [{ find: /^@techstark\/opencv-js\/dist\/opencv\.js\?url$/, replacement: prepareOpenCvAsset(webRoot) + '?url' }],
+    },
     plugins: [
       react(),
       ...(isPages ? [pagesPublicAssetsPlugin(), pagesHtmlSecurityPlugin()] : []),

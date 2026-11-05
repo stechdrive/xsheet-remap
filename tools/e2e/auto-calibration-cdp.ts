@@ -80,8 +80,22 @@ try {
   await client.send('Input.setIgnoreInputEvents', { ignore: false })
 
   await waitForSheet()
+  await evaluatePage<void>(`document.querySelector('[aria-label="表示設定"]').click()`)
+  await waitForPageCondition(() => Boolean(document.querySelector('.actionMenuPortalContent.sheetDisplaySettingsMenu')), 'view settings')
+  const selectedPaper = await evaluatePage<boolean>(`
+    (() => {
+      const option = Array.from(document.querySelectorAll('.sheetTemplateMenuList button'))
+        .find(item => item.querySelector('span')?.textContent === 'A3標準');
+      if (!(option instanceof HTMLButtonElement)) return false;
+      if (option.getAttribute('aria-pressed') !== 'true') option.click();
+      return true;
+    })()
+  `)
+  if (!selectedPaper) throw new Error('A3 paper template is unavailable')
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
   await dropSheetSourceFile(args['sheet-source'])
-  await waitForPageCondition(() => document.querySelectorAll('image.sheetImage').length > 0, 'sheet source assigned')
+  await waitForPageCondition(() => Boolean(document.querySelector('.paperSheetRailMenu button[aria-label="シート画像補正"]:enabled')), 'sheet source assigned')
   checks.push('loaded a sheet source image through the paper sheet loader')
 
   await clickButton('シート画像補正')
@@ -91,10 +105,12 @@ try {
   }, 'calibration loupe dialog')
   checks.push('entered image warp calibration mode')
 
+  await waitForPageCondition(() => Array.from(document.querySelectorAll<HTMLButtonElement>('.calibrationLoupeFooter button'))
+    .some(button => button.textContent?.trim() === '4点自動検出' && !button.disabled), 'automatic detection ready')
   await clickButton('4点自動検出')
   const statusText = await waitForCondition(async () => {
     const text = await evaluatePage<string>(`
-      (() => document.querySelector('.paperSheetRailMenu.actionMenuPortalContent')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '')()
+      (() => document.querySelector('.calibrationLoupeFooter .muted')?.textContent?.trim() ?? '')()
     `)
     if (text.includes('自動検出エラー')) return text
     if (text.includes('自動検出できませんでした')) return text
@@ -122,9 +138,10 @@ try {
   if (
     overlay.method !== 'pixel-projection' &&
     overlay.method !== 'horizontal-span-projection' &&
-    overlay.method !== 'template-grid-fit'
+    overlay.method !== 'template-grid-fit' &&
+    overlay.method !== 'reference-image'
   ) {
-    throw new Error(`expected projection auto calibration, got ${overlay.method ?? 'none'}`)
+    throw new Error(`expected template or projection auto calibration, got ${overlay.method ?? 'none'}`)
   }
   const expectedPoints = parseSvgPoints(overlay.expected)
   const detectedPoints = parseSvgPoints(overlay.detected)

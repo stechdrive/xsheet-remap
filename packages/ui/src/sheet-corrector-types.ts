@@ -17,6 +17,7 @@ export type SheetCorrectionDraft = {
   applied: boolean
   precisionWarp?: SheetPrecisionWarp
   precisionEvaluated?: boolean
+  estimatedCorners?: number[]
 }
 
 export type QueueState = 'idle' | 'running' | 'corrected' | 'exported' | 'review' | 'error'

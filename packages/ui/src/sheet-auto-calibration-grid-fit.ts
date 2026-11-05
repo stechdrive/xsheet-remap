@@ -1,4 +1,4 @@
-import { isRenderableSheetTemplateGridRegion, type SheetTemplate } from '@xsheet-remap/core'
+import { isRenderableSheetTemplateGridRegion, resolveSheetTemplateGridLayout, type SheetTemplate } from '@xsheet-remap/core'
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import { clampNumber } from './sheetInteraction'
 import { darkRatioInHorizontalBand, darkRatioInHorizontalBandIntegral, darkRatioInVerticalBand, darkRatioInVerticalBandIntegral, localSupportGroups, projectedLinePositionForExpected, type DarkPixelIntegralImage } from './sheet-auto-calibration-projection'
@@ -188,7 +188,7 @@ function seedEdgePenalty(candidate: number, seed: number, window: number): numbe
   return Math.max(0, normalizedDistance - 0.22)
 }
 
-function templateGridFitGuides(template: SheetTemplate, targetRect: { x: number; y: number; w: number; h: number }): GridFitGuides {
+export function templateGridFitGuides(template: SheetTemplate, targetRect: { x: number; y: number; w: number; h: number }): GridFitGuides {
   const vertical: GridFitGuide[] = [
     { ratio: 0, weight: 1.8 },
     { ratio: 1, weight: 1.8 },
@@ -200,20 +200,20 @@ function templateGridFitGuides(template: SheetTemplate, targetRect: { x: number;
   for (const region of template.regions) {
     if (!isRenderableSheetTemplateGridRegion(region)) continue
     if (!['action', 'sound', 'cell', 'camera'].includes(region.grid.role)) continue
-    addGuide(vertical, (region.rect.x - targetRect.x) / targetRect.w, 1.2)
-    addGuide(vertical, (region.rect.x + region.rect.w - targetRect.x) / targetRect.w, 1.2)
-    const columnCount = Math.max(1, region.grid.columns.length)
-    for (let index = 1; index < columnCount; index += 1) {
-      addGuide(vertical, (region.rect.x + region.rect.w * (index / columnCount) - targetRect.x) / targetRect.w, 0.7)
+    const layout = resolveSheetTemplateGridLayout(template, region, { paperTracks: template.defaults.paperTracks })
+    if (!layout?.columns.length) continue
+    const last = layout.columns[layout.columns.length - 1]
+    for (const [i, column] of layout.columns.entries()) {
+      addGuide(vertical, (column.x - targetRect.x) / targetRect.w, i === 0 ? 1.2 : 0.7)
     }
-
-    addGuide(horizontal, (region.rect.y - targetRect.y) / targetRect.h, 1.25)
-    addGuide(horizontal, (region.rect.y + region.rect.h - targetRect.y) / targetRect.h, 1.15)
-    const rowCount = Math.max(1, region.grid.rowCount)
+    addGuide(vertical, (last.x + last.w - targetRect.x) / targetRect.w, 1.2)
+    const { rowCount, rowHeight } = layout.frames
+    addGuide(horizontal, (layout.rect.y - targetRect.y) / targetRect.h, 1.25)
+    addGuide(horizontal, (layout.rect.y + rowHeight * rowCount - targetRect.y) / targetRect.h, 1.15)
     const minorStep = Math.max(1, Math.floor(rowCount / 18))
     for (let row = minorStep; row < rowCount; row += minorStep) {
       const weight = region.grid.majorLineEvery && row % region.grid.majorLineEvery === 0 ? 0.85 : 0.42
-      addGuide(horizontal, (region.rect.y + region.rect.h * (row / rowCount) - targetRect.y) / targetRect.h, weight)
+      addGuide(horizontal, (layout.rect.y + rowHeight * row - targetRect.y) / targetRect.h, weight)
     }
   }
   return {

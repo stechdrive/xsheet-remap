@@ -10,13 +10,13 @@ import {
 import type { SheetImageSettings, SheetPrecisionWarp } from './appTypes'
 import { applyLevelCorrectionToImageData, defaultLevelCorrectionSettings, type LevelCorrectionSettings } from './levelCorrection'
 import { alphaComposite, writeRgbPsd } from './psdWriter'
+import { resolveTemplateUnderlayDrawRect, templateOverlayImageUrl } from './sheet-reference-raster'
+export { resolveTemplateUnderlayDrawRect, templateOverlayImageUrl } from './sheet-reference-raster'
 import {
-  applyLevelCorrectionToDataUrl,
   calibrationPointsForSettings,
   defaultSheetImageSettings,
   hasEnabledCalibration,
   loadImage,
-  resolveImageRefUrl,
   warpSheetImageAsync,
   warpSheetImageDataAsync,
 } from './sheetImages'
@@ -134,7 +134,7 @@ export async function correctedPngDataUrl(
   precisionWarp?: SheetPrecisionWarp,
 ): Promise<string | null> {
   const image = await loadImage(imageUrl)
-  const pngDataUrl = await warpSheetImageAsync(
+  return warpSheetImageAsync(
     image,
     {
       ...defaultSheetImageSettings(),
@@ -143,12 +143,11 @@ export async function correctedPngDataUrl(
         points,
       },
       precisionWarp,
+      levelCorrection,
     },
     template,
     template.page.widthPx,
   )
-  if (!pngDataUrl || !levelCorrection.enabled) return pngDataUrl
-  return applyLevelCorrectionToDataUrl(pngDataUrl, levelCorrection)
 }
 
 export async function correctedPsdBase64(
@@ -279,23 +278,6 @@ async function templateLineLayerImageData(
   return output
 }
 
-export function resolveTemplateUnderlayDrawRect(
-  template: Pick<SheetTemplate, 'page' | 'defaultUnderlay'>,
-  outputWidth: number,
-  outputHeight: number,
-): { x: number; y: number; width: number; height: number } | null {
-  const placement = template.defaultUnderlay?.placement
-  if (!placement) return null
-  const scaleX = outputWidth / template.page.widthPx
-  const scaleY = outputHeight / template.page.heightPx
-  return {
-    x: placement.offsetXPx * scaleX,
-    y: placement.offsetYPx * scaleY,
-    width: placement.renderedWidthPx * scaleX,
-    height: placement.renderedHeightPx * scaleY,
-  }
-}
-
 function blankTransparentImageData(width: number, height: number): ImageData {
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -340,12 +322,6 @@ export function correctedOutputName(name: string, extension: CorrectedSheetImage
   const extensionMatch = /\.[^.]+$/.exec(name)
   const stem = extensionMatch ? name.slice(0, -extensionMatch[0].length) : name
   return extension === 'psd' ? `${stem}.psd` : `${stem}_corrected.${extension}`
-}
-
-export function templateOverlayImageUrl(template: SheetTemplate): string | null {
-  const underlay = template.defaultUnderlay
-  if (!underlay) return null
-  return resolveImageRefUrl({ ...underlay.imageRef, assetPath: underlay.assetPath })
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {

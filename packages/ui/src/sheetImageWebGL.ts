@@ -13,7 +13,6 @@ precision highp sampler2D;
 uniform sampler2D uSource;
 uniform sampler2D uWarp;
 uniform vec2 uOutputSize;
-uniform vec2 uSourceSize;
 uniform vec3 uH0;
 uniform vec3 uH1;
 uniform vec3 uH2;
@@ -54,8 +53,7 @@ void main() {
     outputColor = vec4(0.0);
     return;
   }
-  vec2 texel = (source * (uSourceSize - vec2(1.0)) + vec2(0.5)) / uSourceSize;
-  outputColor = texture(uSource, vec2(texel.x, 1.0 - texel.y));
+  outputColor = texture(uSource, vec2(source.x, 1.0 - source.y));
 }`
 
 export function renderSheetWarpWebGL(
@@ -125,7 +123,6 @@ export function renderSheetWarpWebGL(
     gl.uniform1i(requiredUniform(gl, program, 'uWarp'), 1)
 
     gl.uniform2f(requiredUniform(gl, program, 'uOutputSize'), outputWidth, outputHeight)
-    gl.uniform2f(requiredUniform(gl, program, 'uSourceSize'), sourceWidth, sourceHeight)
     gl.uniform3f(requiredUniform(gl, program, 'uH0'), homography[0], homography[1], homography[2])
     gl.uniform3f(requiredUniform(gl, program, 'uH1'), homography[3], homography[4], homography[5])
     gl.uniform3f(requiredUniform(gl, program, 'uH2'), homography[6], homography[7], homography[8])

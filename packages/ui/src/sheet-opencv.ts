@@ -15,6 +15,21 @@ export type OpenCvRuntime = Omit<BrowserOpenCv, 'ORB'> & {
   onRuntimeInitialized?: () => void
 }
 
+type CvObject = { delete(): void }
+export type OwnCvObject = <T extends CvObject>(object: T) => T
+
+export function withCvObjects<T>(run: (own: OwnCvObject) => T): T {
+  const owned: CvObject[] = []
+  try {
+    return run(object => {
+      owned.push(object)
+      return object
+    })
+  } finally {
+    for (let i = owned.length - 1; i >= 0; i--) owned[i].delete()
+  }
+}
+
 let openCvPromise: Promise<{ cv: OpenCvRuntime }> | null = null
 
 export async function loadOpenCv(): Promise<OpenCvRuntime> {

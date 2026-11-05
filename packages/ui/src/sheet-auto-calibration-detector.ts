@@ -31,7 +31,7 @@ export async function detectSheetCalibrationPoints(imageUrl: string, template: S
       const cv = await loadOpenCv()
       const fit = registerSheetImage(cv, reference, scan, targetQuad, size.width, size.height, template.page.widthPx, template.page.heightPx)
       if (fit) {
-        const local = refineRegisteredCorners(reference, scan, targetQuad, fit.corners, cornerSize)
+        const local = refineRegisteredCorners(reference, scan, targetQuad, fit.corners, cornerSize, true)
         if (isPlausibleRegisteredQuad(local.corners, targetQuad)) {
           const result = buildAutoCalibrationResult(defaults, local.corners, fit.confidence, 2 * (4-local.estimated.length), 'reference-image', targetQuad)
           result.debugOverlay.estimatedCorners = local.estimated

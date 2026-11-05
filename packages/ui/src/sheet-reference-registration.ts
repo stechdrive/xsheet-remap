@@ -1,6 +1,7 @@
 import type { Mat } from '@techstark/opencv-js'
 import type { NormalizedPoint } from '@xsheet-remap/core'
-import type { OpenCvRuntime } from './sheet-opencv'
+import { withCvObjects, type OwnCvObject, type OpenCvRuntime } from './sheet-opencv'
+import { matchSheetLandmarks, selectSheetLandmarks, type SheetLandmark } from './sheet-reference-landmarks'
 import { paintSheetRaster, type SheetRaster } from './sheet-reference-raster'
 import { isPlausibleRegisteredQuad } from './sheet-auto-calibration-projection'
 import { applyHomography, type Homography } from './sheetImages'
@@ -8,24 +9,11 @@ import { applyHomography, type Homography } from './sheetImages'
 type Point = { x: number; y: number }
 type Feature = { pt: Point; response: number }
 type Track = { reference: Point; input: Point }
-type Disposable = { delete(): void }
-type Own = <T extends Disposable>(object: T) => T
-type Features = { gray: Uint8Array; points: Point[]; width: number; height: number }
+type Features = { gray: Uint8Array; points: Point[]; width: number; height: number; landmarks?: SheetLandmark[] }
+type Registration = { matrix: Homography; confidence: number; inliers: number }
 const featuresByRaster = new WeakMap<SheetRaster, Features>()
 
-function scoped<T>(run: (own: Own) => T): T {
-  const owned: Disposable[] = []
-  try {
-    return run(object => {
-      owned.push(object)
-      return object
-    })
-  } finally {
-    for (let i = owned.length - 1; i >= 0; i--) owned[i].delete()
-  }
-}
-
-function grayInk(cv: OpenCvRuntime, own: Own, raster: SheetRaster, width: number, height: number): Mat {
+function grayInk(cv: OpenCvRuntime, own: OwnCvObject, raster: SheetRaster, width: number, height: number): Mat {
   const rgba = own(cv.matFromImageData(paintSheetRaster(raster, width, height)))
   const gray = own(new cv.Mat()),
     background = own(new cv.Mat())
@@ -52,7 +40,7 @@ function grayInk(cv: OpenCvRuntime, own: Own, raster: SheetRaster, width: number
 function referenceFeatures(cv: OpenCvRuntime, raster: SheetRaster, width: number, height: number): Features {
   const cached = featuresByRaster.get(raster)
   if (cached && cached.width === width && cached.height === height) return cached
-  const features = scoped(own => {
+  const features = withCvObjects(own => {
     const gray = grayInk(cv, own, raster, width, height)
     const orb = own(new cv.ORB()),
       keypoints = own(new cv.KeyPointVector())
@@ -87,31 +75,25 @@ function pointMat(cv: OpenCvRuntime, points: Point[]): Mat {
   )
 }
 
-export function registerSheetImage(
-  cv: OpenCvRuntime,
-  reference: SheetRaster,
-  scan: SheetRaster,
-  targets: NormalizedPoint[],
-  width: number,
-  height: number,
-  pageWidth: number,
-  pageHeight: number,
-): { corners: NormalizedPoint[]; confidence: number; inliers: number } | null {
-  const features = referenceFeatures(cv, reference, width, height)
-  if (features.points.length < 24) return null
-  return scoped(own => {
-    const model = own(cv.matFromArray(height, width, cv.CV_8UC1, features.gray))
-    const input = grayInk(cv, own, scan, width, height)
+function trackSheet(cv: OpenCvRuntime, model: Mat, input: Mat, features: Features, shift?: { dx: number; dy: number }): Registration | null {
+  const { width, height } = features
+  return withCvObjects(own => {
     const points = own(pointMat(cv, features.points))
-    const forward = own(new cv.Mat()),
-      backward = own(new cv.Mat())
+    const forward = own(shift ? pointMat(cv, features.points.map(p => ({ x: p.x + shift.dx, y: p.y + shift.dy }))) : new cv.Mat())
+    const backward = own(shift ? pointMat(cv, features.points) : new cv.Mat())
     const fs = own(new cv.Mat()),
       bs = own(new cv.Mat()),
       fe = own(new cv.Mat()),
       be = own(new cv.Mat())
     const window = new cv.Size(21, 21)
-    cv.calcOpticalFlowPyrLK(model, input, points, forward, fs, fe, window, 3)
-    cv.calcOpticalFlowPyrLK(input, model, forward, backward, bs, be, window, 3)
+    if (shift) {
+      const criteria = new cv.TermCriteria(cv.TermCriteria_COUNT | cv.TermCriteria_EPS, 30, 0.01)
+      cv.calcOpticalFlowPyrLK(model, input, points, forward, fs, fe, window, 3, criteria, cv.OPTFLOW_USE_INITIAL_FLOW)
+      cv.calcOpticalFlowPyrLK(input, model, forward, backward, bs, be, window, 3, criteria, cv.OPTFLOW_USE_INITIAL_FLOW)
+    } else {
+      cv.calcOpticalFlowPyrLK(model, input, points, forward, fs, fe, window, 3)
+      cv.calcOpticalFlowPyrLK(input, model, forward, backward, bs, be, window, 3)
+    }
     const fit: Track[] = [],
       validation: Track[] = []
     for (const [i, reference] of features.points.entries()) {
@@ -141,10 +123,28 @@ export function registerSheetImage(
       .sort((a, b) => a - b)
     const residual = (errors[(errors.length - 1) >> 1] + errors[errors.length >> 1]) / 2
     if (!(residual <= 1)) return null
+    return { matrix: h, inliers: inliers.length, confidence: Math.min(0.99, 0.6 + (0.3 * inliers.length) / fit.length + 0.1 * (1 - residual)) }
+  })
+}
+
+export function registerSheetImage(
+  cv: OpenCvRuntime,
+  reference: SheetRaster,
+  scan: SheetRaster,
+  targets: NormalizedPoint[],
+  width: number,
+  height: number,
+  pageWidth: number,
+  pageHeight: number,
+): { corners: NormalizedPoint[]; confidence: number; inliers: number } | null {
+  const features = referenceFeatures(cv, reference, width, height)
+  if (features.points.length < 24) return null
+  function project(fit: Registration | null) {
+    if (!fit) return null
     const corners: NormalizedPoint[] = []
     for (const t of targets) {
       // Templates locate features at pixel indices; resizing maps pixel centers.
-      const p = applyHomography(h, (t.x + 0.5 / pageWidth) * width - 0.5, (t.y + 0.5 / pageHeight) * height - 0.5)
+      const p = applyHomography(fit.matrix, (t.x + 0.5 / pageWidth) * width - 0.5, (t.y + 0.5 / pageHeight) * height - 0.5)
       if (!p) return null
       corners.push({
         x: (p.x + 0.5) / width - 0.5 / (scan.image.naturalWidth || scan.image.width),
@@ -152,10 +152,23 @@ export function registerSheetImage(
       })
     }
     if (!isPlausibleRegisteredQuad(corners, targets)) return null
-    return {
-      corners,
-      inliers: inliers.length,
-      confidence: Math.min(0.99, 0.6 + (0.3 * inliers.length) / fit.length + 0.1 * (1 - residual)),
+    return { corners, inliers: fit.inliers, confidence: fit.confidence }
+  }
+  return withCvObjects(own => {
+    const model = own(cv.matFromArray(height, width, cv.CV_8UC1, features.gray))
+    const input = grayInk(cv, own, scan, width, height)
+    const ordinary = project(trackSheet(cv, model, input, features))
+    if (ordinary) return ordinary
+
+    try {
+      features.landmarks ??= selectSheetLandmarks(cv, model, features.points)
+      const shift = matchSheetLandmarks(cv, input, features.landmarks)
+      if (!shift) return null
+      if (shift.kind === 'initial-flow') return project(trackSheet(cv, model, input, features, shift))
+      return project({ matrix: [1, 0, shift.dx, 0, 1, shift.dy, 0, 0, 1], inliers: shift.inliers, confidence: shift.confidence })
+    } catch {
+      // A failed optional WASM operation must still allow reference-validated geometry.
+      return null
     }
   })
 }

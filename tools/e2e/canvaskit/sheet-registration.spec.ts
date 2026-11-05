@@ -27,6 +27,22 @@ test('Remap registers an imported paper page through its calibration loupe', asy
     const dy = (points[0][i][1]-points[1][i][1])*standardA3SheetTemplate.page.heightPx
     expect(Math.hypot(dx,dy)).toBeLessThan(1)
   }
+  const calls = await page.evaluateHandle(async () => {
+    type Operation = 'calcOpticalFlowPyrLK' | 'matchTemplate'
+    type Runtime = Record<Operation, (...args: unknown[]) => unknown>
+    const cv = await (window as Window & { cv: Promise<Runtime> | Runtime }).cv
+    const counts = { calcOpticalFlowPyrLK: 0, matchTemplate: 0 }
+    for (const op of ['calcOpticalFlowPyrLK', 'matchTemplate'] as const) {
+      cv[op] = new Proxy(cv[op], { apply(target, receiver, args) {
+        counts[op]++
+        return Reflect.apply(target, receiver, args)
+      } })
+    }
+    return counts
+  })
+  await loupe.getByRole('button', { name: '4点自動検出', exact: true }).click()
+  await expect.poll(() => calls.jsonValue()).toEqual({ calcOpticalFlowPyrLK: 2, matchTemplate: 0 })
+  await calls.dispose()
 })
 
 test('Corrector locates the registered frame on a tilted sheet with one covered corner', async ({ page }) => {
@@ -86,6 +102,48 @@ test('Corrector locates the registered frame on a tilted sheet with one covered 
   await expect(loupe).toHaveCount(0)
   await expect(page.locator('.sheetCorrectorCorrectionHeader')).toContainText('推定位置の左上')
 })
+
+for (const scenario of ['shifted grid', 'missing horizontal rule', 'parallel pen stroke'] as const) {
+  test(`Corrector aligns a ${scenario} using the registered print`, async ({ page }) => {
+    await page.goto('./?app=sheet-corrector')
+    const fixture = await page.evaluate(async ({ path, bounds, scenario }) => {
+      const original = new Image()
+      original.src = new URL(path, document.baseURI).href
+      await original.decode()
+      const canvas = document.createElement('canvas')
+      const width = canvas.width = original.naturalWidth, height = canvas.height = original.naturalHeight
+      const ctx = canvas.getContext('2d')!
+      const x = Math.round((bounds.x + bounds.w) * width), y = Math.round((bounds.y + bounds.h) * height)
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(original, scenario === 'shifted grid' ? 7 : 0, scenario === 'shifted grid' ? 57 : 0)
+      if (scenario === 'missing horizontal rule') {
+        // Move the lower-right printed rules together, then obscure the horizontal arm.
+        ctx.fillRect(x - 160, y - 160, 183, 180)
+        ctx.drawImage(original, x - 160, y - 160, 180, 180, x - 157, y - 160, 180, 180)
+        ctx.fillRect(x - 82, y - 9, 93, 18)
+      } else if (scenario === 'parallel pen stroke') {
+        ctx.fillRect(x - 82, y - 9, 89, 18)
+        ctx.fillRect(x - 9, y - 154, 18, 160)
+        ctx.fillStyle = '#444'
+        ctx.fillRect(x + 2, y - 148, 2, 149)
+      }
+      return { png: canvas.toDataURL().split(',')[1], width, height, x, y }
+    }, { path: standardA3SheetTemplate.defaultUnderlay!.assetPath, bounds: standardA3SheetTemplate.calibration!.targetRect!, scenario })
+    await page.locator('input[type=file][accept*="image"]').setInputFiles({
+      name: 'printed_sheet.png', mimeType: 'image/png', buffer: Buffer.from(fixture.png, 'base64'),
+    })
+    await page.getByRole('button', { name: '画像補正', exact: true }).click()
+    const loupe = page.locator('.calibrationLoupeDialog')
+    await expect(loupe).toContainText(scenario === 'shifted grid' ? '自動検出しました。' : '推定位置の右下', { timeout: 25_000 })
+    const view = await loupe.getByLabel('右下の補正ルーペ').getAttribute('viewBox')
+    const [left, top, width, height] = view!.split(' ').map(Number)
+    const measuredX = (left + width / 2) * fixture.width, measuredY = (top + height / 2) * fixture.height
+    const dx = scenario === 'shifted grid' ? 7 : scenario === 'missing horizontal rule' ? 3 : 0
+    const dy = scenario === 'shifted grid' ? 57 : 0
+    expect(Math.hypot(measuredX - fixture.x - dx, measuredY - fixture.y - dy)).toBeLessThan(1)
+  })
+}
 
 for (const curved of [false, true]) {
   test(`Corrector ${curved ? 'applies a mesh to curved ink' : 'keeps flat registered ink on basic correction'}`, async ({ page }) => {

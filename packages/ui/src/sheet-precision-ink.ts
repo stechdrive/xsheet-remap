@@ -87,16 +87,18 @@ export function precisionGuideInk(
       hh,
     )
     const pixels = ctx!.getImageData(0, 0, w, hh).data
-    const gray = new Uint8Array(w * hh)
-    for (let i = 0; i < gray.length; i++) {
-      gray[i] = Math.round(pixels[4 * i] * 0.299 + pixels[4 * i + 1] * 0.587 + pixels[4 * i + 2] * 0.114)
+    // Measure ink before interpolation so a thin rule retains its signal between projected pixels.
+    const ink = new Uint8Array(w * hh)
+    for (let i = 0; i < ink.length; i++) {
+      const luminance = Math.round(pixels[4 * i] * 0.299 + pixels[4 * i + 1] * 0.587 + pixels[4 * i + 2] * 0.114)
+      ink[i] = Math.round(Math.max(0, Math.min(255, (205 - luminance) * 1.55)))
     }
     for (let y = top; y < bottom; y++) {
       const v = (y + 0.5) / height
       for (let x = left; x < right; x++) {
-        let light: number
+        let sample: number
         if (identity) {
-          light = gray[(y - y0) * w + x - x0]
+          sample = ink[(y - y0) * w + x - x0]
         } else {
           const u = (x + 0.5) / width,
             den = h[6] * u + h[7] * v + h[8]
@@ -112,11 +114,11 @@ export function precisionGuideInk(
           const k = iy * w + ix,
             n = iy * w + Math.min(w - 1, ix + 1),
             below = iy + 1 < hh ? w : 0
-          const upper = gray[k] + fx * (gray[n] - gray[k])
-          const lower = gray[k + below] + fx * (gray[n + below] - gray[k + below])
-          light = upper + fy * (lower - upper)
+          const upper = ink[k] + fx * (ink[n] - ink[k])
+          const lower = ink[k + below] + fx * (ink[n + below] - ink[k + below])
+          sample = upper + fy * (lower - upper)
         }
-        darkness[y * width + x] = Math.round(Math.max(0, Math.min(255, (205 - light) * 1.55)))
+        darkness[y * width + x] = Math.round(sample)
       }
     }
   }

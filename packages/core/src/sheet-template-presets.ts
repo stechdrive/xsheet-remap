@@ -214,7 +214,7 @@ export const standardA3DefaultUnderlay: SheetTemplateUnderlay = {
   assetPath: 'templates/standard-a3/timesheet.png',
   imageRef: {
     name: 'timesheet.png',
-    size: 153481,
+    size: 179070,
     assetPath: 'templates/standard-a3/timesheet.png',
     pixelWidth: STANDARD_A3_PAGE_WIDTH_PX,
     pixelHeight: STANDARD_A3_PAGE_HEIGHT_PX,

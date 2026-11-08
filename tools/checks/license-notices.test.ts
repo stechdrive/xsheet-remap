@@ -10,7 +10,7 @@ describe('embedded license catalog', () => {
   it('matches the installed runtime notices, native locks and bundled assets', () => {
     expect(checkLicenseCatalog(root, catalog).components).toBe(catalog.components.length)
     const ids = catalog.components.map((item: { id: string }) => item.id)
-    expect(ids).toContain('npm:celcodec@0.8.10')
+    expect(ids).toContain('npm:celcodec@0.8.17')
     expect(ids).not.toContain('npm:celcodec-legacy@0.2.0')
   })
   it('rejects missing or modified license text, a stale dependency snapshot and missing source information', () => {

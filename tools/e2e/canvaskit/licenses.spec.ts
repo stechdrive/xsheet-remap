@@ -10,7 +10,7 @@ for (const query of ['?app=remap', '?app=sheet-corrector']) {
     const search = page.getByRole('searchbox', { name: 'ライブラリ名・ライセンスで検索' })
     await search.fill('celcodec')
     const entry = page.locator('.licenseEntry').filter({ has: page.getByText('celcodec', { exact: true }) })
-    await expect(entry).toContainText('0.8.10 · MIT')
+    await expect(entry).toContainText('0.8.17 · MIT')
     await activateControl(page, entry.locator('summary'))
     await expect(entry).toContainText('Copyright (c) 2025-2026 stechdrive')
     await search.fill('LAME')

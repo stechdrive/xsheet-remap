@@ -1,14 +1,14 @@
 # celcodecによるCLIP形式処理
 
-CLIPの形式処理はcelcodec **0.8.10**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
+CLIPの形式処理はcelcodec **0.8.17**へ集約する。読み込み・プレビュー・保存は公開文書セッションと編集操作を使い、セル・工程・カットの規則、UI、履歴、Worker・WASM・フォントの初期化はこのアプリが担当する。
 
 ## 固定した配布依存
 
-依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.8.10-5638eb4d5a9b.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
+依存所有者は [packages/adapters/package.json](../packages/adapters/package.json)。`vendor/celcodec-0.8.17-81ed49816588.tgz` をリポジトリ内のfile依存として固定する。単独cloneから `npm ci --ignore-scripts` で導入でき、兄弟checkoutの変更や公開レジストリの更新に依存しない。
 
-- 提供元コミット: `2bcecef2546acee59bad349098962a6b62dac972`
-- SHA-256: `5638eb4d5a9b360e8ad9cb2618391af68c621649d254d96fbbc005d19bc3ad7b`
-- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの248ファイル。CLIPや採取資料は含まない。
+- 提供元コミット: `7027e4c4fcbce2852c8c316938c271ca7b987c85`
+- SHA-256: `81ed498165887427aa37032a7bb218b543a8e8c456ce2d3f05ff93836206388e`
+- ライブラリ配布内容: 公開JS・型・manifest・README・ライセンス・クレジットの250ファイル。CLIPや採取資料は含まない。
 
 [固定依存の監査](../tools/checks/vendor-celcodec.mjs)がmanifest・lock・tarballの版、hash、ファイル一覧を検査する。symlinkや兄弟checkoutへの依存には切り替えない。
 
@@ -32,11 +32,15 @@ ACTION/CEL、工程、カット、入力セル名、対応付け、丸め、Undo
 
 [Worker](../packages/adapters/src/clip/clip-document.worker.ts)は、アプリが従来から保持している `packages/adapters/src/clip/blank.clip` をURLとして読み、createDocumentと編集計画へ渡す。廃止されたcelcodec/blank.clip exportは使わない。既存seedのSHA-256は `6fb3efa8066af90b2d0e042ddc3d2aee7572691e5cc658f89cdb02467e377a82`。今回新しいCLIPや採取値を追加していない。Pagesの内容監査もこの許可済みhashを検査する。
 
-既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.8.10だけを使う。
+既存の `vendor/celcodec-0.2.0.tgz` は、固定した比較元・fixture生成専用のroot devDependency `celcodec-legacy` として残す。SHA-256は `7b658887da5e7d610f271c163cffa1ce61ec4a01dd65c575e3ae1ceca77764e0`。旧形式の低水準ラッパーはclip/test-support/へ隔離し、製品コードからの旧パッケージ・fixture・test-supportへのimportを構文ベースのarchitecture検査で拒否する。製品は0.8.17だけを使う。
 
 旧writerで作ったCLIPに対して、現行readerとのモデル一致、無編集のバイト一致、セル並べ替え、レイヤー移動、選択タイムラインの編集、画像・音声の保持を検証する。既存のCSP採取値は独立した比較基準として維持する。ベクターの合成テスト用コントロールはネイティブの継続状態を含まないため、ゼロ埋め領域を実際のRNG・間隔リセットとして扱わない。ネイティブ継続記録の検証はライブラリ側の資料庫回帰で行う。
 
 ## 共同開発と検証
+
+0.8.17では、グレー表現色とレイヤーカラー、保存された画像先端の有効条件、画像先端の曲線・標本計算の改善を取り込む。回転したAA先端の頂点行を扱う共通近似により、提供側の実制作93層のsoft Diceは0.8.16の93.3861%から93.7721%へ上がり、絶対アルファ差は5.030%減った。候補固定後にCSPから採取した3,168条件でも誤差が23.116%減ったが、94条件の局所悪化と単一セル基底の微小点欠落が残る。厳密一致を失った条件も記録し、全体・群別・輪郭の得失と目視を合わせて採用している。
+
+この描画検証は提供側のCSP対照によるもので、Remapの全操作や完全互換を保証する指標ではない。6,647件のライブラリ回帰、公開API・型・配布内容・Worker・性能と主資料庫保全を通過したパッケージを無変更で固定する。アプリ独自の補正式は追加せず、近似診断、公開文書API、保存済み合成を優先するプレビュー方針を維持する。Remap側のCLIP入出力・画素・プレビュー201件、依存固定とライセンス監査6件、lint・型検査も通過した。以下は0.8.10導入時の記録である。
 
 0.8.10では画像先端の最小幅・方向、押印間隔、紙質の座標・階調の改善を取り込んだ。複数先端・色・未解明入力などの未対応は原因別の案内を表示し、近似診断を維持する。独立CSP採取値による描画回帰は提供側で検証し、Remapの合成テストをその代わりにはしない。
 

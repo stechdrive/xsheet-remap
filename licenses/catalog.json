@@ -19,7 +19,7 @@
     "licenses/upstream/webview2-license.txt": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
     "licenses/upstream/webview2-macros-license.txt": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
     "apps/web/public/vad/models/silero_vad.onnx": "7671cd04b004e9076da0d4a7b1a5aec36adf161c39230c1cb94a4fd5db6bbd28",
-    "npm": "1a59dd0deff5888f8d178f10894fc01e033cafc416ea7cd223e6f6439cabc477"
+    "npm": "22f41670c173022d78723afb0dd30289ec899de6a84da3b2dd640e82158aaf70"
   },
   "nativePackages": [
     "cargo:adler2@2.0.1",
@@ -465,10 +465,10 @@
       ]
     },
     {
-      "id": "npm:celcodec@0.8.10",
+      "id": "npm:celcodec@0.8.17",
       "group": "web",
       "name": "celcodec",
-      "version": "0.8.10",
+      "version": "0.8.17",
       "license": "MIT",
       "source": "",
       "textIds": [

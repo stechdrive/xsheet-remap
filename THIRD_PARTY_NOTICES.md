@@ -29,7 +29,7 @@ are shared without removing component-specific copyright notices.
 | pako 2.1.0 | MIT AND Zlib | Compression used by ag-psd; licenses reproduced below |
 | LINE Seed JP via `@fontsource/line-seed-jp` | OFL-1.1 | Bundled UI font files and extracted vertical glyph outlines (copyright LY Corporation) |
 | sql.js 1.15.1 / SQLite | MIT / Public domain | Direct CLIP database editing |
-| celcodec 0.8.10 | MIT | CLIP parsing, material restoration and document editing |
+| celcodec 0.8.17 | MIT | CLIP parsing, material restoration and document editing |
 
 ## Transitive Dependencies
 
@@ -374,7 +374,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## celcodec 0.8.10
+## celcodec 0.8.17
 
 Native CLIP containers, materials, BINC, timelines, audio and document writing
 are provided by celcodec. It consolidates MIT code from

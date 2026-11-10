@@ -150,9 +150,27 @@ public sealed class WebviewDesktop : IDisposable
         }
     }
 
-    public WebviewDesktop(string executable, string cwd) : this(executable, cwd, false) { }
-    public WebviewDesktop(string executable, string cwd, bool interactive)
+    public static string QuoteArgument(string argument)
     {
+        if (argument == null || argument.IndexOf('\0') >= 0) throw new ArgumentException("Invalid process argument");
+        var result = new StringBuilder("\"");
+        int slashes = 0;
+        foreach (char character in argument) {
+            if (character == '\\') { slashes++; continue; }
+            result.Append('\\', character == '"' ? slashes * 2 + 1 : slashes);
+            result.Append(character);
+            slashes = 0;
+        }
+        result.Append('\\', slashes * 2);
+        return result.Append('"').ToString();
+    }
+
+    public WebviewDesktop(string executable, string cwd) : this(executable, cwd, false) { }
+    public WebviewDesktop(string executable, string cwd, bool interactive) : this(executable, cwd, interactive, new string[0]) { }
+    public WebviewDesktop(string executable, string cwd, bool interactive, string[] arguments)
+    {
+        var commandLine = new StringBuilder(QuoteArgument(executable));
+        foreach (string argument in arguments) commandLine.Append(' ').Append(QuoteArgument(argument));
         var observer = ObserverDesktopName();
         Name = interactive ? InputDesktopName() : "xsheet-webview-" + Guid.NewGuid().ToString("N");
         // READOBJECTS | CREATEWINDOW | WRITEOBJECTS; no SWITCHDESKTOP right.
@@ -191,7 +209,7 @@ public sealed class WebviewDesktop : IDisposable
                 Marshal.WriteIntPtr(handles, desktop);
                 if (!UpdateProcThreadAttribute(attributes, 0, new IntPtr(0x20002), handles, new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception(Marshal.GetLastWin32Error());
                 var startup = new StartupInfoEx { startup = new StartupInfo { cb = Marshal.SizeOf(typeof(StartupInfoEx)), desktop = Name }, attributes = attributes };
-                if (!CreateProcessWithAttributes(executable, new StringBuilder("\"" + executable + "\""), IntPtr.Zero, IntPtr.Zero,
+                if (!CreateProcessWithAttributes(executable, commandLine, IntPtr.Zero, IntPtr.Zero,
                         true, 0x80004, IntPtr.Zero, cwd, ref startup, out info)) // extended startup + suspended
                     throw new Win32Exception(Marshal.GetLastWin32Error());
             } finally {

@@ -1,5 +1,6 @@
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+mod startup;
 mod template_editor;
 
 const SHEET_CORRECTOR_BATCH_WINDOW_WIDTH: f64 = 520.0;
@@ -44,12 +45,15 @@ enum SheetCorrectorSourceKind {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let launch_paths = startup::prepare_launch_paths()
+        .expect("failed to prepare sheet corrector working directory");
     tauri::Builder::default()
+        .manage(launch_paths)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let has_launch_paths = sheet_corrector_launch_paths().len() > 0;
+                let has_launch_paths = !app.state::<startup::LaunchPaths>().0.is_empty();
                 if has_launch_paths {
                     window.set_min_size(Some(tauri::Size::Logical(tauri::LogicalSize {
                         width: SHEET_CORRECTOR_BATCH_WINDOW_MIN_WIDTH,
@@ -179,13 +183,8 @@ fn read_sheet_corrector_template_path(
 }
 
 #[tauri::command(rename_all = "camelCase")]
-fn sheet_corrector_launch_paths() -> Vec<String> {
-    std::env::args_os()
-        .skip(1)
-        .map(std::path::PathBuf::from)
-        .filter(|path| path.exists())
-        .map(|path| path.to_string_lossy().into_owned())
-        .collect()
+fn sheet_corrector_launch_paths(paths: tauri::State<'_, startup::LaunchPaths>) -> Vec<String> {
+    paths.0.clone()
 }
 
 #[tauri::command(rename_all = "camelCase")]
@@ -498,3 +497,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(all(test, windows))]
+mod file_lifetime_tests;

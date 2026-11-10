@@ -1,5 +1,14 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -Path (Join-Path $PSScriptRoot 'webview-desktop.cs')
+foreach ($case in @(
+  @('', '""'),
+  @('.', '"."'),
+  @('D:\input folder\', '"D:\input folder\\"'),
+  @('a"b', '"a\"b"'),
+  @('a\"b', '"a\\\"b"')
+)) {
+  if ([WebviewDesktop]::QuoteArgument($case[0]) -cne $case[1]) { throw "Incorrect Windows argument quoting: $($case[0])" }
+}
 $before = [WebviewDesktop]::InputDesktopName()
 $observer = [WebviewDesktop]::ObserverDesktopName()
 foreach ($attempt in 1..3) {

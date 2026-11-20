@@ -2,6 +2,7 @@ import { timelineMemos, type CutProject, type SheetPage, type SheetTemplate } fr
 import { MetadataTextLayer } from './app-sheet-layers'
 import type { SheetEventRectRenderItem } from './sheet-layers-hit-geometry'
 import type { SheetContinuationRenderItem, SheetRenderModelContext } from './sheetRenderModel'
+import { PaperCellCarryLayer } from './PaperCellCarryLayer'
 import { TimingCellText } from './TimingCellText'
 import { SoundCueLayer } from './SoundCueLayer'
 import { CameraCueLayer } from './CameraCueLayer'
@@ -50,6 +51,7 @@ export function SheetRevisionReferenceLayer({
           strokeWidth={item.strokeWidth}
         />
       ))}
+      <PaperCellCarryLayer context={context} page={page} textClassName="sheetRevisionReferenceText" />
       <SoundCueLayer
         cues={project.timedRangeCues.filter(cue => cue.role === 'sound')}
         template={template}

@@ -4,7 +4,7 @@ import { addOverlayPaperTrackAtCspTop, createDefaultProject, createSheetPages, s
 import { App, RemapApp } from './App'
 import { canvasContextPrototype } from './canvas-context.test-support'
 import { clickSheet, clickTemplateFrame, dragTemplateDisplayFrames, enterTimingValue, expectSelectedHit, expectSelectedRange, setSheetRect, templateFramePoint } from './App.test-support'
-import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
+import { overlayColumnsForPage } from './sheet-layers-hit-geometry'
 import { uiText } from './i18n'
 
 beforeEach(() => { vi.spyOn(canvasContextPrototype(), 'getContext').mockReturnValue(null) })
@@ -119,7 +119,7 @@ it('creates an ACTION column from the layer pane and keeps input and arrow navig
   await waitFor(() => expect(screen.getByRole('button', { name: uiText.actions.overlayPaperTrackInputActive('J') })).toBeTruthy())
   const added = addOverlayPaperTrackAtCspTop(createDefaultProject(), { paperTrack: 'J' })
   const page = createSheetPages(standardA3SheetTemplate, 144, 1)[0]
-  const column = overlayColumnRectForPage(standardA3SheetTemplate, added.project, added.paperTrack, page)!
+  const column = overlayColumnsForPage(standardA3SheetTemplate, added.project, added.paperTrack, page)[0]!
   const x = (column.rect.x + column.rect.w / 2) * 1000
   const y = (column.rect.y + column.rect.h / column.frames.rowCount / 2) * 1000
   clickSheet(sheet, x, y)

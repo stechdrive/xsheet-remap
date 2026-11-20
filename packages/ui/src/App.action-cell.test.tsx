@@ -211,3 +211,28 @@ it('accepts main/numpad ticks in one press with stepped selection, while respect
   fireEvent.keyDown(window, { key: 'Delete', code: 'NumpadDecimal' })
   expect(cell('action', 9)).toBeNull()
 })
+
+it('previews the held CEL number and blank at a fold, commits and undoes them without creating editable boundary events', () => {
+  const { sheet, menu } = setup()
+  for (const [track, entries] of [['A', [[1, '20'], [49, '10']]], ['B', [[1, '1'], [49, 'x']]]] as const) {
+    for (const [frame, value] of entries) {
+      clickTemplateFrame(sheet, 'action', track, frame)
+      enterTimingValue(value)
+    }
+  }
+  const carry = (track: string, preview: boolean) => document.querySelector(`${preview ? '.actionCellTransferGhost' : '.sheetSvg'} [data-carry-track="${track}"][data-carry-frame="73"]`)
+  menu('action', 49); openTransfer()
+  expect(carry('A', true)?.textContent).toBe('1')
+  expect(carry('B', true)?.querySelector('.paperCellCarryBlank')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+  expect(carry('A', true)).toBeNull()
+  expect(carry('A', false)).toBeNull()
+  menu('action', 49); openTransfer()
+  fireEvent.click(screen.getByRole('button', { name: 'OK' }))
+  expect(carry('A', false)?.textContent).toBe('1')
+  expect(carry('B', false)?.querySelector('.paperCellCarryBlank')).toBeTruthy()
+  expect(cell('cell', 73)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))
+  expect(carry('A', false)).toBeNull()
+  expect(cell('action', 49)?.textContent).toContain('10')
+})

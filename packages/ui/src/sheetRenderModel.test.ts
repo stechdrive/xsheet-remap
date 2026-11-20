@@ -30,7 +30,7 @@ import {
 } from './sheetRenderModel'
 import { defaultTimingTextFontSizePx } from './sheetTextLayout'
 import type { TextMeasurementProvider } from './textMetrics'
-import { eventRectsForPages, overlayColumnRectForPage, overlayHitFromPoint, projectTimingHitForFrame, rectForHit } from './sheet-layers-hit-geometry'
+import { eventRectsForPages, overlayColumnsForPage, overlayHitFromPoint, projectTimingHitForFrame, rectForHit } from './sheet-layers-hit-geometry'
 import { overlayBandSegments, overlayPaperTracks } from './app-sheet-geometry'
 
 describe('sheet render model', () => {
@@ -39,7 +39,7 @@ describe('sheet render model', () => {
     const project = { ...original, logicalSheet: { ...original.logicalSheet, paperTracks: original.logicalSheet.paperTracks.map(track => ({ ...track, viewPlacement: { sheetRole: role } })) } }
     const context = createSheetRenderModelContext(project, standardA3SheetTemplate), page = context.pages[0]
     const track = context.overlayTracks[0], segment = overlayBandSegments(standardA3SheetTemplate, project, role)[0]
-    const column = overlayColumnRectForPage(standardA3SheetTemplate, project, track, page)!
+    const column = overlayColumnsForPage(standardA3SheetTemplate, project, track, page)[0]!
     const event = inputTextRenderItemsForPage(context, page).find(item => item.paperTrack === 'J')!
     const hit = overlayHitFromPoint(standardA3SheetTemplate, project, page, { x: event.rect.x + event.rect.w / 2, y: event.rect.y + event.rect.h / 2 }, 'J')!
     expect(context.overlayTracks.map(track => track.paperTrack)).toEqual(['J', 'K', 'L'])
@@ -81,7 +81,7 @@ describe('sheet render model', () => {
       const context = createSheetRenderModelContext(project, standardA3SheetTemplate), page = context.pages[0]
       const flag = overlayPaperTrackRenderItems(context, page).find(item => item.track.paperTrack === 'J')!
       const track = project.logicalSheet.paperTracks.find(track => track.paperTrack === 'J')!
-      const expanded = overlayColumnRectForPage(standardA3SheetTemplate, project, track, page)!
+      const expanded = overlayColumnsForPage(standardA3SheetTemplate, project, track, page)[0]!
       const content = inputTextRenderItemsForPage(context, page).find(item => item.paperTrack === 'J')!
       const hits = eventRectsForPages(project, standardA3SheetTemplate, [page], { activeOverlayPaperTrack: 'J' }).get(page.pageId)!
       expect(flag.column.rect.x).toBe(expanded.rect.x)
@@ -154,7 +154,7 @@ describe('sheet render model', () => {
     expect(context.overlayTracks.map(track => track.paperTrack)).toEqual(['J'])
     expect(hasOverlayRenderContent(context)).toBe(true)
     const overlayItems = overlayPaperTrackRenderItems(context, page)
-    expect(overlayItems.map(item => item.track.paperTrack)).toEqual(['J'])
+    expect(overlayItems.map(item => [item.track.paperTrack, item.column.regionId])).toEqual([['J', 'left_action_grid'], ['J', 'right_action_grid']])
     expect(overlayItems[0]?.column.rowLineRules).toEqual([
       { every: 24, weight: 'strong' },
       { every: 12, weight: 'medium' },

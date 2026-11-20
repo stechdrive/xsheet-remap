@@ -6,7 +6,6 @@ import {
   createSheetPages,
   formatSheetTemplateCutNumber,
   getSheetViewLayout,
-  localizeFrameToSheetPage,
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   logicalSheetOfficialFrameEnd,
@@ -19,14 +18,12 @@ import {
   resolveSheetTemplateRegionCapabilities,
   resolveSheetTemplateTextStyle,
   resolveSheetFormFieldValue,
-  sheetGridCellRect,
   sheetFormFieldsForScope,
   sheetFormFieldValueText,
   sheetTimingRoleForEvent,
   timingEventValueKind,
   stackGuideStackBand,
   timingHitForFrame,
-  type CutProject,
   type SheetGeometryInput,
   type SheetContentInput,
   type CutSheetDocument,
@@ -40,7 +37,7 @@ import {
   type TimelineEvent,
 } from '@xsheet-remap/core'
 import { buildTemplateChromeRenderModel, type TemplateFormFieldRenderModel } from './templateEditorGeometry'
-import { overlayColumnRectForPage as resolveOverlayColumnRectForPage, overlayPaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayColumnsForPage, overlayCellRect, overlayColumnAtFrame, overlayPaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
@@ -48,6 +45,7 @@ import { overlayAuxiliaryLabelBandKey, placeOverlayAuxiliaryLabel, type LabelLan
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { cutHeaderRenderItems } from './cutHeaderRenderItems'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
+import { sheetTimingGridProjection, timingBlockRow } from './sheetTimingGridProjection'
 import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 
 const MIN_CONTINUATION_SPAN_FRAMES = 4
@@ -265,27 +263,43 @@ export function inputTextRenderItemsForPage(context: SheetRenderModelContext, pa
     const key = keys.get(event.keyId)
     if (!key && !isSpecialTimingEvent(event)) return []
     const sheetRole = sheetTimingRoleForEvent(event)
-    const kind = timingEventValueKind(event)
-    const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === event.paperTrack)
-    const rect = track && paperTrackDisplayRole(track) === sheetRole && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)
-      ? overlayCellRectForFrame(context, track, event.frame, page)
-      : standardEventRectForPage(context, event, page)
+    const rect = eventRectForTrackFrame(context, sheetRole, event.paperTrack, event.frame, page)
     if (!rect) return []
-    const text = kind === 'cell' ? key?.displayLabel ?? '' : ''
-    const fontSizePx = resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx)
-    return [{
-      eventId: event.eventId,
-      sheetRole,
-      keyId: event.keyId,
-      paperTrack: event.paperTrack,
-      frame: event.frame,
-      kind,
-      text,
-      fontSizePx,
-      textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize, undefined, kind === 'cell' ? references.get(timingReferenceAddress(event)) : false, event.fontSizeMode !== 'fixed', event.fontSizeMode === 'fit'),
-      rect,
-    }]
+    return [timingInputItem(context, event, event.frame, rect, key?.displayLabel ?? '', references.get(timingReferenceAddress(event)))]
   })
+}
+
+function timingInputItem(context: SheetRenderModelContext, event: TimelineEvent, frame: number, rect: NormalizedRect, label: string, enclosure?: 'triangle' | 'circle'): SheetInputTextRenderItem {
+  const sheetRole = sheetTimingRoleForEvent(event), kind = timingEventValueKind(event)
+  const text = kind === 'cell' ? label : ''
+  const fontSizePx = resolveTimingTextFontSizePx(context.template, sheetRole, event.fontSizePx)
+  return { eventId: event.eventId, sheetRole, keyId: event.keyId, paperTrack: event.paperTrack, frame, kind, text, fontSizePx, rect,
+    textLayout: layoutTimingCellText(text, fontSizePx, defaultTimingTextMinFontSizePx(context.template, sheetRole), rect, context.pageSize,
+      undefined, kind === 'cell' ? enclosure : false, event.fontSizeMode !== 'fixed', event.fontSizeMode === 'fit') }
+}
+
+/** Notation at a physical block head has no timing event or editing target of its own. */
+export function paperCellCarryItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetInputTextRenderItem[] {
+  if (!context.project.logicalSheet.events.length) return []
+  const projection = sheetTimingGridProjection(context)
+  if (!projection.repeatCells) return []
+  const { events, keys } = context.project.logicalSheet
+  const groups = timingEventIndex(events).groups, keyById = timingKeyIndex(keys)
+  const items: SheetInputTextRenderItem[] = []
+  for (const track of context.project.logicalSheet.paperTracks) {
+    const trackEvents = groups.get(timingGroupKey('cell', track.paperTrack))
+    if (!trackEvents?.length) continue
+    for (const block of projection.blocks('cell', track.paperTrack, page)) {
+      const frame = Math.max(page.frameStart, block.first)
+      const index = timingFrameLowerBound(trackEvents, frame)
+      if (index === 0 || trackEvents[index]?.frame === frame) continue
+      const source = trackEvents[index - 1]!
+      const kind = timingEventValueKind(source), key = keyById.get(source.keyId)
+      if (kind !== 'blank' && (kind !== 'cell' || !key || context.visibleKeyIds && !context.visibleKeyIds.has(source.keyId))) continue
+      items.push(timingInputItem(context, source, frame, timingBlockRow(block, frame), key?.displayLabel ?? ''))
+    }
+  }
+  return items
 }
 
 export function referenceOnlyRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage, frameRange?: { start: number; end: number }): SheetInputTextRenderItem[] {
@@ -304,36 +318,7 @@ export function referenceOnlyRenderItemsForPage(context: SheetRenderModelContext
 }
 
 export function continuationRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): SheetContinuationRenderItem[] {
-  const items: SheetContinuationRenderItem[] = []
-  const displayFrameEnd = context.displayFrameStart + context.displayDurationFrames - 1
-  for (const role of ['action', 'cell'] as const) {
-    if (!context.project.sheetView.continuationDisplay[role]) continue
-    for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
-      const events = context.project.logicalSheet.events
-        .filter(event => event.paperTrack === paperTrack && sheetTimingRoleForEvent(event) === role)
-        .sort((left, right) => left.frame - right.frame)
-      for (let index = 0; index < events.length; index += 1) {
-        const event = events[index]!
-        if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) continue
-        const valueKind = timingEventValueKind(event)
-        if (valueKind === 'inbetween' || valueKind === 'reverse') continue
-        const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1
-        const heldFrameEnd = Math.min(displayFrameEnd, nextFrame - 1)
-        const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
-        if (continuationFrameEnd === null) continue
-        const rects: Array<{ frame: number; rect: NormalizedRect }> = []
-        for (let frame = event.frame + 1; frame <= continuationFrameEnd; frame += 1) {
-          const rect = eventRectForTrackFrame(context, role, paperTrack, frame, page)
-          if (rect) rects.push({ frame, rect })
-        }
-        for (const segment of contiguousContinuationSegments(rects)) {
-          const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment)
-          if (item) items.push(item)
-        }
-      }
-    }
-  }
-  return items
+  return continuationRenderItemsForPages(context, [page]).get(page.pageId) ?? []
 }
 
 // Geometry owns this projection cache. Immutable event identity and the next
@@ -351,67 +336,59 @@ export function continuationRenderItemsForPages(
   if (pages.length === 0 || context.project.logicalSheet.events.length === 0) return itemsByPage
   const displayFrameEnd = context.displayFrameStart + context.displayDurationFrames - 1
 
-  const pageById = new Map(pages.map(page => [page.pageId, page]))
-  const resolveContinuationRect = createContinuationRectResolver(context, pages, pageById)
+  const projection = sheetTimingGridProjection(context)
   const eventsByRoleAndTrack = timingEventIndex(context.project.logicalSheet.events).groups
-  const frameRange = sheetFrameRangeForWindow(context, renderWindow ?? null)
+  const frameRange = getSheetViewLayout(context.template).frameAxis?.type === 'paged' ? undefined : sheetFrameRangeForWindow(context, renderWindow ?? null)
   let projections = continuationProjections.get(context.geometry)
   if (!projections) { projections = new WeakMap(); continuationProjections.set(context.geometry, projections) }
 
   for (const role of ['action', 'cell'] as const) {
     if (!context.project.sheetView.continuationDisplay[role]) continue
-    for (const paperTrack of context.project.logicalSheet.paperTracks.map(track => track.paperTrack)) {
-      const events = eventsByRoleAndTrack.get(timingGroupKey(role, paperTrack)) ?? []
-      const candidates = new Set<number>()
+    for (const { paperTrack } of context.project.logicalSheet.paperTracks) {
+      const events = eventsByRoleAndTrack.get(timingGroupKey(role, paperTrack))
+      if (!events?.length) continue
       for (const page of pages) {
-        const first = Math.max(0, timingFrameLowerBound(events, Math.max(page.frameStart, frameRange?.start ?? page.frameStart)) - 1)
-        const after = timingFrameLowerBound(events, Math.min(page.frameEnd, frameRange?.end ?? page.frameEnd) + 1)
-        for (let index = first; index < after; index++) candidates.add(index)
-      }
-      for (const index of [...candidates].sort((a, b) => a - b)) {
-        const event = events[index]!
-        if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) continue
-        const valueKind = timingEventValueKind(event)
-        if (valueKind === 'inbetween' || valueKind === 'reverse') continue
-        const nextFrame = events[index + 1]?.frame ?? displayFrameEnd + 1
-        const heldFrameEnd = Math.min(displayFrameEnd, nextFrame - 1)
-        const continuationFrameEnd = visibleContinuationFrameEnd(role, event.frame, heldFrameEnd)
-        if (continuationFrameEnd === null) continue
-
-        for (const page of pages) {
-          const first = Math.max(event.frame + 1, page.frameStart)
-          const last = Math.min(continuationFrameEnd, page.frameEnd)
+        const blocks = projection.blocks(role, paperTrack, page)
+        if (!blocks.length) continue
+        const rangeStart = Math.max(page.frameStart, frameRange?.start ?? page.frameStart)
+        const rangeEnd = Math.min(page.frameEnd, frameRange?.end ?? page.frameEnd)
+        if (rangeStart > rangeEnd) continue
+        const firstIndex = Math.max(0, timingFrameLowerBound(events, rangeStart) - 1)
+        const after = timingFrameLowerBound(events, rangeEnd + 1)
+        for (let index = firstIndex; index < after; index++) {
+          const event = events[index]!
+          if (context.visibleKeyIds && !isSpecialTimingEvent(event) && !context.visibleKeyIds.has(event.keyId)) continue
+          const kind = timingEventValueKind(event)
+          if (kind !== 'cell' && kind !== 'blank') continue
+          const heldEnd = Math.min(displayFrameEnd, (events[index + 1]?.frame ?? displayFrameEnd + 1) - 1)
+          const visibleEnd = visibleContinuationFrameEnd(role, event.frame, heldEnd)
+          if (visibleEnd === null) continue
+          const first = Math.max(event.frame + 1, page.frameStart), last = Math.min(visibleEnd, page.frameEnd)
           if (first > last) continue
           const signature = `${first}:${last}:${renderWindow?.top ?? ''}:${renderWindow?.bottom ?? ''}`
           let eventPages = projections.get(event)
           if (!eventPages) { eventPages = new Map(); projections.set(event, eventPages) }
-          const cached = eventPages.get(page.pageId)
-          if (cached?.signature === signature) { itemsByPage.get(page.pageId)?.push(...cached.items); continue }
-          const projected: SheetContinuationRenderItem[] = []
-          // Grid folds and overlays are piecewise affine. Resolve the endpoints
-          // of each interval instead of allocating one rectangle per held frame.
-          const boundaries = [...new Set([first, last + 1, ...resolveContinuationRect.boundaries(role, paperTrack, page)
-            .filter(frame => frame > first && frame <= last)])].sort((a, b) => a - b)
-          const segments: Array<Array<{ frame: number; rect: NormalizedRect }>> = []
-          for (let boundary = 0; boundary < boundaries.length - 1; boundary++) {
-            const start = boundaries[boundary]!, end = boundaries[boundary + 1]! - 1
-            const startRect = resolveContinuationRect(role, paperTrack, start)
-            const endRect = start === end ? startRect : resolveContinuationRect(role, paperTrack, end)
-            if (!startRect || !endRect) continue
-            const previous = segments.at(-1)
-            const previousEnd = previous?.at(-1)
-            const joins = previousEnd && previousEnd.frame + 1 === start
-              && Math.abs(previousEnd.rect.x + previousEnd.rect.w / 2 - startRect.rect.x - startRect.rect.w / 2) < 0.00001
-            const startItem = { frame: start, rect: startRect.rect }, endItem = { frame: end, rect: endRect.rect }
-            if (joins && previous) previous.splice(1, previous.length - 1, endItem)
-            else segments.push(start === end ? [startItem] : [startItem, endItem])
+          let cached = eventPages.get(page.pageId)
+          if (cached?.signature !== signature) {
+            const segments: Array<{ first: number; last: number; from: NormalizedRect; to: NormalizedRect; carry: boolean }> = []
+            for (const block of blocks) {
+              const head = Math.max(block.first, page.frameStart)
+              const carry = role === 'cell' && projection.repeatCells && event.frame < head
+              const start = Math.max(first, carry ? head + 1 : head), end = Math.min(last, block.last)
+              if (start > end) continue
+              const from = timingBlockRow(block, start), to = timingBlockRow(block, end)
+              const previous = segments.at(-1)
+              if (!carry && previous && previous.last + 1 === start && Math.abs(previous.to.x + previous.to.w / 2 - from.x - from.w / 2) < 0.00001) {
+                previous.last = end
+                previous.to = to
+              } else segments.push({ first: start, last: end, from, to, carry })
+            }
+            const items = segments.flatMap(segment => continuationRenderItem(event.eventId, paperTrack, role, kind, segment.from, segment.to,
+              segment.first === segment.last && (role === 'action' || segment.carry), renderWindow) ?? [])
+            cached = { signature, items }
+            eventPages.set(page.pageId, cached)
           }
-          for (const segment of segments) {
-            const item = continuationRenderItem(event.eventId, paperTrack, role, valueKind, segment, renderWindow)
-            if (item) projected.push(item)
-          }
-          eventPages.set(page.pageId, { signature, items: projected })
-          itemsByPage.get(page.pageId)?.push(...projected)
+          itemsByPage.get(page.pageId)!.push(...cached.items)
         }
       }
     }
@@ -664,7 +641,7 @@ function metadataTextOverflows(
   return contentWidthPx > availableWidthPx + 0.01 || contentHeightPx > availableHeightPx + 0.01
 }
 
-export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, page: SheetPage): OverlayPaperTrackRenderItem[] {
+export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, page: SheetPage, tracks = context.overlayTracks): OverlayPaperTrackRenderItem[] {
   const occupiedByRegion = new Map<string, LabelLaneOccupancy[]>()
 
   function occupiedLanesForRegion(region: SheetTemplate['regions'][number]) {
@@ -702,9 +679,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
     return occupied
   }
 
-  return context.overlayTracks.flatMap(track => {
-    const column = overlayColumnRectForPage(context, track, page)
-    if (!column) return []
+  return tracks.flatMap(track => overlayColumnsForPage(context.template, context.project, track, page).flatMap(column => {
     const region = context.template.regions.find(item => item.regionId === column.regionId)
     if (!region?.grid) return []
     const layout = resolveSheetTemplateGridLayout(context.template, region, {
@@ -718,7 +693,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
     const occupied = occupiedLanesForRegion(region)
     const label = placeOverlayAuxiliaryLabel(context.template, rect, context.pageSize, track, column, occupied, STACK_GUIDE_MAX_LANE)
     return [{ track, column, label }]
-  })
+  }))
 }
 
 export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContext, page: SheetPage): StackGuideFlagRenderItem[] {
@@ -750,48 +725,6 @@ export function stackGuideFlagRenderItemsForPage(context: SheetRenderModelContex
   })
 }
 
-function overlayCellRectForFrame(context: SheetRenderModelContext, track: PaperTrack, frame: number, page: SheetPage): NormalizedRect | null {
-  const localized = localizeFrameToSheetPage(context.template, frame, context.displayDurationFrames, context.displayFrameStart)
-  if (!localized || localized.page.pageId !== page.pageId) return null
-  const column = overlayColumnRectForPage(context, track, page)
-  if (!column) return null
-  if (localized.localFrame < column.frames.frameStart || localized.localFrame > column.frames.frameEnd) return null
-  const rowIndex = localized.localFrame - column.frames.frameStart
-  const rowH = column.rect.h / column.frames.rowCount
-  return {
-    x: column.rect.x,
-    y: column.rect.y + rowH * rowIndex,
-    w: column.rect.w,
-    h: rowH,
-  }
-}
-
-function overlayColumnRectForPage(context: SheetRenderModelContext, track: PaperTrack, page: SheetPage) {
-  return resolveOverlayColumnRectForPage(context.template, context.project, track, page)
-}
-
-function standardEventRectForPage(
-  context: SheetRenderModelContext,
-  event: CutProject['logicalSheet']['events'][number],
-  page: SheetPage,
-): NormalizedRect | null {
-  const hit = timingHitForFrame(
-    context.template,
-    sheetTimingRoleForEvent(event),
-    event.paperTrack,
-    event.frame,
-    context.displayDurationFrames,
-    context.displayFrameStart,
-    context.paperTracks,
-  )
-  if (!hit || hit.pageId !== page.pageId) return null
-  return cellRectForHit(context.template, hit, context.displayDurationFrames, context.displayFrameStart, {
-    paperTracks: context.paperTracks,
-    timelineLanes: context.timelineLanes,
-    layoutOverrides: context.project.sheetView.layoutOverrides,
-  })
-}
-
 function eventRectForTrackFrame(
   context: SheetRenderModelContext,
   role: SheetTimingRole,
@@ -800,7 +733,10 @@ function eventRectForTrackFrame(
   page: SheetPage,
 ): NormalizedRect | null {
   const track = context.project.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
-  if (track && paperTrackDisplayRole(track) === role && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)) return overlayCellRectForFrame(context, track, frame, page)
+  if (track && paperTrackDisplayRole(track) === role && context.overlayTracks.some(candidate => candidate.paperTrack === track.paperTrack)) {
+    const column = overlayColumnAtFrame(overlayColumnsForPage(context.template, context.project, track, page), frame)
+    return column && frame >= page.frameStart && frame <= page.frameEnd ? overlayCellRect(column, frame) : null
+  }
   const hit = timingHitForFrame(
     context.template,
     role,
@@ -818,21 +754,6 @@ function eventRectForTrackFrame(
   })
 }
 
-function contiguousContinuationSegments(items: Array<{ frame: number; rect: NormalizedRect }>): Array<Array<{ frame: number; rect: NormalizedRect }>> {
-  const segments: Array<Array<{ frame: number; rect: NormalizedRect }>> = []
-  for (const item of items) {
-    const current = segments.at(-1)
-    const previous = current?.at(-1)
-    const sameColumn = previous && Math.abs((previous.rect.x + previous.rect.w / 2) - (item.rect.x + item.rect.w / 2)) < 0.00001
-    if (!previous || item.frame !== previous.frame + 1 || !sameColumn) {
-      segments.push([item])
-    } else if (current) {
-      current.push(item)
-    }
-  }
-  return segments
-}
-
 function visibleContinuationFrameEnd(
   role: 'action' | 'cell',
   eventFrame: number,
@@ -844,104 +765,19 @@ function visibleContinuationFrameEnd(
     : heldFrameEnd
 }
 
-function createContinuationRectResolver(
-  context: SheetRenderModelContext,
-  pages: SheetPage[],
-  pageById: Map<string, SheetPage>,
-) {
-  const trackByName = new Map(context.project.logicalSheet.paperTracks.map(track => [track.paperTrack, track]))
-  const overlayTrackNames = new Set(context.overlayTracks.map(track => track.paperTrack))
-  const layoutOptions = {
-    paperTracks: context.paperTracks,
-    timelineLanes: context.timelineLanes,
-    durationFrames: context.displayDurationFrames,
-    frameOrigin: context.displayFrameStart,
-    layoutOverrides: context.project.sheetView.layoutOverrides,
-  }
-  const layoutsByRole = new Map((['action', 'cell'] as const).map(role => [
-    role,
-    context.template.regions.flatMap(region => {
-      if (!isTimelineProjectingSheetTemplateGridRegion(region) || region.grid.role !== role) return []
-      const layout = resolveSheetTemplateGridLayout(context.template, region, layoutOptions)
-      if (!layout) return []
-      return [{
-        layout,
-        columnsByTrack: new Map(layout.columns.flatMap(column =>
-          column.paperTrack ? [[column.paperTrack, column] as const] : [],
-        )),
-      }]
-    }),
-  ]))
-  const overlayColumns = new Map<string, ReturnType<typeof overlayColumnRectForPage>>()
-  for (const track of context.overlayTracks) {
-    for (const page of pages) {
-      overlayColumns.set(`${track.paperTrack}\u0000${page.pageId}`, overlayColumnRectForPage(context, track, page))
-    }
-  }
-
-  const resolve = (role: 'action' | 'cell', paperTrack: string, frame: number): { pageId: string; rect: NormalizedRect } | null => {
-    const localized = localizeFrameToSheetPage(
-      context.template,
-      frame,
-      context.displayDurationFrames,
-      context.displayFrameStart,
-    )
-    const page = localized ? pageById.get(localized.page.pageId) : undefined
-    if (!localized || !page) return null
-
-    const track = trackByName.get(paperTrack)
-    if (track && paperTrackDisplayRole(track) === role && overlayTrackNames.has(track.paperTrack)) {
-      const column = overlayColumns.get(`${track.paperTrack}\u0000${page.pageId}`)
-      if (!column || localized.localFrame < column.frames.frameStart || localized.localFrame > column.frames.frameEnd) return null
-      const rowIndex = localized.localFrame - column.frames.frameStart
-      const rowH = column.rect.h / column.frames.rowCount
-      return {
-        pageId: page.pageId,
-        rect: {
-          x: column.rect.x,
-          y: column.rect.y + rowH * rowIndex,
-          w: column.rect.w,
-          h: rowH,
-        },
-      }
-    }
-
-    for (const { layout, columnsByTrack } of layoutsByRole.get(role) ?? []) {
-      if (localized.localFrame < layout.frames.frameStart || localized.localFrame > layout.frames.frameEnd) continue
-      const column = columnsByTrack.get(paperTrack)
-      if (!column) continue
-      const rect = sheetGridCellRect(layout, column.index, localized.localFrame - layout.frames.frameStart)
-      if (rect) return { pageId: page.pageId, rect }
-    }
-    return null
-  }
-  const continuous = ['continuous', 'infinite'].includes(getSheetViewLayout(context.template).frameAxis?.type ?? '')
-  return Object.assign(resolve, {
-    boundaries(role: 'action' | 'cell', paperTrack: string, page: SheetPage) {
-      const offset = continuous ? 0 : page.frameStart - context.template.defaults.frameOrigin
-      const track = trackByName.get(paperTrack)
-      const overlay = track && paperTrackDisplayRole(track) === role ? overlayColumns.get(`${paperTrack}\u0000${page.pageId}`) : undefined
-      const frames = overlay ? [overlay.frames] : (layoutsByRole.get(role) ?? []).map(item => item.layout.frames)
-      return frames.flatMap(range => [range.frameStart + offset, range.frameEnd + 1 + offset])
-    },
-  })
-}
-
 function continuationRenderItem(
   eventId: string,
   paperTrack: string,
   role: 'action' | 'cell',
   valueKind: ReturnType<typeof timingEventValueKind>,
-  segment: Array<{ frame: number; rect: NormalizedRect }>,
+  first: NormalizedRect,
+  last: NormalizedRect,
+  isolatedFrame: boolean,
   renderWindow?: { top: number; bottom: number } | null,
 ): SheetContinuationRenderItem | null {
-  const first = segment[0]?.rect
-  const last = segment.at(-1)?.rect
-  if (!first || !last) return null
   const centerX = first.x + first.w / 2
-  const isolatedActionFrame = role === 'action' && segment.length === 1
-  const startY = first.y + first.h * (isolatedActionFrame ? 0.25 : 0.5)
-  const endY = last.y + last.h * (isolatedActionFrame ? 0.75 : 0.5)
+  const startY = first.y + first.h * (isolatedFrame ? 0.25 : 0.5)
+  const endY = last.y + last.h * (isolatedFrame ? 0.75 : 0.5)
   if (renderWindow && (endY < renderWindow.top || startY > renderWindow.bottom)) return null
   const cellSize = Math.min(first.w, first.h)
   const strokeWidth = Math.max(0.00045, Math.min(0.0015, cellSize * 0.075))

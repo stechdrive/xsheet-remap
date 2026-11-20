@@ -1,7 +1,7 @@
 import { isInteractiveSheetTemplateGridRegion, type NormalizedRect, type SheetPage } from '@xsheet-remap/core'
 import type { SheetRangeSelection } from './appTypes'
 import type { SheetRenderModelContext } from './sheetRenderModel'
-import { frameOriginForPageHit, overlayColumnRectForPage, overlayRangeRectForPage, projectTimingHitForFrame, rectForHit, shouldSuppressRectUnderActiveOverlay } from './sheet-layers-hit-geometry'
+import { frameOriginForPageHit, overlayColumnsForPage, overlayRangeRectsForPage, projectTimingHitForFrame, rectForHit, shouldSuppressRectUnderActiveOverlay } from './sheet-layers-hit-geometry'
 import { rangeRectsForPage } from './sheetInteraction'
 import { mergeAdjacentRangeRects } from './sheet-selection-visuals'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
@@ -15,7 +15,7 @@ export function timingDragRangeRectsForPage(context: GeometryContext, page: Shee
   const overlayNames = new Set(overlayTracks.map(track => track.paperTrack))
   const selected = range.paperTracks.filter(Boolean)
   const activeOverlay = overlayTracks.find(track => track.paperTrack === activeOverlayPaperTrack)
-  const activeColumn = activeOverlay ? overlayColumnRectForPage(template, project, activeOverlay, page) : null
+  const activeColumns = activeOverlay ? overlayColumnsForPage(template, project, activeOverlay, page) : []
   // Project logical frames into each block/page. Translating source rectangles
   // would put the ghost in the wrong column across a block or page boundary.
   const groups = new Set(template.regions.filter(region =>
@@ -29,9 +29,9 @@ export function timingDragRangeRectsForPage(context: GeometryContext, page: Shee
     }),
   )
   const overlays = overlayTracks.filter(track => selected.includes(track.paperTrack)).flatMap(track =>
-    overlayRangeRectForPage(template, project, track, range.frameStart, range.frameEnd, page) ?? [],
+    overlayRangeRectsForPage(template, project, track, range.frameStart, range.frameEnd, page),
   )
-  return mergeAdjacentRangeRects([...normal.filter(rect => !shouldSuppressRectUnderActiveOverlay(undefined, rect, activeColumn)), ...overlays])
+  return mergeAdjacentRangeRects([...normal.filter(rect => !shouldSuppressRectUnderActiveOverlay(undefined, rect, activeColumns)), ...overlays])
 }
 
 export type TimingDragGhostCell = {
@@ -53,7 +53,7 @@ export function timingDragGhostCellsForPage(
   const start = Math.max(page.frameStart, source.displayFrameStart, frameRange?.start ?? -Infinity)
   const end = Math.min(page.frameEnd, source.displayFrameEnd, frameRange?.end ?? Infinity)
   const activeOverlay = context.overlayTracks.find(track => track.paperTrack === activeOverlayPaperTrack)
-  const activeColumn = activeOverlay ? overlayColumnRectForPage(template, project, activeOverlay, page) : null
+  const activeColumns = activeOverlay ? overlayColumnsForPage(template, project, activeOverlay, page) : []
   const collisions = new Set(plan.collisionCells.map(cell => `${cell.paperTrack}\u0000${cell.frame}`))
   const cells: TimingDragGhostCell[] = []
   for (const item of source.items) {
@@ -64,7 +64,7 @@ export function timingDragGhostCellsForPage(
     if (!hit || hit.pageId !== page.pageId) continue
     const rect = rectForHit(project, template, hit)
     const track = project.logicalSheet.paperTracks.find(candidate => candidate.paperTrack === paperTrack)
-    if (!rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeColumn)) continue
+    if (!rect || shouldSuppressRectUnderActiveOverlay(track, rect, activeColumns)) continue
     const fontSize = resolveTimingTextFontSizePx(template, source.range.role, item.fontSizePx)
     cells.push({ paperTrack, frame, item, rect,
       textLayout: layoutTimingCellText(item.displayLabel ?? '', fontSize, defaultTimingTextMinFontSizePx(template, source.range.role), rect, pageSize, undefined, item.reference, item.fontSizeMode !== 'fixed', item.fontSizeMode === 'fit'),

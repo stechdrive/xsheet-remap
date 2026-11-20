@@ -5,6 +5,7 @@ import { continuationRenderItemsForPages, referenceOnlyRenderItemsForPage, sheet
 import { SheetRenderWindowContext } from './useSheetRenderWindow'
 import { sheetFrameRangeForWindow } from './sheetRenderWindowGeometry'
 import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
+import { PaperCellCarryLayer } from './PaperCellCarryLayer'
 import { TimingCellText } from './TimingCellText'
 import { TimingEventSymbol } from './TimingEventSymbol'
 import { TimingReferenceSymbol } from './TimingReferenceSymbol'
@@ -29,6 +30,7 @@ export const SheetActionCellTransferGhost = memo(function SheetActionCellTransfe
   return <g className="actionCellTransferGhost" pointerEvents="none">
     {model.continuations.map((item, index) => <path key={`${item.eventId}:${index}`} className="timingContinuationLine"
       d={sheetContinuationPathData(item.path)} strokeWidth={item.strokeWidth} />)}
+    <PaperCellCarryLayer context={previewContext} page={page} activeOverlayPaperTrack={activeOverlayPaperTrack} />
     {model.references.map(item => item.textLayout.reference && <TimingReferenceSymbol key={item.eventId} geometry={item.textLayout.reference} pageSize={context.pageSize} />)}
     {model.events.map(({ event, eventKind, displayLabel, rect, textLayout }) => <g key={event.eventId}
       data-transfer-track={event.paperTrack} data-transfer-frame={event.frame}>

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { baseTimingProcessId, baseTimingProject, sheetTimingRoleForEvent, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
-import { createSheetRenderModelContext, continuationRenderItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
+import { baseTimingProcessId, baseTimingProject, timingReferenceAddress, type CutProject, type SheetPage, type SheetTemplate } from '@xsheet-remap/core'
+import { createSheetRenderModelContext, continuationRenderItemsForPage, paperCellCarryItemsForPage, sheetContinuationPathData } from './sheetRenderModel'
 import { eventRectsForPages } from './sheet-layers-hit-geometry'
+import { PaperCellCarryLayer } from './PaperCellCarryLayer'
 import { TimingCellText } from './TimingCellText'
 import { TimingEventSymbol } from './TimingEventSymbol'
 
@@ -16,16 +17,18 @@ function ProcessReferenceDrawing({ project, template, page }: { project: CutProj
     const base = baseTimingProject(project), context = createSheetRenderModelContext(base, template)
     const reference = eventRectsForPages(base, template, [page]).get(page.pageId) ?? []
     const active = eventRectsForPages(project, template, [page]).get(page.pageId) ?? []
-    const address = (event: CutProject['logicalSheet']['events'][number]) => JSON.stringify([event.paperTrack, sheetTimingRoleForEvent(event), event.frame])
+    const address = timingReferenceAddress
     const occupied = new Map(active.map(item => [address(item.event), item]))
     const referenceByAddress = new Map(reference.map(item => [address(item.event), item]))
-    return { context, reference, active, occupied, referenceByAddress, address, lines: continuationRenderItemsForPage(context, page) }
+    const visibleActive = new Set([...occupied.keys(), ...paperCellCarryItemsForPage(createSheetRenderModelContext(project, template), page).map(address)])
+    return { context, reference, active, visibleActive, referenceByAddress, address, lines: continuationRenderItemsForPage(context, page) }
   }, [project, template, page])
-  const { context, reference, active, occupied, referenceByAddress, address, lines } = drawing
+  const { context, reference, active, visibleActive, referenceByAddress, address, lines } = drawing
   return <svg className="sheetTransientOverlay sheetProcessReference" data-testid="base-process-reference" data-base-process={baseTimingProcessId(project)} viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="基準シートの参照" style={{ pointerEvents: 'none' }}>
     <g className="baseProcessInk">
       {lines.map((item, index) => <path key={`${item.eventId}:${index}`} d={sheetContinuationPathData(item.path)} fill="none" stroke="#70888a" opacity="0.5" strokeWidth={item.strokeWidth} />)}
-      {reference.filter(item => !occupied.has(address(item.event))).map(item => <g key={item.event.eventId} data-base-frame={item.event.frame} data-base-value={item.displayLabel}>
+      <PaperCellCarryLayer context={context} page={page} occupied={visibleActive} textClassName="baseProcessText" />
+      {reference.filter(item => !visibleActive.has(address(item.event))).map(item => <g key={item.event.eventId} data-base-frame={item.event.frame} data-base-value={item.displayLabel}>
         {item.eventKind === 'cell' ? <TimingCellText className="baseProcessText" layout={item.textLayout} rect={item.rect} pageSize={context.pageSize} /> : <TimingEventSymbol kind={item.eventKind} rect={item.rect} pageSize={context.pageSize} />}
       </g>)}
     </g>

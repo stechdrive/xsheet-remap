@@ -1,17 +1,15 @@
 import { paperTrackDisplayRole } from '@xsheet-remap/core'
-import { useEffect, useRef } from 'react'
-import { type CutProject, type NormalizedRect, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, projectSheetLayoutOptions, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize, stackGuideStackBand, updatePaperTrack } from '@xsheet-remap/core'
+import { useEffect, useMemo, useRef } from 'react'
+import { type CutProject, type PaperTrack, type SheetPage, type SheetTemplate, type SheetTimingRole, updatePaperTrack } from '@xsheet-remap/core'
 import { uiText } from './i18n'
 import { gridRowLineClassName } from './templateEditorGeometry'
 import { TooltipTarget } from './Tooltip'
 import { SheetSvgText } from './SheetSvgText'
 import { StatusHintSource } from './app-foundation'
-import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideAnchorRegions, stackGuidePlacements, stackGuideSvgGeometry } from './app-stack-guides'
-import { overlayBandSegmentForRegion } from './stack-guides-geometry'
-import { overlaySnapIndexFromPoint, overlaySnapIndexFromSegment, type OverlayBandSegment } from './app-sheet-geometry'
-import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
+import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS } from './app-stack-guides'
+import { overlaySnapIndexFromPoint, overlaySnapIndexFromSegment } from './app-sheet-geometry'
+import { overlayPaperTrackRenderItems, type SheetRenderModelContext } from './sheetRenderModel'
 import { VerticalSvgLabel } from './VerticalSvgGlyph'
-import { overlayAuxiliaryLabelBandKey, placeOverlayAuxiliaryLabel, type LabelLaneOccupancy, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 
 export type OverlayPaperTrackDrag = {
   paperTrack: string
@@ -24,23 +22,20 @@ export type OverlayPaperTrackDrag = {
 }
 
 export function OverlayPaperTrackLayer({
-  project,
-  template,
+  context,
   page,
-  tracks,
   activePaperTrack,
   drag,
 }: {
-  project: CutProject
-  template: SheetTemplate
+  context: SheetRenderModelContext
   page: SheetPage
-  tracks: PaperTrack[]
   activePaperTrack: string | null
   drag: OverlayPaperTrackDrag | null
 }) {
+  const items = useOverlayPaperTrackItems(context, page, drag)
   return (
     <g className="overlayPaperTrackLayer">
-      {overlayPaperTrackRenderItems(template, project, page, tracks, drag).map(({ track, column, label }) => {
+      {items.map(({ track, column, label }) => {
         const isInputTarget = activePaperTrack === track.paperTrack
         const frames = column.frames
           const lines = []
@@ -49,7 +44,7 @@ export function OverlayPaperTrackLayer({
             lines.push(<line key={`r${row}`} className={`overlayPaperTrackLine ${gridRowLineClassName(column, row)}`} x1={column.rect.x} x2={column.rect.x + column.rect.w} y1={y} y2={y} />)
           }
         return (
-          <g key={track.paperTrack} className={isInputTarget ? 'overlayPaperTrack inputActive' : 'overlayPaperTrack inputInactive'}>
+          <g key={`${track.paperTrack}:${column.regionId}`} className={isInputTarget ? 'overlayPaperTrack inputActive' : 'overlayPaperTrack inputInactive'}>
             <rect className="overlayPaperTrackColumn" x={column.rect.x} y={column.rect.y} width={column.rect.w} height={column.rect.h} />
             <line className="overlayPaperTrackBorder" x1={column.rect.x} x2={column.rect.x} y1={column.rect.y} y2={column.rect.y + column.rect.h} />
             <line className="overlayPaperTrackBorder" x1={column.rect.x + column.rect.w} x2={column.rect.x + column.rect.w} y1={column.rect.y} y2={column.rect.y + column.rect.h} />
@@ -83,7 +78,7 @@ export function OverlayPaperTrackInteractionLayer({
   project,
   template,
   page,
-  tracks,
+  context,
   pageWidth,
   pageHeight,
   activePaperTrack,
@@ -97,7 +92,7 @@ export function OverlayPaperTrackInteractionLayer({
   project: CutProject
   template: SheetTemplate
   page: SheetPage
-  tracks: PaperTrack[]
+  context: SheetRenderModelContext
   pageWidth: number
   pageHeight: number
   activePaperTrack: string | null
@@ -111,6 +106,8 @@ export function OverlayPaperTrackInteractionLayer({
   const layerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<OverlayPaperTrackDrag | null>(drag)
   const activeDrag = drag?.pageId === page.pageId ? drag : null
+
+  const items = useOverlayPaperTrackItems(context, page, activeDrag)
 
   useEffect(() => {
     dragRef.current = drag
@@ -179,7 +176,7 @@ export function OverlayPaperTrackInteractionLayer({
 
   return (
     <div ref={layerRef} className="overlayPaperTrackInteractionLayer">
-      {overlayPaperTrackRenderItems(template, project, page, tracks, activeDrag).map(({ track, renderedTrack, label }) => {
+      {items.map(({ track, column, label }) => {
         const isInputTarget = activePaperTrack === track.paperTrack
         const inputStateLabel = isInputTarget
           ? uiText.actions.overlayPaperTrackInputActive(track.label)
@@ -187,7 +184,7 @@ export function OverlayPaperTrackInteractionLayer({
         const title = `${inputStateLabel}\n${uiText.actions.overlayPaperTrackEdit}`
         const statusHint = uiText.statusHints.overlayPaperTrack(track.label, isInputTarget)
         return (
-          <TooltipTarget key={track.paperTrack} label={title} delayMs={OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS}>
+          <TooltipTarget key={`${track.paperTrack}:${column.regionId}`} label={title} delayMs={OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS}>
             {tooltipProps => (
               <button
                 {...tooltipProps}
@@ -195,7 +192,7 @@ export function OverlayPaperTrackInteractionLayer({
                 className={isInputTarget ? 'overlayPaperTrackDragHandle inputActive' : 'overlayPaperTrackDragHandle inputInactive'}
                 data-sheet-touch-interaction={isInputTarget ? 'direct' : undefined}
                 aria-pressed={isInputTarget}
-                aria-label={inputStateLabel}
+                aria-label={column.globalFrameStart > context.displayFrameStart ? `${inputStateLabel}（${column.globalFrameStart}コマ目から）` : inputStateLabel}
                 style={{
                   left: `${label.labelX * pageWidth}px`,
                   top: `${label.labelY * pageHeight}px`,
@@ -209,10 +206,9 @@ export function OverlayPaperTrackInteractionLayer({
                   event.stopPropagation()
                   event.currentTarget.setPointerCapture?.(event.pointerId)
                   const sheetRole = paperTrackDisplayRole(track)
-                  const column = overlayColumnRectForPage(template, project, renderedTrack, page)
                   const nextDrag = {
                     paperTrack: track.paperTrack,
-                    snapIndex: column ? overlaySnapIndexFromSegment(column.rect.x, column) : 0,
+                    snapIndex: overlaySnapIndexFromSegment(column.rect.x, column),
                     sheetRole,
                     pageId: page.pageId,
                     startClientX: event.clientX,
@@ -258,74 +254,11 @@ export function OverlayPaperTrackInteractionLayer({
   )
 }
 
-interface OverlayPaperTrackRenderItem {
-  track: PaperTrack
-  renderedTrack: PaperTrack
-  column: OverlayBandSegment & { rect: NormalizedRect }
-  label: OverlayAuxiliaryLabelGeometry
-}
-
-function overlayPaperTrackRenderItems(
-  template: SheetTemplate,
-  project: CutProject,
-  page: SheetPage,
-  tracks: PaperTrack[],
-  drag: OverlayPaperTrackDrag | null,
-): OverlayPaperTrackRenderItem[] {
-  const layoutOptions = projectSheetLayoutOptions(project, template)
-  const displayDurationFrames = layoutOptions.durationFrames ?? template.defaults.durationFrames
-  const pageSize = resolveSheetTemplatePageSize(template, displayDurationFrames, layoutOptions)
-  const occupiedByRegion = new Map<string, LabelLaneOccupancy[]>()
-
-  function occupiedLanesForRegion(region: SheetTemplate['regions'][number]) {
-    const bandKey = overlayAuxiliaryLabelBandKey(template, region)
-    const existing = occupiedByRegion.get(bandKey)
-    if (existing) return existing
-    const occupied = stackGuideAnchorRegions(template, page, project.logicalSheet.frameOrigin)
-      .filter(anchorRegion => overlayAuxiliaryLabelBandKey(template, anchorRegion) === bandKey)
-      .flatMap(anchorRegion => {
-        const layout = resolveSheetTemplateGridLayout(template, anchorRegion, {
-          ...layoutOptions,
-        })
-        if (!layout || layout.columns.length === 0) return []
-        const rect = layout.rect
-        const columns = layout.columns
-        const slots = overlayBandSegmentForRegion(template, project, anchorRegion.grid?.role as SheetTimingRole, anchorRegion.regionId)?.slots ?? []
-        const labelsForRegion = project.stackGuideLabels.filter(label => (label.displayRole ?? 'action') === anchorRegion.grid?.role && stackGuideStackBand(label) === 'cell-interleave')
-        return stackGuidePlacements(template, project, labelsForRegion, rect, pageSize, columns, slots, anchorRegion.regionId).map(({ label, lane }) => {
-          const geometry = stackGuideSvgGeometry(template, rect, pageSize, label, lane, columns, slots, anchorRegion.regionId)
-          return {
-            leftPx: geometry.labelX * pageSize.widthPx,
-            rightPx: (geometry.labelX + geometry.labelWidth) * pageSize.widthPx,
-            top: geometry.labelY,
-            bottom: geometry.labelBottomY,
-          }
-        })
-      })
-    occupiedByRegion.set(bandKey, occupied)
-    return occupied
-  }
-
-  return tracks.flatMap(track => {
-    const renderedTrack = drag?.paperTrack === track.paperTrack
-      ? { ...track, viewPlacement: { ...track.viewPlacement, templateId: template.templateId, snapIndex: drag.snapIndex } }
-      : track
-    const column = overlayColumnRectForPage(template, project, renderedTrack, page)
-    if (!column) return []
-    const region = template.regions.find(item => item.regionId === column.regionId)
-    if (!region?.grid) return []
-    const layout = resolveSheetTemplateGridLayout(template, region, {
-      ...layoutOptions,
-    })
-    if (!layout || layout.columns.length === 0) return []
-    const rect = layout.rect
-    const occupied = occupiedLanesForRegion(region)
-    const label = placeOverlayAuxiliaryLabel(template, rect, pageSize, renderedTrack, column, occupied, STACK_GUIDE_MAX_LANE)
-    return [{
-      track,
-      renderedTrack,
-      column,
-      label,
-    }]
-  })
+function useOverlayPaperTrackItems(context: SheetRenderModelContext, page: SheetPage, drag: OverlayPaperTrackDrag | null) {
+  return useMemo(() => {
+    const tracks = drag ? context.overlayTracks.map(track => track.paperTrack === drag.paperTrack
+      ? { ...track, viewPlacement: { ...track.viewPlacement, templateId: context.template.templateId, snapIndex: drag.snapIndex } }
+      : track) : context.overlayTracks
+    return overlayPaperTrackRenderItems(context, page, tracks)
+  }, [context, page, drag])
 }

@@ -236,15 +236,27 @@ export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetG
   return clampNumber(trackIndex >= 0 ? trackIndex + 2 : 0, 0, segment.snapCount)
 }
 
-/** Shared by canvas/export rendering, hit testing and column drag handles. */
-export function overlayColumnRectForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): (OverlayBandSegment & { rect: NormalizedRect; paperTrack: string }) | null {
-  const segments = overlayBandSegments(template, project, paperTrackDisplayRole(track))
-  const frameAxis = getSheetViewLayout(template).frameAxis?.type
-  const origin = frameAxis === 'continuous' || frameAxis === 'infinite' ? page.frameStart : template.defaults.frameOrigin
-  const segment = segments.find(item => page.frameStart <= page.frameStart + item.frames.frameEnd - origin
-    && page.frameEnd >= page.frameStart + item.frames.frameStart - origin)
-  if (!segment) return null
-  const slot = segment.slots[overlayVisibleSnapIndex(template, project, track, segment)]
-  return slot ? { ...segment, paperTrack: track.paperTrack,
-    rect: { x: slot.x, y: segment.rect.y, w: slot.w, h: segment.rect.h } } : null
+export type OverlayColumn = OverlayBandSegment & { paperTrack: string }
+
+/** A paper track has one physical column per grid block on the page. */
+export function overlayColumnsForPage(template: SheetTemplate, project: SheetGeometryInput, track: PaperTrack, page: SheetPage): OverlayColumn[] {
+  const paged = getSheetViewLayout(template).frameAxis?.type === 'paged'
+  const offset = paged ? page.frameStart - template.defaults.frameOrigin : 0
+  return overlayBandSegments(template, project, paperTrackDisplayRole(track)).flatMap(segment => {
+    const globalFrameStart = segment.frames.frameStart + offset
+    const globalFrameEnd = segment.frames.frameEnd + offset
+    if (globalFrameStart > page.frameEnd || globalFrameEnd < page.frameStart) return []
+    const slot = segment.slots[overlayVisibleSnapIndex(template, project, track, segment)]
+    return slot ? [{ ...segment, paperTrack: track.paperTrack, globalFrameStart, globalFrameEnd,
+      rect: { x: slot.x, y: segment.rect.y, w: slot.w, h: segment.rect.h } }] : []
+  })
+}
+
+export function overlayColumnAtFrame(columns: readonly OverlayColumn[], frame: number) {
+  return columns.find(column => frame >= column.globalFrameStart && frame <= column.globalFrameEnd)
+}
+
+export function overlayCellRect(column: OverlayColumn, frame: number): NormalizedRect {
+  const rowHeight = column.rect.h / column.frames.rowCount
+  return { x: column.rect.x, y: column.rect.y + rowHeight * (frame - column.globalFrameStart), w: column.rect.w, h: rowHeight }
 }

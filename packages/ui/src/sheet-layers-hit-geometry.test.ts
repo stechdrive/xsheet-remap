@@ -87,12 +87,12 @@ describe('sheet event rectangle index', () => {
     expect(shouldSuppressRectUnderActiveOverlay(
       standardTrack,
       { x: 0.25, y: 0.2, w: 0.05, h: 0.05 },
-      activeColumn,
+      [activeColumn],
     )).toBe(true)
     expect(shouldSuppressRectUnderActiveOverlay(
       overlayTrack,
       { x: 0.25, y: 0.2, w: 0.05, h: 0.05 },
-      activeColumn,
+      [activeColumn],
     )).toBe(false)
   })
 

@@ -8,7 +8,7 @@ import { rangeRectsForPage } from './sheetInteraction';
 import { isPointEventRangeForUi, rangePaperTracks, sameSheetHitCell } from './timingEditing';
 import { SheetSvgText } from './SheetSvgText';
 import { SheetImageLayer } from './SheetTemplateLayers';
-import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnRectForPage, overlayRangeRectForPage, rectForHit, shouldSuppressRectUnderActiveOverlay } from './app-sheet-layers';
+import { AutoCalibrationGuideOverlay, CalibrationQuadEditor, CellAssetPreview, GridOverlay, MetadataTextLayer, OverlayPaperTrackInteractionLayer, OverlayPaperTrackLayer, TemplateChrome, WorkRangeOverlay, overlayColumnsForPage, overlayRangeRectsForPage, rectForHit, shouldSuppressRectUnderActiveOverlay } from './app-sheet-layers';
 import { AnnotationTextLayer } from './sheet-panel-annotation';
 import { HoverCellOverlay, PaperTrackEditorPopover, StackGuideOverlay, StackGuideSvgLayer } from './app-stack-guides';
 import { SheetContextMenu } from './SheetContextMenu'
@@ -24,6 +24,7 @@ import { CameraCueLayer } from './CameraCueLayer'
 import { TimelineMemoLayer } from './TimelineMemoLayer'
 import { SheetRevisionReferenceLayer } from './SheetRevisionReferenceLayer'
 import { SheetProcessReferenceLayer } from './SheetProcessReferenceLayer'
+import { PaperCellCarryLayer } from './PaperCellCarryLayer'
 import { TimingContinuationLayer } from './TimingContinuationLayer'
 import { processTimingDifferences, sheetTimingRoleForEvent } from '@xsheet-remap/core'
 import { isDirectAnnotationMode, resolveSheetInteractionOwner } from './sheetInteractionOwnership'
@@ -167,7 +168,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const activeOverlayTrack = !isCalibrating && activeOverlayPaperTrack
             ? overlayTracks.find(track => track.paperTrack === activeOverlayPaperTrack)
             : undefined
-          const activeOverlayColumn = activeOverlayTrack ? overlayColumnRectForPage(props.template, props.project, activeOverlayTrack, page) : null
+          const activeOverlayColumns = activeOverlayTrack ? overlayColumnsForPage(props.template, props.project, activeOverlayTrack, page) : []
           const eventRects = isCalibrating ? [] : eventRectsByPage.get(page.pageId) ?? []
           const continuationItems = isCalibrating ? [] : continuationItemsByPage.get(page.pageId) ?? []
           const calibrationPoints = calibrationPointsForPage(page, pageImage.settings)
@@ -181,19 +182,19 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           const hoverMatchesSelection = Boolean(hoveredHit && props.selectedHit && sameSheetHitCell(hoveredHit, props.selectedHit))
           const rawHoverRect = !isCalibrating && !hoverMatchesSelection && hoveredHit?.pageId === page.pageId ? rectForHit(props.project, props.template, hoveredHit) : null
           const hoverTrack = hoveredHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === hoveredHit.paperTrack) : undefined
-          const hoverRect = rawHoverRect && !shouldSuppressRectUnderActiveOverlay(hoverTrack, rawHoverRect, activeOverlayColumn) ? rawHoverRect : null
+          const hoverRect = rawHoverRect && !shouldSuppressRectUnderActiveOverlay(hoverTrack, rawHoverRect, activeOverlayColumns) ? rawHoverRect : null
           const rawDropTargetRect = !isCalibrating && dropTargetPreview?.hit.pageId === page.pageId
             ? rectForHit(props.project, props.template, dropTargetPreview.hit)
             : null
           const dropTargetTrack = dropTargetPreview?.hit.paperTrack
             ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === dropTargetPreview.hit.paperTrack)
             : undefined
-          const dropTargetRect = rawDropTargetRect && !shouldSuppressRectUnderActiveOverlay(dropTargetTrack, rawDropTargetRect, activeOverlayColumn)
+          const dropTargetRect = rawDropTargetRect && !shouldSuppressRectUnderActiveOverlay(dropTargetTrack, rawDropTargetRect, activeOverlayColumns)
             ? rawDropTargetRect
             : null
           const rawSelectedRect = !isCalibrating && props.selectedHit?.pageId === page.pageId ? rectForHit(props.project, props.template, props.selectedHit) : null
           const selectedTrack = props.selectedHit?.paperTrack ? props.project.logicalSheet.paperTracks.find(track => track.paperTrack === props.selectedHit?.paperTrack) : undefined
-          const selectedRect = rawSelectedRect && !shouldSuppressRectUnderActiveOverlay(selectedTrack, rawSelectedRect, activeOverlayColumn) ? rawSelectedRect : null
+          const selectedRect = rawSelectedRect && !shouldSuppressRectUnderActiveOverlay(selectedTrack, rawSelectedRect, activeOverlayColumns) ? rawSelectedRect : null
           const normalRangeRects = !isCalibrating && activeRange
             ? rangeRectsForPage(props.template, activeRange, page, {
                 paperTracks: templateTrackNames,
@@ -202,13 +203,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                 frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin,
                 layoutOverrides: props.project.sheetView.layoutOverrides,
               })
-                .filter(rect => !shouldSuppressRectUnderActiveOverlay(undefined, rect, activeOverlayColumn))
+                .filter(rect => !shouldSuppressRectUnderActiveOverlay(undefined, rect, activeOverlayColumns))
             : []
           const overlayRangeRects = !isCalibrating && activeRange
             ? rangePaperTracks(activeRange).flatMap(paperTrack => {
                 const track = overlayTracks.find(item => item.paperTrack === paperTrack)
                 return track
-                  ? overlayRangeRectForPage(props.template, props.project, track, activeRange.frameStart, activeRange.frameEnd, page) ?? []
+                  ? overlayRangeRectsForPage(props.template, props.project, track, activeRange.frameStart, activeRange.frameEnd, page)
                   : []
               })
             : []
@@ -312,10 +313,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                   )}
                   {!isCalibrating && overlayTracks.length > 0 && (
                     <OverlayPaperTrackLayer
-                      project={props.project}
-                      template={props.template}
+                      context={sheetRenderModelContext}
                       page={page}
-                      tracks={overlayTracks}
                       activePaperTrack={activeOverlayPaperTrack}
                       drag={overlayTrackDrag?.pageId === page.pageId ? overlayTrackDrag : null}
                     />
@@ -399,12 +398,13 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       const track = overlayTracks.find(track => track.paperTrack === item.paperTrack)
                       const flows = [...new Set(props.template.regions.filter(region => isTimelineProjectingSheetTemplateGridRegion(region) && region.grid.role === item.role).map(region => region.flowGroupId ?? region.regionId))]
                       const rects = track
-                        ? [overlayRangeRectForPage(props.template, props.project, track, item.frameStart, item.frameEnd, page)].filter(rect => rect !== null)
+                        ? overlayRangeRectsForPage(props.template, props.project, track, item.frameStart, item.frameEnd, page)
                         : flows.flatMap(flowGroupId => rangeRectsForPage(props.template, { ...item, paperTracks: [item.paperTrack], columnId: item.paperTrack, flowGroupId }, page, { paperTracks: templateTrackNames, timelineLanes, durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin: isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin, layoutOverrides: props.project.sheetView.layoutOverrides }))
                       return rects.map((rect, index) => rect && <rect key={`${item.role}:${item.paperTrack}:${item.frameStart}:${index}`} x={rect.x} y={rect.y} width={rect.w} height={rect.h} fill="#e8ae3030" stroke="#b7781e" strokeWidth="1" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />)
                     })}
                   </svg>}
                   {showInputContent && props.showBaseProcessReference && props.project.logicalSheet.processTimings && <SheetProcessReferenceLayer project={props.project} template={props.template} page={page} />}
+                  {showInputContent && <PaperCellCarryLayer context={sheetRenderModelContext} page={page} activeOverlayPaperTrack={activeOverlayPaperTrack} />}
                   {showInputContent && <SheetTimingEventLayer
                     project={props.project} geometry={sheetRenderModelContext.geometry} page={page}
                     items={eventRects} references={referenceOnlyItemsByPage.get(page.pageId) ?? EMPTY_REFERENCE_ITEMS}
@@ -588,7 +588,7 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                     project={props.project}
                     template={props.template}
                     page={page}
-                    tracks={overlayTracks}
+                    context={sheetRenderModelContext}
                     pageWidth={sheetPageWidth}
                     pageHeight={sheetPageHeight}
                     activePaperTrack={activeOverlayPaperTrack}

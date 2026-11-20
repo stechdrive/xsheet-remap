@@ -40,16 +40,18 @@ export function TimingEventSymbol({
   kind,
   rect,
   pageSize,
+  className,
 }: {
   kind: Exclude<TimelineEventValueKind, 'cell'>
   rect: NormalizedRect
   pageSize: { widthPx: number; heightPx: number }
+  className?: string
 }) {
   const geometry = timingEventSymbolGeometry(kind, rect, pageSize)
   const transform = `scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`
   if (kind === 'blank') {
     return (
-      <g className="eventSymbol eventBlankSymbol" transform={transform} aria-hidden="true">
+      <g className={`eventSymbol ${className ?? 'eventBlankSymbol'}`} transform={transform} aria-hidden="true">
         {geometry.lines.map((line, index) => (
           <line key={index} {...line} strokeWidth={geometry.strokeWidth} />
         ))}
@@ -58,7 +60,7 @@ export function TimingEventSymbol({
   }
   return (
     <ellipse
-      className={`eventSymbol ${kind === 'reverse' ? 'eventReverseSymbol' : 'eventInbetweenSymbol'}`}
+      className={`eventSymbol ${className ?? (kind === 'reverse' ? 'eventReverseSymbol' : 'eventInbetweenSymbol')}`}
       transform={transform}
       cx={geometry.center.x}
       cy={geometry.center.y}

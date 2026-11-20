@@ -20,6 +20,7 @@ import {
   continuationRenderItemsForPages,
   hasOverlayRenderContent,
   inputTextRenderItemsForPage,
+  paperCellCarryItemsForPage,
   referenceOnlyRenderItemsForPage,
   metadataTextRenderItemsForPage,
   overlayPaperTrackRenderItems,
@@ -723,7 +724,7 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
     }
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    for (const item of [...inputTextRenderItemsForPage(context, page), ...referenceOnlyRenderItemsForPage(context, page)]) {
+    for (const item of [...inputTextRenderItemsForPage(context, page), ...paperCellCarryItemsForPage(context, page), ...referenceOnlyRenderItemsForPage(context, page)]) {
       const rect = item.rect
       const { x, y, w, h } = projectedPixelRect(context, rect, offsetY)
       if (item.kind === 'cell') {

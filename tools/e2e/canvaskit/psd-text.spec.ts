@@ -32,6 +32,7 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
   await activateControl(page, page.getByLabel('画面切替', { exact: true }))
   await page.getByRole('button', { name: 'プロジェクトを開く…', exact: true }).setInputFiles({ name: 'editable-text.xsr', mimeType: 'application/octet-stream', buffer: Buffer.from(archive) })
   await expect(page.locator('.sheetSvg').first()).toHaveAttribute('data-canvaskit-state', 'active', { timeout: 40_000 })
+  await expect(page.locator('[data-carry-track="A"][data-carry-frame="73"]')).toHaveText('A_001')
   for (const format of ['PNG', 'PSD']) {
     await activateControl(page, page.getByLabel('画面切替', { exact: true }))
     await activateControl(page, page.getByRole('button', { name: '書き出し ›', exact: true }))
@@ -53,8 +54,10 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
   for (const role of ['ACTION', 'CEL']) {
     const group = input.children!.find(layer => layer.name === role)!
     expect(group.children!.map(layer => layer.name)).toEqual(['A', 'B'])
-    expect(group.children![0].children!.map(layer => layer.text!.text)).toEqual(['12', 'A_001'])
-    expect(group.children![1].children![0].text!.text).toBe('確認')
+    const a = group.children![0].children!, b = group.children![1].children!
+    expect(a.map(layer => layer.text!.text)).toEqual(role === 'CEL' ? ['12', 'A_001', 'A_001'] : ['12', 'A_001'])
+    expect(b.map(layer => layer.text!.text)).toEqual(role === 'CEL' ? ['確認', '確認'] : ['確認'])
+    if (role === 'CEL') expect(a[2].name).toContain('073f')
   }
   const flatten = (layers: Layer[]): Layer[] => layers.flatMap(layer => layer.children ? flatten(layer.children) : [layer])
   const all = flatten(psd.children!), texts = all.filter(layer => layer.text)

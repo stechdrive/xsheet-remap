@@ -168,7 +168,7 @@
 .actionCellTransferPreview p { margin: 4px 0; }
 .sheetViewport[data-transfer-preview], .sheetViewport[data-transfer-preview] * { touch-action: pan-x pan-y; }
 .actionCellTransferGhost { opacity: 0.58; }
-.actionCellTransferGhost .eventText { fill: #126b96; }
+.actionCellTransferGhost :is(.eventText, .paperCellCarryText) { fill: #126b96; }
 .actionCellTransferGhost .eventSymbol, .actionCellTransferGhost .timingContinuationLine { stroke: #126b96; }
 .actionCellTransferGhostFill { fill: #48a7d2; fill-opacity: 0.16; stroke: none; }
 
@@ -1167,7 +1167,7 @@
   pointer-events: none;
 }
 
-.eventText {
+.eventText, .paperCellCarryText {
   fill: #113c2d;
   font-weight: 800;
   dominant-baseline: central;

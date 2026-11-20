@@ -19,6 +19,15 @@
       "absentFromTarget": true,
       "reviewBy": "2027-01-19",
       "reason": "Tauri's Linux/BSD GTK3 backend is not distributed. Fail if glib enters the Windows graph; Linux native distribution needs a separate resolution."
+    },
+    {
+      "id": "RUSTSEC-2026-0543",
+      "kind": "unmaintained",
+      "package": "chrono",
+      "version": "0.4.45",
+      "absentFromTarget": true,
+      "reviewBy": "2027-01-19",
+      "reason": "serde_with lists chrono as an optional dependency. Its chrono_0_4 feature is disabled in all three Windows dependency graphs. Reassess if a desktop crate enables it."
     }
   ]
 }

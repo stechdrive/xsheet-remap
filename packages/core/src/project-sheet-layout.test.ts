@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject, projectSheetLayoutOptions } from './project-model'
-import { digitalStandardSheetTemplate } from './sheet-template-presets'
+import { addOverlayPaperTrack, createDefaultProject, deletePaperTrack, projectSheetLayoutOptions, updatePaperTrack } from './project-model'
+import { digitalStandardSheetTemplate, standardA3SheetTemplate } from './sheet-template-presets'
 import { hitTestSheetTemplate, resolveSheetTemplateGridLayout, resolveSheetTemplatePageSize } from './sheet-template-layout'
 
 describe('project sheet layout context', () => {
@@ -28,6 +28,26 @@ describe('project sheet layout context', () => {
       options.durationFrames,
       options,
     ).widthPx).toBeGreaterThan(resolveSheetTemplatePageSize(digitalStandardSheetTemplate).widthPx)
+  })
+
+  it('preserves the printed column underneath each remaining track, including after another deletion', () => {
+    let project = updatePaperTrack(createDefaultProject(), 'B', { paperTrack: '口パク' })
+    project = addOverlayPaperTrack(project, { paperTrack: '追加', insertAfterPaperTrack: '口パク' }).project
+    const fixed = () => resolveSheetTemplateGridLayout(standardA3SheetTemplate, standardA3SheetTemplate.regions.find(r => r.regionId === 'left_cell_grid')!, projectSheetLayoutOptions(project, standardA3SheetTemplate))!
+    const digital = () => projectSheetLayoutOptions(project, digitalStandardSheetTemplate).paperTracks
+    const columns = fixed().columns
+    project = deletePaperTrack(project, '口パク')
+    expect(digital().slice(0, 3)).toEqual(['A', '追加', 'C'])
+    expect(fixed().columns[1]).toMatchObject({ label: '', paperTrack: undefined })
+    expect(fixed().columns[2]).toEqual(columns[2])
+    project = deletePaperTrack(project, 'A')
+    project = deletePaperTrack(project, '追加')
+    expect(fixed().columns.slice(0, 3).map(c => c.label)).toEqual(['', '', 'C'])
+    for (const name of [...digital()]) project = deletePaperTrack(project, name)
+    expect(digital()).toEqual([])
+    expect(fixed().columns.every(c => !c.label && !c.paperTrack)).toBe(true)
+    project = addOverlayPaperTrack(project, { paperTrack: '新規' }).project
+    expect(digital()).toEqual(['新規'])
   })
 
   it('does not mistake a custom template column lane id for the resolved project lane', () => {

@@ -335,7 +335,7 @@ it('creates an overlay paper track from the insertion handle menu', async () => 
     fireEvent.contextMenu(currentOverlayHandle, { clientX: 500, clientY: 80 })
     expect(screen.getByRole('menuitem', { name: uiText.actions.renamePaperTrack })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.deleteOverlayPaperTrack }))
+    fireEvent.click(screen.getByRole('menuitem', { name: uiText.actions.deletePaperTrack('J') }))
 
     await waitFor(() => expect(Array.from(document.querySelectorAll('.overlayPaperTrackLabelText')).some(label => label.textContent === 'J')).toBe(false))
     fireEvent.click(screen.getByRole('button', { name: uiText.actions.undo }))

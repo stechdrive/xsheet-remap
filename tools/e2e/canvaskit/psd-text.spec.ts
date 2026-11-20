@@ -4,7 +4,7 @@ import init from 'canvaskit-wasm'
 import { initializeCanvas, readPsd, type Layer } from 'ag-psd'
 import { expect, test } from './fixtures'
 import { activateControl } from './input'
-import { addAnnotation, createKey, createProjectDocumentFromCutProject, createProjectFromTemplate, setEvent, standardA3SheetTemplate } from '../../../packages/core/src/index'
+import { addAnnotation, createKey, createProjectDocumentFromCutProject, createProjectFromTemplate, setEvent, standardA3SheetTemplate, updatePaperTrack } from '../../../packages/core/src/index'
 import { encodeProjectArchive } from '../../../packages/adapters/src/projectArchive'
 import { readPsdComposite } from '../psd-composite'
 
@@ -16,6 +16,8 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
       project = setEvent(created.project, track, frame, created.key.keyId, role)
     }
   }
+  const columnName = '口パク差し替え用'
+  project = updatePaperTrack(project, 'H', { paperTrack: columnName })
   for (const [index, size] of [16, 24, 32, 48].entries()) {
     project = addAnnotation(project, { kind: 'text', annotationId: `vertical-${size}`, pageId: 'page_1',
       text: 'I1W A2\n「ー」、。', x: .04 + index * .2, y: .12, color: '#2040a0', fontSizePx: size, writingMode: 'vertical' })
@@ -64,6 +66,7 @@ test('PSD text stays editable by input and column, with the same image as PNG', 
   }
   expect(texts.some(layer => layer.text!.text === '日本語メモ\nABC 123')).toBe(true)
   expect(texts.some(layer => layer.text!.text === '日本語の確認12「ー」。')).toBe(true)
+  expect(texts.some(layer => layer.text!.orientation === 'vertical' && layer.text!.text.replace(/\n/g, '') === columnName)).toBe(true)
   const composite = readPsdComposite(bytes)
   // Decode and recompose in Node: passing every full-page layer through the
   // browser protocol would duplicate hundreds of MB and can crash the harness.

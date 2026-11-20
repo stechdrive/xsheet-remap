@@ -44,7 +44,7 @@ import { overlayColumnRectForPage as resolveOverlayColumnRectForPage, overlayPap
 import { defaultTimingTextMinFontSizePx, resolveTimingTextFontSizePx } from './sheetTextLayout'
 import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTextLayout'
 import { STACK_GUIDE_MAX_LANE, overlayBandSegmentForRegion, stackGuideAnchorRegions, stackGuidePlacements, stackGuidePlacementsByGap, stackGuideSvgGeometry } from './stack-guides-geometry'
-import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
+import { overlayAuxiliaryLabelBandKey, placeOverlayAuxiliaryLabel, type LabelLaneOccupancy, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 import { resolveMultilineFormTextLayout } from './formTextLayout'
 import { cutHeaderRenderItems } from './cutHeaderRenderItems'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, type TextMeasurementProvider } from './textMetrics'
@@ -123,7 +123,7 @@ export type SheetMetadataTextRenderItem = {
   overflow: boolean
 }
 
-export type FlagLabelGeometry = {
+export type FlagLabelGeometry = Pick<OverlayAuxiliaryLabelGeometry, 'glyphs'> & {
   anchorX: number
   anchorY: number
   labelX: number
@@ -160,12 +160,6 @@ export type OverlayPaperTrackRenderItem = {
 export type SheetWorkRangeShadeRenderItem = {
   regionId: string
   rect: NormalizedRect
-}
-
-type LabelLaneOccupancy = {
-  leftPx: number
-  rightPx: number
-  lane: number
 }
 
 export function createSheetRenderModelContext<Project extends SheetContentInput>(
@@ -699,7 +693,8 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
           return {
             leftPx: geometry.labelX * context.pageSize.widthPx,
             rightPx: (geometry.labelX + geometry.labelWidth) * context.pageSize.widthPx,
-            lane,
+            top: geometry.labelY,
+            bottom: geometry.labelBottomY,
           }
         })
       })
@@ -721,16 +716,7 @@ export function overlayPaperTrackRenderItems(context: SheetRenderModelContext, p
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect
     const occupied = occupiedLanesForRegion(region)
-    let lane = 0
-    let label = overlayAuxiliaryLabelGeometry(context.template, rect, context.pageSize, track, column, lane, STACK_GUIDE_MAX_LANE)
-    while (
-      lane < STACK_GUIDE_MAX_LANE
-      && occupied.some(candidate => candidate.lane === lane && auxiliaryLabelRangesOverlap(auxiliaryLabelRangePx(label, context.pageSize.widthPx), candidate))
-    ) {
-      lane += 1
-      label = overlayAuxiliaryLabelGeometry(context.template, rect, context.pageSize, track, column, lane, STACK_GUIDE_MAX_LANE)
-    }
-    occupied.push({ ...auxiliaryLabelRangePx(label, context.pageSize.widthPx), lane })
+    const label = placeOverlayAuxiliaryLabel(context.template, rect, context.pageSize, track, column, occupied, STACK_GUIDE_MAX_LANE)
     return [{ track, column, label }]
   })
 }

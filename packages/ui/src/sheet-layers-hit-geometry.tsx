@@ -5,7 +5,7 @@ import { layoutTimingCellText, type TimingCellTextLayout } from './timingCellTex
 import { timingEventsInRange, timingKeyIndex, type TimelineEvent, type TimingKey } from '@xsheet-remap/core'
 import type { SheetContentInput, SheetGeometryInput } from '@xsheet-remap/core'
 import { clampNumber } from './sheetInteraction'
-import { overlayColumnRectForPage, overlayPaperTracks, templatePaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
+import { overlayColumnRectForPage, overlayPaperTracks, type OverlayBandSegment } from './app-sheet-geometry'
 
 export type SheetEventRectRenderItem = {
   event: CutProject['logicalSheet']['events'][number]
@@ -26,10 +26,11 @@ export function eventRectsForPages(
 ): Map<string, SheetEventRectRenderItem[]> {
   const result = new Map(pages.map(page => [page.pageId, [] as SheetEventRectRenderItem[]]))
   if (pages.length === 0 || project.logicalSheet.events.length === 0) return result
-  const pageSize = resolveSheetTemplatePageSize(template, logicalSheetDisplayDurationFrames(project.logicalSheet), projectSheetLayoutOptions(project, template))
+  const layoutOptions = projectSheetLayoutOptions(project, template)
+  const pageSize = resolveSheetTemplatePageSize(template, logicalSheetDisplayDurationFrames(project.logicalSheet), layoutOptions)
   const references = timingReferenceMap(project.logicalSheet.referenceMarks)
 
-  const paperTracks = templatePaperTracks(project, template).map(track => track.paperTrack)
+  const paperTracks = layoutOptions.paperTracks
   const timelineLanes = timelineLanesForLayout(project)
   const presentedOverlayTracks = new Set(overlayPaperTracks(project, template).map(track => track.paperTrack))
   const displayFrameStart = logicalSheetDisplayFrameStart(project.logicalSheet)
@@ -125,7 +126,7 @@ export function rectForHit(project: SheetGeometryInput, template: SheetTemplate,
     return page ? overlayCellRectForFrame(template, project, track, hit.frame, page) : null
   }
   return cellRectForHit(template, hit, displayDurationFrames, displayFrameStart, {
-    paperTracks: templatePaperTracks(project, template).map(track => track.paperTrack),
+    paperTracks: projectSheetLayoutOptions(project, template).paperTracks,
     timelineLanes: timelineLanesForLayout(project),
     layoutOverrides: project.sheetView.layoutOverrides,
   })
@@ -171,7 +172,7 @@ export function projectTimingHitForFrame(template: SheetTemplate, project: Sheet
     const localized = localizeFrameToSheetPage(template, frame, duration, origin)
     return localized ? overlayHitForFrame(template, project, overlay, frame, localized.page, role) : null
   }
-  return timingHitForFrame(template, role, paperTrack, frame, duration, origin, templatePaperTracks(project, template).map(track => track.paperTrack))
+  return timingHitForFrame(template, role, paperTrack, frame, duration, origin, projectSheetLayoutOptions(project, template).paperTracks)
 }
 
 export function overlayHitFromPoint(template: SheetTemplate, project: CutProject, page: SheetPage, point: NormalizedPoint, activePaperTrack: string | null): SheetHit | null {

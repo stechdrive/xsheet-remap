@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
-import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deleteOverlayPaperTrack, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
+import { addAnnotation, addOverlayPaperTrack, addOverlayPaperTrackAtCspTop, assignSheetSourceToPage, applyNameNormalizationPlan, activeCutProjectFromDocument, assetAbsolutePath, buildExportPlan, clearEvent, commitHistory, createUnplacedCspCard, createStackGuideLabel, createStackGuideLabelAtCspCellBottom, createSheetPages, createProjectDocumentFromCutProject, createProjectHistory, DEFAULT_PRE_ROLL_FRAMES, deletePaperTrack, paperTrackDeletionContents, deleteStackGuideLabel, eraseAnnotations, type CorrectionLayer, type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type FileRef, type NameNormalizationPlan, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTimingRole, type StackGuideLabel, projectSheetLayoutOptions, redoHistory, registerAssetsToCspTrack, removeCellBinding, removeSheetSource, reorderCorrectionLayer, reorderProductionStage, reprojectProjectToTemplate, resolveSheetTemplatePageSize, sheetTimingRoleForEvent, sheetTemplatePresets, timelineLanesForLayout, undoHistory, updateCorrectionLayers, updateProductionStageLabel, updatePaperTrack, updateLogicalSheetSettings, updateStackGuideLabel, updateSheetPageViewState, updateSheetViewState, upsertBinding, assignAssetToStackGuideLabel, updateStackGuideRegistration, validateProject, registerAsset, registerSheetSource, synchronizeAssetRoot, type CutAsset, hitTestSheetTemplate, isSpecialTimingKeyId, logicalSheetDisplayDurationFrames, logicalSheetDisplayFrameEnd, logicalSheetDisplayFrameStart, moveBindingToCorrectionLayer, updateActiveCutProjectInDocument, sheetAnnotations, timelineMemos } from '@xsheet-remap/core';
 import { collectAssetPathDrop, confirmUserAction, filesToFileRefs, releaseBrowserFileRefs, retainBrowserFiles, isTauriHost, nativeFileSource, openAssetRootDirectory, openImageFileRefs, renameMaterialFiles, saveJsonFile, statNativePaths, type AssetRootCandidate, type NativeDragDropPayload } from '@xsheet-remap/adapters';
 import { clipLayerDropAtElement, publishNativeLayerHover } from './clipLayerDrop';
 import { updateNativeFileDragPreview, avoidNativeFileDragPreview, clearNativeFileDragPreview } from './nativeFileDragPreview'
@@ -43,7 +43,7 @@ import { type CspTreeAssetRegistrationResult, type CspTreeNewTrackRegistrationIn
 import { createTemplateDraft, templateJsonFileName, type TemplateDraftKind } from './templateDrafts';
 import { APP_PROFILES, ActiveTextTarget, FrameOperationKind, FrameOperationSubmit, MainAppKind, StackGuideLabelUpdates, StatusHintSource, TextAnnotationUpdate, activeStatusHintText, alertMissingProjectNativePaths, clientPointCandidatesFromNativeDropPosition, errorMessage, isImageFileRef, preferredSaveDirectory, timelineEventAtHit } from './app-foundation';
 import { assignRegisteredCellKeyToHit, bindingProcessMoveTarget, cloneTextAnnotationForPaste, deleteTextAnnotation, frameOriginForPageHit, materializePageHit, nextAnnotationId, processSlotsForKey, updateTextAnnotation } from './app-sheet-layers';
-import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate, templatePaperTracks } from './app-sheet-geometry';
+import { paperTrackOrderForRole, stampAuxiliaryPlacementTemplate } from './app-sheet-geometry';
 import { automaticRegisteredCellCspName, firstTimelineUseForKey, registeredCellTrackOrder, reorderCspStackItem, updateNativeRegisteredCellPreviewIfOpen, updateNativeStackGuidePreviewIfOpen } from './app-registered-cells';
 import { setTimingValueAt } from './sheet-timing-input';
 import { calibrationCornersForTemplate, calibrationCornersFromPoints, shouldAutoCalibrateImportedSheetSources } from './app-navigation';
@@ -631,7 +631,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
     if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1) return null
     const frameOrigin = frameOriginForPageHit(template, page)
-    const templateTrackNames = templatePaperTracks(project, template).map(track => track.paperTrack)
+    const templateTrackNames = projectSheetLayoutOptions(project, template).paperTracks
     const hitOptions = { paperTracks: templateTrackNames, timelineLanes: timelineLanesForLayout(project), durationFrames: page.frameEnd - page.frameStart + 1, frameOrigin, layoutOverrides: project.sheetView.layoutOverrides }
     const localHit = hitTestSheetTemplate(template, point, { ...hitOptions, role: 'cell' })
       ?? hitTestSheetTemplate(template, point, { ...hitOptions, role: 'action' })
@@ -1880,15 +1880,17 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     }
   }
 
-  function handleDeleteOverlayPaperTrack(paperTrack: string) {
-    const sourceProject = projectRef.current
+  function handleDeletePaperTrack(paperTrack: string) {
+    const sourceProject = commitTimingDraft(false)
     const track = sourceProject.logicalSheet.paperTracks.find(item => item.paperTrack === paperTrack)
-    if (!track || track.source !== 'overlay') return
+    if (!track) return
+    const affected = paperTrackDeletionContents(sourceProject, paperTrack)
+    if (affected.length && !window.confirm(`このシートから「${paperTrack}」列を削除しますか？\n対象：${affected.join('、')}\nこの列のタイミングと素材の割り当てを外します。元の素材は保持されます。`)) return
     const keyIds = new Set(sourceProject.logicalSheet.keys.filter(key => key.paperTrack === paperTrack).map(key => key.keyId))
     try {
-      const next = deleteOverlayPaperTrack(sourceProject, paperTrack)
-      commitProject(next)
-      if (selection.hit?.paperTrack === paperTrack || (selection.keyId && keyIds.has(selection.keyId))) clearSelectionState()
+      if (!commitProject(deletePaperTrack(sourceProject, paperTrack))) return
+      if (selection.hit?.paperTrack === paperTrack || (selection.keyId && keyIds.has(selection.keyId))
+        || (isPointEventRange(rangeSelection) && rangePaperTracks(rangeSelection).includes(paperTrack))) clearSelectionState()
     } catch (error) {
       window.alert(errorMessage(error))
     }
@@ -2475,7 +2477,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
-    handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
+    handleDeletePaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     openTimingExportDialog, confirmTimingExport, handleSaveXdts, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,

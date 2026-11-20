@@ -102,7 +102,7 @@ export const APP_PROFILES: Record<MainAppKind, { appName: string; panels: Panel[
   },
 }
 
-const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-hover'] as const
+const STATUS_HINT_SOURCE_ORDER = ['sheet-drag', 'sheet-drop', 'overlay-paper-track', 'sheet-column-name', 'sheet-hover'] as const
 
 export type StatusHintSource = typeof STATUS_HINT_SOURCE_ORDER[number]
 

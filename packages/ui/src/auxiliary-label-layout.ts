@@ -1,4 +1,5 @@
 import type { NormalizedRect, PaperTrack, SheetTemplate } from '@xsheet-remap/core'
+import { paperTrackLabelLayout, type PaperTrackLabelLayout } from './columnLabelLayout'
 import { STANDARD_A3_GRID_HEADER_TOP_OFFSET } from './sheetConstants'
 import { templateGridHeaderFontSizePx } from './templateEditorGeometry'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider } from './textMetrics'
@@ -54,9 +55,10 @@ export interface AuxiliaryLabelTextLayout {
 export interface AuxiliaryLabelTextLayoutOptions {
   extraWidthPx?: number
   maxLabelWidthPx?: number
+  keepOverflowText?: boolean
 }
 
-export interface OverlayAuxiliaryLabelGeometry {
+export interface OverlayAuxiliaryLabelGeometry extends Pick<PaperTrackLabelLayout, 'glyphs'> {
   stemX: number
   labelX: number
   labelY: number
@@ -144,7 +146,7 @@ export function auxiliaryLabelTextLayout(
     fontSizePx = Math.max(metrics.minFontSizePx, fontSizePx * (availableTextWidthPx / textWidthPx))
     textWidthPx = measureAuxiliaryLabelTextPx(fullText, metrics, fontSizePx)
   }
-  const displayText = textWidthPx <= availableTextWidthPx
+  const displayText = textWidthPx <= availableTextWidthPx || options.keepOverflowText
     ? fullText
     : ellipsizeAuxiliaryLabel(fullText, availableTextWidthPx, metrics, fontSizePx)
   const displayWidthPx = displayText === fullText
@@ -159,7 +161,7 @@ export function auxiliaryLabelTextLayout(
       maxLabelWidthPx,
       Math.max(metrics.minWidthPx, displayWidthPx + metrics.textPaddingPx * 2 + extraWidthPx),
     ),
-    truncated: displayText !== fullText,
+    truncated: textWidthPx > availableTextWidthPx,
   }
 }
 
@@ -194,9 +196,10 @@ export function overlayAuxiliaryLabelGeometry(
   const metrics = auxiliaryLabelMetrics(template, 'overlay-track')
   const textLayout = auxiliaryLabelTextLayout(track.label, metrics, {
     maxLabelWidthPx: auxiliaryLabelMaxWidthForPage(metrics, pageSize.widthPx),
+    keepOverflowText: true,
   })
-  const labelWidth = textLayout.labelWidthPx / pageSize.widthPx
-  const labelHeight = metrics.labelHeightPx / pageSize.heightPx
+  const widthPx = textLayout.truncated ? Math.min(textLayout.labelWidthPx, Math.max(metrics.minWidthPx, column.rect.w * pageSize.widthPx)) : textLayout.labelWidthPx
+  const labelWidth = widthPx / pageSize.widthPx
   const textPadding = metrics.textPaddingPx / pageSize.widthPx
   const pageMargin = metrics.pageMarginPx / pageSize.widthPx
   const poleGap = metrics.poleGapPx / pageSize.widthPx
@@ -206,10 +209,17 @@ export function overlayAuxiliaryLabelGeometry(
   ) / pageSize.heightPx
   const stemX = column.rect.x
   const labelBottomY = rect.y - labelBottomOffset
-  const labelY = labelBottomY - labelHeight
   const desiredLabelX = stemX + poleGap
   const labelX = clampNumber(desiredLabelX, pageMargin, 1 - pageMargin - labelWidth)
   const labelAttachX = clampNumber(stemX, labelX, labelX + labelWidth)
+  const vertical = textLayout.truncated ? paperTrackLabelLayout(textLayout.fullText,
+    Math.max(1, widthPx - metrics.textPaddingPx * 2), metrics.fontSizePx, (labelX + labelWidth / 2) * pageSize.widthPx,
+    metrics.pageMarginPx + 2, labelBottomY * pageSize.heightPx - 2, 'bottom') : undefined
+  const glyphs = vertical?.glyphs
+  const first = glyphs?.[0]
+  const fontSizePx = vertical?.fontSizePx ?? textLayout.fontSizePx
+  const labelHeight = Math.max(metrics.labelHeightPx, first ? labelBottomY * pageSize.heightPx - first.yPx + fontSizePx * .88 + 2 : 0) / pageSize.heightPx
+  const labelY = labelBottomY - labelHeight
   return {
     stemX,
     labelX,
@@ -219,15 +229,32 @@ export function overlayAuxiliaryLabelGeometry(
     labelBottomY,
     labelWidth,
     labelHeight,
-    displayText: textLayout.displayText,
+    displayText: glyphs ? glyphs.map(g => g.value).join('') : textLayout.displayText,
     fullText: textLayout.fullText,
-    truncated: textLayout.truncated,
-    fontSizePx: textLayout.fontSizePx,
+    truncated: glyphs ? glyphs.map(g => g.value).join('') !== textLayout.fullText : false,
+    glyphs,
+    fontSizePx,
     fontFamily: metrics.fontFamily,
     fontWeight: metrics.fontWeight,
     pageSize,
     radiusX: metrics.radiusPx / pageSize.widthPx,
     radiusY: metrics.radiusPx / pageSize.heightPx,
+  }
+}
+
+export type LabelLaneOccupancy = { leftPx: number; rightPx: number; top: number; bottom: number }
+
+export function placeOverlayAuxiliaryLabel(template: SheetTemplate, rect: NormalizedRect, page: { widthPx: number; heightPx: number },
+  track: Pick<PaperTrack, 'label'>, column: { rect: NormalizedRect }, occupied: LabelLaneOccupancy[], maxLane: number) {
+  let lane = 0
+  while (true) {
+    const label = overlayAuxiliaryLabelGeometry(template, rect, page, track, column, lane, maxLane)
+    const box = { ...auxiliaryLabelRangePx(label, page.widthPx), top: label.labelY, bottom: label.labelBottomY }
+    if (lane === maxLane || !occupied.some(other => box.top < other.bottom && other.top < box.bottom && auxiliaryLabelRangesOverlap(box, other))) {
+      occupied.push(box)
+      return label
+    }
+    lane++
   }
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeCutProjectFromDocument, buildClipRegistrationPlan, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, defaultCorrectionLayerId, updateLogicalSheetSettings, updatePaperTrack, validateProject, type ClipImportData } from './index'
+import { ensureClipDocument, deletePaperTrack, updateActiveCutProjectInDocument, activeCutProjectFromDocument, buildClipRegistrationPlan, createDefaultProject, createOrSetEvent, createProjectDocumentFromCutProject, defaultCorrectionLayerId, updateLogicalSheetSettings, updatePaperTrack, validateProject, type ClipImportData } from './index'
 import { clipImportFolders, importClipTimeline, importClipTimelines, suggestClipImportColumns } from './clip-import'
 
 const data: ClipImportData = {
@@ -121,6 +121,25 @@ describe('CLIP timeline import', () => {
     expect(second.logicalSheet.paperTracks[0].clipSource?.timelineId).toBe('second')
     expect(buildClipRegistrationPlan(imported, 'action').timelines.map(timeline => timeline.tracks[0].frames)).toEqual(data.timelines.map(timeline => timeline.tracks[0].frames))
   })
+  it('detaches an imported column in just one cut, preserving the source tree and the other cut through save/reload', () => {
+    const timings = importClipTimelines(createProjectDocumentFromCutProject(createDefaultProject()), data, { ...options, timelineIds: ['first', 'second'] })
+    const imported = updateActiveCutProjectInDocument(timings, ensureClipDocument(activeCutProjectFromDocument(timings)))
+    const active = activeCutProjectFromDocument(imported)
+    const otherId = imported.cuts.find(cut => cut.cutId !== imported.activeCutId)!.cutId
+    const other = activeCutProjectFromDocument({ ...imported, activeCutId: otherId })
+    const saved = JSON.parse(JSON.stringify(updateActiveCutProjectInDocument(imported, deletePaperTrack(active, 'A'))))
+    const restored = activeCutProjectFromDocument(saved)
+    expect(restored.logicalSheet.paperTracks.some(t => t.paperTrack === 'A')).toBe(false)
+    expect(restored.logicalSheet.keys.some(k => k.paperTrack === 'A')).toBe(false)
+    expect(restored.logicalSheet.vacantPaperColumns).toContain(0)
+    expect(restored.clipDocument!.nodes).toEqual(active.clipDocument!.nodes)
+    const sibling = activeCutProjectFromDocument({ ...saved, activeCutId: otherId })
+    expect(sibling.logicalSheet.events).toEqual(other.logicalSheet.events)
+    expect(sibling.logicalSheet.keys).toEqual(other.logicalSheet.keys)
+    expect(sibling.bindings).toEqual(other.bindings)
+    expect(sibling.clipDocument!.targets).toEqual(other.clipDocument!.targets)
+  })
+
   it('retains existing cuts when adding several timelines and preserves provenance across rename/save/reload', () => {
     const existing = createOrSetEvent(createDefaultProject(), 'A', 1, 'action').project
     const doc = createProjectDocumentFromCutProject(existing)

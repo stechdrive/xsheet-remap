@@ -160,6 +160,8 @@ export interface LogicalSheet {
   allowNegativeFrames: boolean
   workRange: LogicalSheetWorkRange
   paperTracks: PaperTrack[]
+  /** Vacant printed columns keep surviving tracks aligned with a scanned sheet. */
+  vacantPaperColumns?: number[]
   timelineSections: LogicalTimelineSection[]
   keys: TimingKey[]
   events: TimelineEvent[]

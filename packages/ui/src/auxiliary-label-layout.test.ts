@@ -75,8 +75,10 @@ describe('auxiliary sheet label layout', () => {
 
     expect(geometry.fontFamily).toBe('Test Sheet Font, sans-serif')
     expect(geometry.fontWeight).toBe(800)
-    expect(geometry.truncated).toBe(true)
-    expect(geometry.displayText.endsWith('…')).toBe(true)
+    expect(geometry.glyphs?.length).toBeGreaterThan(1)
+    expect(geometry.displayText).toBe(geometry.glyphs!.map(glyph => glyph.value).join(''))
+    expect(geometry.fullText.startsWith(geometry.displayText)).toBe(true)
+    expect(geometry.labelY).toBeGreaterThanOrEqual(0)
   })
 
   it('keeps a practical added-column label intact when the page has physical room', () => {

@@ -2264,6 +2264,13 @@
   white-space: nowrap;
 }
 
+.sheetContextMenu .deletePaperTrackAction {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-height: 20vh;
+  overflow-y: auto;
+}
+
 .sheetContextMenu button span,
 .sheetContextMenu button small {
   min-width: 0;

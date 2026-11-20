@@ -1,6 +1,17 @@
 import type { NormalizedRect } from '@xsheet-remap/core'
 import type { TemplateChromeRenderModel, TemplateGridOverlayRenderModel } from './templateEditorGeometry'
 import type { DirectPaperModel, PaperPrimitive, PaperStyleSample } from './canvasKitDirectModel'
+import { verticalGlyph, type VerticalTextGlyph } from './verticalTextLayout'
+
+function verticalLabelPrimitives(glyphs: VerticalTextGlyph[], size: number, style: string, page: { widthPx: number; heightPx: number }, opacity?: number, halo?: string): PaperPrimitive[] {
+  return glyphs.map(({ value, xPx, yPx }) => {
+    const glyph = verticalGlyph(value)
+    const paint = halo ? { stroke: halo, strokeWidth: glyph ? 2 / size : 2, order: 'stroke fill', join: 'round' } : undefined
+    if (glyph) return { style, opacity, paint, coordinateSpace: 'page-pixels', accessibleText: value,
+      transform: [size, 0, 0, size, xPx - glyph.advance * size / 2, yPx], shape: { kind: 'path', d: glyph.path } }
+    return { style, opacity, paint, text: { value, x: xPx / page.widthPx, y: yPx / page.heightPx, size, anchor: 'middle', baseline: 'alphabetic' } }
+  })
+}
 
 const rect = (r: NormalizedRect): PaperPrimitive['shape'] => ({ kind: 'rect', rect: { x: r.x, y: r.y, width: r.w, height: r.h }, rx: 0, ry: 0 })
 const lineStyle = (style: { color: string; widthPx: number; dashPx: number[] }) => ({
@@ -57,9 +68,12 @@ export function templateChromePaperModel(model: TemplateChromeRenderModel, showL
     if (showLabels && header.label) primitives.push({ style: 'title', text: {
       value: header.label, x: header.labelX, y: header.labelY, size: header.labelFontSizePx, anchor: 'middle', baseline: 'middle',
     } })
-    if (showLabels) for (const column of header.columns) primitives.push({ style: 'column', text: {
-      value: column.label, x: column.x, y: column.y, size: column.fontSizePx, anchor: 'middle', baseline: column.dominantBaseline,
-    } })
+    if (showLabels) for (const column of header.columns) {
+      if (column.glyphs) primitives.push(...verticalLabelPrimitives(column.glyphs, column.fontSizePx, 'column', model.pageSize, 1, model.theme.paper.color))
+      else primitives.push({ style: 'column', text: {
+        value: column.label, x: column.x, y: column.y, size: column.fontSizePx, anchor: 'middle', baseline: column.dominantBaseline,
+      } })
+    }
   }
   return { pageSize: model.pageSize, styles, primitives }
 }
@@ -90,9 +104,12 @@ export function gridOverlayPaperModel(model: TemplateGridOverlayRenderModel, sho
         value: item.text, x: item.x, y: item.y, size: item.fontSizePx, anchor: item.textAnchor, baseline: 'text-after-edge',
       } })
     }
-    for (const item of model.bottomTrackLabels) primitives.push({ style: 'track', opacity: item.opacity, text: {
-      value: item.text, x: item.x, y: item.y, size: item.fontSizePx, anchor: 'middle', baseline: 'text-after-edge',
-    } })
+    for (const item of model.bottomTrackLabels) {
+      if (item.glyphs) primitives.push(...verticalLabelPrimitives(item.glyphs, item.fontSizePx, 'track', model.pageSize, item.opacity))
+      else primitives.push({ style: 'track', opacity: item.opacity, text: {
+        value: item.text, x: item.x, y: item.y, size: item.fontSizePx, anchor: 'middle', baseline: 'text-after-edge',
+      } })
+    }
   }
   return { pageSize: model.pageSize, styles, primitives }
 }

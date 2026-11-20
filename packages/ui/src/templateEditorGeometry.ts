@@ -26,12 +26,12 @@ import {
 import { calibrationTargetRectForTemplate } from './sheetImages'
 import type { SheetSvgPageSize } from './sheetSvgTextGeometry'
 import { gridRoleLabel } from './templateEditing'
-import { columnLabelLayout } from './columnLabelLayout'
+import { columnLabelLayout, paperTrackHeaderLabel, paperTrackLabelLayout, type PaperTrackLabelLayout } from './columnLabelLayout'
 import { sheetGridHeaderGeometry } from './sheetGridHeaderGeometry'
 import { resolveTemplateFormCellMemoTarget, type TemplateMemoTargetRef } from './templateMemoTargets'
 import { buildSheetTemplateBranding, reserveSheetBrandingSpace, type SheetTemplateBranding } from './sheetTemplateBranding'
 
-export type TemplateGridHeaderColumnRenderModel = {
+export type TemplateGridHeaderColumnRenderModel = Pick<PaperTrackLabelLayout, 'glyphs'> & {
   columnId: string
   label: string
   x: number
@@ -145,7 +145,7 @@ export type TemplateGridCounterRenderModel = {
   fontSizePx: number
 }
 
-export type TemplateBottomTrackLabelRenderModel = {
+export type TemplateBottomTrackLabelRenderModel = Pick<PaperTrackLabelLayout, 'glyphs'> & {
   key: string
   text: string
   x: number
@@ -365,7 +365,7 @@ export function buildTemplateChromeRenderModel(
   options: Omit<SheetTemplateLayoutResolveOptions, 'paperTracks'> = {},
 ): TemplateChromeRenderModel {
   const resolveOptions = { ...options, paperTracks }
-  const pageSize = resolveSheetTemplatePageSize(template, durationFrames, resolveOptions)
+  const { pageSize, regionRects } = resolveSheetTemplateRegionRects(template, durationFrames, resolveOptions)
   const forms = template.regions.map(region => buildTemplateFormRenderModels(template, region, paperTracks, durationFrames, resolveOptions))
   return {
     pageSize,
@@ -381,7 +381,7 @@ export function buildTemplateChromeRenderModel(
       })),
     headers: template.regions
       .filter(region => region.type === 'exposure-grid' && isRenderableSheetTemplateGridRegion(region))
-      .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames, options))
+      .map(region => buildTemplateGridHeaderRenderModel(template, region, paperTracks, durationFrames, options, regionRects))
       .filter((model): model is TemplateGridHeaderRenderModel => model !== null),
     formBoxes: forms.flatMap(form => form.boxes),
     formLabels: forms.flatMap(form => form.labels),
@@ -1033,6 +1033,7 @@ function buildTemplateGridHeaderRenderModel(
   paperTracks: string[],
   durationFrames: number,
   options: Omit<SheetTemplateLayoutResolveOptions, 'paperTracks'> = {},
+  regionRects = resolveSheetTemplateRegionRects(template, durationFrames, { ...options, paperTracks }).regionRects,
 ): TemplateGridHeaderRenderModel | null {
   if (!region.grid) return null
   const layout = resolveSheetTemplateGridLayout(template, region, { ...options, paperTracks, durationFrames })
@@ -1052,8 +1053,12 @@ function buildTemplateGridHeaderRenderModel(
     labelY: header.title.y + header.title.h / 2,
     labelFontSizePx: templateGridHeaderFontSizePx(template),
     columns: layout.columns.map(column => {
-      const label = columnLabelLayout(region.grid?.header?.showColumnLabels === false ? '' : column.label, column.w * pageSize.widthPx, templateGridColumnFontSizePx(template))
-      return { columnId: column.columnId, label: label.text, x: column.x + column.w / 2, y: rect.y - columnBaselineOffset, fontSizePx: label.fontSizePx, dominantBaseline: 'alphabetic' }
+      const text = region.grid?.header?.showColumnLabels === false ? '' : column.label
+      const size = templateGridColumnFontSizePx(template)
+      const label: PaperTrackLabelLayout = column.paperTrack
+        ? paperTrackHeaderLabel(text, column, size, header, pageSize, region.grid?.header?.showLabel === false ? '' : baseLabel, templateGridHeaderFontSizePx(template), regionRects.values())
+        : columnLabelLayout(text, column.widthPx, size)
+      return { columnId: column.columnId, glyphs: label.glyphs, label: label.text, x: column.x + column.w / 2, y: rect.y - columnBaselineOffset, fontSizePx: label.fontSizePx, dominantBaseline: 'alphabetic' }
     }),
     columnHeaderRect: header.columns,
     columnBoundaries: [
@@ -1167,11 +1172,12 @@ function buildBottomTrackLabelRenderModels(
   )
   return layout.columns.flatMap(column => {
     const text = (column.paperTrack ?? column.label).trim()
-    const fitted = columnLabelLayout(text, column.w * pageSize.widthPx, fontSizePx)
+    const fitted = paperTrackLabelLayout(text, column.widthPx, fontSizePx, column.xPx + column.widthPx / 2, gridBottom * pageSize.heightPx + 2, pageSize.heightPx - bottomInsetPx, 'top')
     return text
       ? [{
           key: `bottom-track-${column.columnId}`,
           text: fitted.text,
+          glyphs: fitted.glyphs,
           x: column.x + column.w / 2,
           y: labelY,
           fontSizePx: fitted.fontSizePx,

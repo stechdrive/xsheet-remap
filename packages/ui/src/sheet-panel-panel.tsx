@@ -5,7 +5,7 @@ import { ClipLayerPanel } from './ClipLayerPanel'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import type { SheetLabelNormalizationPlan } from '@xsheet-remap/core'
-import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
+import { type CutMetadataFieldId, type CutProject, type AnnotationPoint, type AnnotationStroke, type AnnotationText, type NameNormalizationPlan, type CutGroupProjectDocument, type SheetHit, type SheetImageAlignment, type SheetCalibrationPointPair, type SheetPage, type SheetPageMemoTarget, type SheetTemplate, type SheetTemplateFieldDefinition, type SheetTimingRole, type SheetViewState, type SheetViewMode, type TimedRangeRole, type SheetRevisionDocument, type StackGuideLabel, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText, type TimingSpecialMarker, getSheetTemplateHiddenPaperTracks, getSheetViewLayout, paperTrackNamesForLayout, projectSheetLayoutOptions, resolveSheetTemplatePageSize, timelineLanesForLayout, updatePaperTrack, updateLogicalSheetSettings, type CutAsset, logicalSheetDisplayDurationFrames, logicalSheetWorkRange, type SheetTemplatePreset, sheetAnnotations, timelineMemos } from '@xsheet-remap/core'
 import { timelineMemoSegmentsForPage } from './timelineMemoGeometry'
 import { timelineMemoFontSizePx, timelineMemoFontSizeUnitsForPx } from './timelineMemoTextLayout'
 import { normalizeMemoAppearance, type MemoAppearance } from '@xsheet-remap/core'
@@ -105,13 +105,13 @@ export function useCurrentTemplateMemoTargetGeometries(
   project: Pick<CutProject, 'logicalSheet' | 'sheetView'>,
 ) {
   const logicalSheet = project.logicalSheet
-  const paperTracks = logicalSheet.paperTracks
+  const { paperTracks, vacantPaperColumns } = logicalSheet
   const timelineSections = logicalSheet.timelineSections
   const durationFrames = logicalSheetDisplayDurationFrames(logicalSheet)
   const layoutOverrides = project.sheetView.layoutOverrides
   return useMemo(
     () => templateMemoTargetGeometries(template, {
-      paperTracks: paperTracks.map(track => track.paperTrack),
+      paperTracks: paperTrackNamesForLayout({ paperTracks, vacantPaperColumns }, getSheetViewLayout(template).trackAxis?.type === 'logical-width'),
       timelineLanes: timelineLanesForMemoTargetGeometry(timelineSections),
       durationFrames,
       layoutOverrides,
@@ -120,6 +120,7 @@ export function useCurrentTemplateMemoTargetGeometries(
       durationFrames,
       layoutOverrides,
       paperTracks,
+      vacantPaperColumns,
       template,
       timelineSections,
     ],
@@ -334,7 +335,7 @@ export function SheetPanel(props: {
   onRegisterKeyToCspTrack: (keyId: string, slotId: string) => boolean
   onAddOverlayPaperTrack: (input: { paperTrack?: string; insertAfterPaperTrack?: string; orderInGap?: number; snapIndex?: number; sheetRole?: SheetTimingRole; cspPlacement?: 'cell-top' }) => void
   onUpdatePaperTrack: (paperTrack: string, updates: Parameters<typeof updatePaperTrack>[2]) => void
-  onDeleteOverlayPaperTrack: (paperTrack: string) => void | Promise<void>
+  onDeletePaperTrack: (paperTrack: string) => void | Promise<void>
   onCopyAeKeyframeData: (paperTrack: string, sheetRole: SheetTimingRole, locale?: 'ja' | 'en') => void
   onAddTimelineLane: (input: TimelineLaneAddition) => void
   onUpdateTimelineLane: (role: TimedRangeRole, laneId: string, label: string) => void
@@ -1028,7 +1029,7 @@ export function SheetPanel(props: {
               onUpdateStackGuideRegistration={props.onUpdateStackGuideRegistration}
               onUpdateStackGuideLabel={props.onUpdateStackGuideLabel}
               onDeleteStackGuideLabel={props.onDeleteStackGuideLabel}
-              onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
+              onDeleteOverlayPaperTrack={props.onDeletePaperTrack}
               onDeleteCorrectionLayer={props.onDeleteCorrectionLayer}
               onRenamePaperTrack={(paperTrack, name) => props.onUpdatePaperTrack(paperTrack, { paperTrack: name, label: name })}
               onReorderStackItem={props.onReorderCspStackItem}
@@ -1386,7 +1387,7 @@ export function SheetPanel(props: {
             onMoveTimelineEvent={props.onMoveTimelineEvent}
             onAddOverlayPaperTrack={props.onAddOverlayPaperTrack}
             onUpdatePaperTrack={props.onUpdatePaperTrack}
-            onDeleteOverlayPaperTrack={props.onDeleteOverlayPaperTrack}
+            onDeletePaperTrack={props.onDeletePaperTrack}
             onAddTimelineLane={props.onAddTimelineLane}
             onUpdateTimelineLane={props.onUpdateTimelineLane}
             onDeleteTimelineLane={props.onDeleteTimelineLane}

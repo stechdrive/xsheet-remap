@@ -71,7 +71,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
     handleMoveTimelineEvent, handleApplyNameNormalization, handleAssignAssetToKey, assignAssetToKeySlot, handleUpdateKeyCspCellName, handleUpdateKeySheetLabel, handleCreateUnplacedCspCard, handleRegisterKeyToCspTrack,
     handleMoveKeyBindingProcess, handleReorderCspStackItem, handleReorderProductionStage, handleReorderCorrectionLayer, handleDeleteCorrectionLayer, handleCreateStackGuideLabel, handleUpdateStackGuideLabel, handleDeleteStackGuideLabel, handleUpdateStackGuideRegistration,
     handleAssignAssetToStackGuide, handleAssignAssetsToStackGuide, handleRegisterAssetsToCspTrack, handleRegisterAssetsToNewCspTrack, handleAddOverlayPaperTrack, handleUpdatePaperTrack,
-    handleDeleteOverlayPaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
+    handleDeletePaperTrack, handleAddTimelineLane, handleUpdateTimelineLane, handleDeleteTimelineLane, handleUpdateCorrectionLayers, handleRenameProductionStage, handleRenameCorrectionLayer, handleLoadProject, handleLoadTemplate, handleImportTemplate, handleLoadXdts, confirmXdtsImport, handleApplyTemplateDraft, handleCreateTemplateDraft,
     handleSaveTemplateJson, handleSaveProjectFile, handleUpdateCutMetadata, handleSwitchProjectCut,
     handleSwitchSheetRevision, handleAddSheetRevision, handleRenameSheetRevision, handleToggleSheetRevisionProtected, handleToggleSheetRevisionSourceReference, handleDeleteSheetRevision,
     handleAddSharedCut, handleDeleteSharedCut, handleDialogueAudioCutStateChange, openTimingExportDialog, confirmTimingExport, handleOpenExportDirectory, handleOpenSheetImageExport, handleSaveSheetImageExport, handleSaveCorrectedSheetImages, handleSaveDialogueAudioTracks, handlePresetSelect,
@@ -508,7 +508,7 @@ export function AppShellView({ controller }: { controller: AppController }) {
             onRegisterKeyToCspTrack={handleRegisterKeyToCspTrack}
             onAddOverlayPaperTrack={handleAddOverlayPaperTrack}
             onUpdatePaperTrack={handleUpdatePaperTrack}
-            onDeleteOverlayPaperTrack={handleDeleteOverlayPaperTrack}
+            onDeletePaperTrack={handleDeletePaperTrack}
             onCopyAeKeyframeData={handleCopyAeKeyframeData}
             onAddTimelineLane={handleAddTimelineLane}
             onUpdateTimelineLane={handleUpdateTimelineLane}

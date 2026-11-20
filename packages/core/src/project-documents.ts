@@ -219,6 +219,18 @@ export function sheetRevisionsForActiveCut(documentInput: CutGroupProjectDocumen
   return activeCutDocument(document).revisions.map(revision => cloneRevision(revision))
 }
 
+/** Keep another sheet's entries in their shared catalog positions while respecting edits to this sheet. */
+function retainOtherSheetEntries<T>(current: T[], stored: T[], id: (entry: T) => string, keep: (entry: T) => boolean): T[] {
+  const currentIds = new Set(current.map(id))
+  let cursor = 0
+  const merged: T[] = []
+  for (const entry of stored) {
+    if (currentIds.has(id(entry))) merged.push(current[cursor++])
+    else if (keep(entry)) merged.push(entry)
+  }
+  return merged.concat(current.slice(cursor))
+}
+
 export function updateActiveCutProjectInDocument(
   documentInput: CutGroupProjectDocument,
   activeProjectInput: CutProject,
@@ -236,10 +248,34 @@ export function updateActiveCutProjectInDocument(
     : [...document.cuts, activeCut]
   const removedGroups = new Set(document.correctionLayers.filter(layer => !activeProject.correctionLayers.some(next => next.layerId === layer.layerId)).map(layer => layer.layerId))
   if (removedGroups.size) cuts = cuts.map(cut => ({ ...cut, revisions: cut.revisions.map(revision => ({ ...revision, logicalSheet: pruneEmptyProcessTimings({ ...revision.logicalSheet, baseProcessId: baseTimingProcessId({ logicalSheet: { ...revision.logicalSheet, keys: document.registeredCells.keys }, correctionLayers: document.correctionLayers }) }, removedGroups, activeProject.correctionLayers[0]!.layerId) })) }))
+  const registeredCells = sharedRegisteredCellCatalogFromProject(activeProject)
+  let clipDocument = activeProject.clipDocument
+  let exportProfiles = activeProject.exportProfiles
+  const otherRevisions = cuts.flatMap(cut => cut.revisions.filter(revision => cut.cutId !== activeCutId || revision.revisionId !== activeCut.activeRevisionId))
+  if (otherRevisions.length) {
+    // Keys, bindings and CLIP targets live in a shared catalog. Keep entries owned only by other sheets.
+    const otherNames = new Set(otherRevisions.flatMap(revision => revision.logicalSheet.paperTracks.map(track => track.paperTrack)))
+    const otherSlots = new Set(otherRevisions.flatMap(revision => revision.cspTrackSlots.map(slot => slot.slotId)))
+    for (const track of activeProject.logicalSheet.paperTracks) otherNames.delete(track.paperTrack)
+    for (const slot of activeProject.cspTrackSlots) otherSlots.delete(slot.slotId)
+    if (otherNames.size) registeredCells.keys = retainOtherSheetEntries(registeredCells.keys, document.registeredCells.keys, key => key.keyId, key => otherNames.has(key.paperTrack))
+    if (otherSlots.size) registeredCells.bindings = retainOtherSheetEntries(registeredCells.bindings, document.registeredCells.bindings, binding => binding.bindingId, binding => otherSlots.has(binding.slotId))
+    if (clipDocument && document.clipDocument && otherSlots.size) {
+      const folderIds = new Set(clipDocument.nodes.map(node => node.id))
+      const deleted = retainOtherSheetEntries(clipDocument.deletedTargetSlotIds ?? [], document.clipDocument.deletedTargetSlotIds ?? [], id => id, id => otherSlots.has(id))
+      clipDocument = { ...clipDocument,
+        targets: retainOtherSheetEntries(clipDocument.targets, document.clipDocument.targets, target => target.slotId, target => otherSlots.has(target.slotId) && folderIds.has(target.folderId)),
+        ...(deleted.length ? { deletedTargetSlotIds: deleted } : {}),
+      }
+    }
+    if (otherSlots.size) exportProfiles = exportProfiles.map(profile => ({ ...profile,
+      slotIds: retainOtherSheetEntries(profile.slotIds, document.exportProfiles.find(old => old.profileId === profile.profileId)?.slotIds ?? [], id => id, id => otherSlots.has(id)),
+    }))
+  }
   return {
     ...document,
     projectId: activeProject.projectId,
-    clipDocument: activeProject.clipDocument,
+    clipDocument,
     activeCutId,
     production: productionMetadataFromProject(activeProject, document.production),
     studioPresetId: activeProject.studioPresetId,
@@ -249,8 +285,8 @@ export function updateActiveCutProjectInDocument(
     assetRoot: activeProject.assetRoot,
     assetBins: activeProject.assetBins,
     assets: activeProject.assets,
-    registeredCells: sharedRegisteredCellCatalogFromProject(activeProject),
-    exportProfiles: activeProject.exportProfiles,
+    registeredCells,
+    exportProfiles,
     cuts,
   }
 }
@@ -453,6 +489,9 @@ export function migrateProject(input: Partial<CutProject> & { annotations?: Anno
       ...input.logicalSheet,
       baseProcessId: input.logicalSheet?.baseProcessId ?? correctionLayers.find(layer => layer.role === 'base')?.layerId ?? correctionLayers[0]?.layerId,
       workRange: normalizeLogicalSheetWorkRange(input.logicalSheet?.workRange ?? base.logicalSheet.workRange),
+      vacantPaperColumns: Array.isArray(input.logicalSheet?.vacantPaperColumns)
+        ? [...new Set(input.logicalSheet.vacantPaperColumns.filter(index => Number.isSafeInteger(index) && index >= 0))]
+        : undefined,
       paperTracks,
       timelineSections: input.logicalSheet?.timelineSections ?? base.logicalSheet.timelineSections,
       referenceMarks: normalizeTimingReferenceMarks(input.logicalSheet?.referenceMarks, paperTracks),
@@ -669,6 +708,7 @@ function sheetRevisionFromProject(
     allowNegativeFrames: project.logicalSheet.allowNegativeFrames,
     workRange: project.logicalSheet.workRange,
     paperTracks: project.logicalSheet.paperTracks,
+    vacantPaperColumns: project.logicalSheet.vacantPaperColumns,
     timelineSections: project.logicalSheet.timelineSections,
     events: project.logicalSheet.events,
     referenceMarks: project.logicalSheet.referenceMarks,
@@ -702,10 +742,16 @@ function cutSheetMetadataFromProject(project: Pick<CutProject, 'cut' | 'sheetFor
 function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSheetDocument | undefined): CutProject {
   if (!cut) throw new Error('active cut not found')
   const revision = activeRevisionForCut(cut)
+  const names = new Set(revision.logicalSheet.paperTracks.map(track => track.paperTrack))
+  const slots = new Set(revision.cspTrackSlots.map(slot => slot.slotId))
+  let clipDocument = document.clipDocument
+  if (clipDocument && (clipDocument.targets.some(t => !slots.has(t.slotId)) || clipDocument.deletedTargetSlotIds?.some(id => !slots.has(id)))) {
+    clipDocument = { ...clipDocument, targets: clipDocument.targets.filter(t => slots.has(t.slotId)), deletedTargetSlotIds: clipDocument.deletedTargetSlotIds?.filter(id => slots.has(id)) }
+  }
   const base = migrateProject({
     projectId: document.projectId,
     extensions: cut.extensions,
-    clipDocument: document.clipDocument,
+    clipDocument,
     cut: cutMetadataWithProduction(cut.metadata, revision.metadata, document.production),
     sheetFormData: {
       production: normalizeSheetFormFieldValues(document.production.sheetFields),
@@ -721,13 +767,13 @@ function cutProjectFromDocumentCut(document: CutGroupProjectDocument, cut: CutSh
     assetBins: document.assetBins,
     assets: document.assets,
     sheetView: revision.sheetView,
-    logicalSheet: { ...revision.logicalSheet, keys: document.registeredCells.keys.map(key => ({ ...key })) },
+    logicalSheet: { ...revision.logicalSheet, keys: document.registeredCells.keys.filter(key => names.has(key.paperTrack)).map(key => ({ ...key })) },
     cspTrackSlots: revision.cspTrackSlots,
-    bindings: document.registeredCells.bindings.map(binding => ({ ...binding })),
+    bindings: document.registeredCells.bindings.filter(binding => slots.has(binding.slotId)).map(binding => ({ ...binding })),
     stackGuideLabels: document.registeredCells.stackGuideLabels.map(label => cloneStackGuideLabel(label)),
     memos: revision.memos,
     timedRangeCues: revision.timedRangeCues,
-    exportProfiles: document.exportProfiles,
+    exportProfiles: document.exportProfiles.map(profile => ({ ...profile, slotIds: profile.slotIds.filter(id => slots.has(id)) })),
   })
   return repairBlankAssetDropBindingNames({
     ...base,

@@ -41,7 +41,7 @@ import {
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
 import { annotationTextLines, annotationVerticalLayout, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
-import { drawVerticalGlyph } from './verticalTextLayout'
+import { drawVerticalGlyph, type VerticalTextGlyph } from './verticalTextLayout'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
 import {
   buildCameraCuePageLayouts,
@@ -437,7 +437,7 @@ function renderTemplateDrawingLayer(
           for (const item of model.bottomTrackLabels) {
             ctx.globalAlpha = item.opacity
             ctx.font = fontDeclaration(item.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-            drawExportLabel(context, ctx, item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx, item.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['フレーム・秒数'])
+            drawExportLabel(context, ctx, item.text, item.x * context.pageSize.widthPx, offsetY + item.y * context.pageSize.heightPx, item.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, ['フレーム・秒数'], item.glyphs)
           }
           ctx.globalAlpha = 1
         }
@@ -596,7 +596,7 @@ function drawTemplateGridHeaderLabels(
       if (!column.label) continue
       ctx.textBaseline = column.dominantBaseline
       ctx.font = fontDeclaration(column.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, SHEET_LABEL_FONT_WEIGHT)
-      drawExportLabel(context, ctx, column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx, column.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, [header.label || '列名'])
+      drawExportLabel(context, ctx, column.label, column.x * context.pageSize.widthPx, offsetY + column.y * context.pageSize.heightPx, column.fontSizePx, SHEET_LABEL_FONT_WEIGHT, offsetY, [header.label || '列名'], column.glyphs, context.template.theme.paper.color)
     }
   }
 }
@@ -1234,6 +1234,7 @@ function overlayTrackFlagRenderItem(
       labelHeight: label.labelHeight,
       displayText: label.displayText,
       fullText: label.fullText,
+      glyphs: label.glyphs,
       truncated: label.truncated,
       fontSizePx: label.fontSizePx,
       fontFamily: label.fontFamily,
@@ -1299,11 +1300,21 @@ function drawFlagBody(
   ctx.textBaseline = 'middle'
   ctx.textAlign = input.align === 'center' ? 'center' : 'left'
   const textX = input.align === 'center' ? labelX + labelW / 2 : geometry.labelTextX * pageWidth
-  drawExportLabel(context, ctx, geometry.displayText, textX, labelY + labelH / 2, Math.max(8, geometry.fontSizePx), geometry.fontWeight, offsetY)
+  drawExportLabel(context, ctx, geometry.displayText, textX, labelY + labelH / 2, geometry.glyphs ? geometry.fontSizePx : Math.max(8, geometry.fontSizePx), geometry.fontWeight, offsetY, undefined, geometry.glyphs)
 }
 
 function drawExportLabel(context: SheetExportLayerContext, ctx: CanvasRenderingContext2D, text: string,
-  x: number, y: number, size: number, weight: number, offsetY: number, groups?: string[]) {
+  x: number, y: number, size: number, weight: number, offsetY: number, groups?: string[], verticalGlyphs?: VerticalTextGlyph[], halo?: string) {
+  if (verticalGlyphs) {
+    const glyphs = verticalGlyphs.map(g => ({ ...g, yPx: g.yPx + offsetY }))
+    if (!glyphs.length) return
+    ctx.save()
+    if (halo) { ctx.strokeStyle = halo; ctx.lineWidth = 2; ctx.lineJoin = 'round' }
+    drawSheetExportText(context.textOutput, ctx, { text, x: glyphs[0].xPx, y: glyphs[0].yPx, size, weight, offsetY, groups, vertical: true, glyphs, stroke: Boolean(halo) },
+      target => { for (const glyph of glyphs) drawVerticalGlyph(target, glyph.value, glyph.xPx, glyph.yPx, size, weight, Boolean(halo)) })
+    ctx.restore()
+    return
+  }
   drawSheetExportText(context.textOutput, ctx, { text, x, y, size, weight, offsetY, groups }, target => target.fillText(text, x, y))
 }
 

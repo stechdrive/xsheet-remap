@@ -30,6 +30,7 @@ it('copies Japanese and English AE Keyframe Data from the cell column header men
   expect(within(menu).getAllByRole('menuitem').map(item => item.textContent)).toEqual([
     uiText.actions.selectPaperTrackColumn,
     uiText.actions.renamePaperTrack,
+    uiText.actions.deletePaperTrack('A'),
     `${uiText.actions.copyAeKeyframeDataMenu}›`,
     'CEL欄に転記…',
     uiText.stackGuides.add,

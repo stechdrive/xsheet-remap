@@ -19,7 +19,7 @@ export function useSheetRenderModelGeometryProject(project: CutProject): SheetGe
     () => ({ logicalSheet: {
       frameOrigin: project.logicalSheet.frameOrigin, durationFrames: project.logicalSheet.durationFrames,
       workRange: project.logicalSheet.workRange, paperTracks: project.logicalSheet.paperTracks,
-      timelineSections: project.logicalSheet.timelineSections,
+      vacantPaperColumns: project.logicalSheet.vacantPaperColumns, timelineSections: project.logicalSheet.timelineSections,
     }, sheetView: { layoutOverrides: project.sheetView.layoutOverrides } }),
     // Keep this list narrower than logicalSheet: timing events and keys change
     // rendered content but not the expensive page/track geometry.
@@ -28,6 +28,7 @@ export function useSheetRenderModelGeometryProject(project: CutProject): SheetGe
       project.logicalSheet.durationFrames,
       project.logicalSheet.workRange,
       project.logicalSheet.paperTracks,
+      project.logicalSheet.vacantPaperColumns,
       project.logicalSheet.timelineSections,
       project.sheetView.layoutOverrides,
     ],

@@ -53,6 +53,7 @@ import { useTimingRangeDragPreview } from './useTimingRangeDragPreview';
 
 export function useSheetCanvasController(props: SheetCanvasProps) {
   const [draftRange, setDraftRangeState] = useState<DraftRangeInteraction | null>(null)
+  const headerTooltipPage = useRef<HTMLElement | null>(null)
   const [hoveredHit, setHoveredHit] = useState<SheetHit | null>(null)
   const [dropTargetPreview, setDropTargetPreview] = useState<SheetDropTargetPreview | null>(null)
   const [hoverPreviewAnchor, setHoverPreviewAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -227,6 +228,7 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     onStatusHint('sheet-drop', null)
     onStatusHint('sheet-drag', null)
     onStatusHint('overlay-paper-track', null)
+    onStatusHint('sheet-column-name', null)
   }, [onStatusHint])
   useEffect(() => {
     const clearDropStatus = () => {
@@ -978,7 +980,15 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
     ].join('|')
   }
 
+  function clearHeaderTooltip() {
+    if (!headerTooltipPage.current) return
+    headerTooltipPage.current.removeAttribute('title')
+    headerTooltipPage.current = null
+    onStatusHint('sheet-column-name', null)
+  }
+
   function clearHover() {
+    clearHeaderTooltip()
     updateHover(null)
     setTextCursorBadge(null)
   }
@@ -1871,7 +1881,18 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
       return
     }
     if (event.pointerType !== 'touch' && page && props.editMode !== 'pen' && props.editMode !== 'eraser' && props.editMode !== 'calibrate') {
-      const hit = hitFromPoint(pointFromEvent(event), page)
+      const point = pointFromEvent(event)
+      const hit = hitFromPoint(point, page)
+      const header = !hit && paperTrackHeaderHitFromPoint(point, page)
+      const surface = event.currentTarget.closest<HTMLElement>('.sheetPage')
+      if (header && header.paperTrack && surface) {
+        if (surface !== headerTooltipPage.current) clearHeaderTooltip()
+        if (surface.title !== header.paperTrack) {
+          surface.title = header.paperTrack
+          headerTooltipPage.current = surface
+          onStatusHint('sheet-column-name', header.paperTrack)
+        }
+      } else clearHeaderTooltip()
       updateHover(hit, { x: event.clientX, y: event.clientY })
     }
   }
@@ -2015,6 +2036,11 @@ export function useSheetCanvasController(props: SheetCanvasProps) {
         afterLaneId: context?.role === kind ? context.timelineLaneId : undefined })
     } else {
       setTimelineLaneInsertRequest(null)
+      if (kind === 'overlay-track' && props.project.logicalSheet.paperTracks.length === 0) {
+        setStackGuideInsertRequest(null)
+        openAddOverlayPaperTrackEditor({ x: window.innerWidth / 2, y: window.innerHeight / 2, snapIndex: 0, sheetRole: context?.role === 'action' ? 'action' : 'cell' })
+        return
+      }
       const target = stackGuideTargetForContext(context)
       if (target) requestStackGuideInsert(target, kind)
     }

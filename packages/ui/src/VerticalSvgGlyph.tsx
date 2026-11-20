@@ -1,5 +1,13 @@
 import type { SVGProps } from 'react'
-import { verticalGlyph } from './verticalTextLayout'
+import { verticalGlyph, type VerticalTextGlyph } from './verticalTextLayout'
+
+export function VerticalSvgLabel({ glyphs, size, pageSize, weight = 700, ...props }: {
+  glyphs: VerticalTextGlyph[]; size: number; pageSize: { widthPx: number; heightPx: number }; weight?: number
+} & SVGProps<SVGGElement>) {
+  return <g {...props} transform={`scale(${1 / pageSize.widthPx} ${1 / pageSize.heightPx})`}>
+    {glyphs.map((glyph, index) => <VerticalSvgGlyph key={index} {...glyph} size={size} weight={weight} />)}
+  </g>
+}
 
 export function VerticalSvgGlyph({ value, xPx, yPx, size, weight = 700, ...props }: {
   value: string; xPx: number; yPx: number; size: number; weight?: number

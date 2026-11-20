@@ -155,7 +155,7 @@ export function resolveSheetTemplateGridColumns(
     })
   }
   if (!usesPaperTracks(grid.role) || grid.trackProjection?.source !== 'logical-paper-tracks') return grid.columns
-  const tracks = normalizePaperTrackNames(paperTracks.length > 0 ? paperTracks : template.defaults.paperTracks)
+  const tracks = normalizePaperTrackNames(paperTracks, true)
   const startIndex = Math.max(0, Math.floor(grid.trackProjection.startIndex ?? 0))
   const viewLayout = getSheetViewLayout(template)
   const columnCount = viewLayout.trackAxis?.type === 'logical-width'
@@ -163,7 +163,7 @@ export function resolveSheetTemplateGridColumns(
     : grid.columns.length
   return Array.from({ length: columnCount }, (_, index) => {
     const baseColumn = grid.columns[index]
-    const paperTrack = tracks[startIndex + index]
+    const paperTrack = tracks[startIndex + index] || undefined
     return {
       ...baseColumn,
       columnId: baseColumn?.columnId ?? `${grid.role}_${safeIdFragment(paperTrack ?? '', index)}`,
@@ -757,11 +757,12 @@ function logicalFrameScaleForGrid(grid: SheetTemplateGrid, durationFrames: numbe
   return fitContent ? scale : Math.max(1, scale)
 }
 
-function normalizePaperTrackNames(labels: PaperTrackName[]): PaperTrackName[] {
+function normalizePaperTrackNames(labels: PaperTrackName[], preserveVacancies = false): PaperTrackName[] {
   const seen = new Set<string>()
   const normalized: PaperTrackName[] = []
   for (const label of labels) {
     const trimmed = label.trim()
+    if (!trimmed && preserveVacancies) normalized.push('')
     if (!trimmed || seen.has(trimmed)) continue
     normalized.push(trimmed)
     seen.add(trimmed)

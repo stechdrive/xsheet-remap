@@ -115,7 +115,7 @@ export const uiText = {
     copyAeKeyframeDataMenu: 'AE用データをコピー',
     copyAeKeyframeDataJapanese: '日本語版AE',
     copyAeKeyframeDataEnglish: '英語版AE',
-    deleteOverlayPaperTrack: '追加セル列を削除',
+    deletePaperTrack: (name: string) => `「${name}」列をシートから削除`,
     deleteOverlayPaperTrackConfirm: (label: string, keyCount: number, eventCount: number, bindingCount: number) =>
       `${label} の追加セル列を削除します。\n\nこの列の登録セル ${keyCount} 件、シート上のキー ${eventCount} 件、素材割り当て ${bindingCount} 件も削除されます。`,
     deleteOverlayPaperTrackConfirmOk: '削除',

@@ -9,6 +9,7 @@ import { levelCorrectionFilterUrl, useLevelCorrectionFilterId } from './levelCor
 import type { SheetImageSettings } from './appTypes'
 import { useWarpedSheetImageUrl } from './sheetImages'
 import type { TemplateChromeRenderModel, TemplateGridOverlayRenderModel } from './templateEditorGeometry'
+import { VerticalSvgLabel } from './VerticalSvgGlyph'
 import { SheetSvgText } from './SheetSvgText'
 
 export function SheetImageLayer({
@@ -135,7 +136,9 @@ export function TemplateChromeLayer({
             </>
           )}
           {showLabels && header.label ? <SheetSvgText className="templateHeaderText" style={{ fill: model.theme.ink.text }} x={header.labelX} y={header.labelY} textAnchor="middle" fontSizePx={header.labelFontSizePx} pageSize={model.pageSize}>{header.label}</SheetSvgText> : null}
-          {showLabels && header.columns.map(column => (
+          {showLabels && header.columns.map(column => column.glyphs ? (
+            <VerticalSvgLabel key={column.columnId} className="templateColumnText" style={{ fill: model.theme.ink.text, stroke: model.theme.paper.color, strokeWidth: 2, paintOrder: 'stroke fill', strokeLinejoin: 'round' }} aria-label={column.label} glyphs={column.glyphs} size={column.fontSizePx} pageSize={model.pageSize} />
+          ) : (
             <SheetSvgText key={column.columnId} className="templateColumnText" style={{ fill: model.theme.ink.text }} x={column.x} y={column.y} textAnchor="middle" dominantBaseline={column.dominantBaseline} fontSizePx={column.fontSizePx} pageSize={model.pageSize}>{column.label}</SheetSvgText>
           ))}
         </g>
@@ -216,7 +219,9 @@ export function GridOverlayLayer({
           {item.text}
         </SheetSvgText>
       ))}
-      {showLabels && model.bottomTrackLabels.map(item => (
+      {showLabels && model.bottomTrackLabels.map(item => item.glyphs ? (
+        <VerticalSvgLabel key={item.key} className="gridBottomTrackLabel" style={{ fill: model.theme.ink.text }} aria-label={item.text} opacity={item.opacity} glyphs={item.glyphs} size={item.fontSizePx} pageSize={model.pageSize} />
+      ) : (
         <SheetSvgText
           key={item.key}
           className="gridBottomTrackLabel"

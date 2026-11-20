@@ -10,7 +10,8 @@ import { OVERLAY_PAPER_TRACK_TOOLTIP_DELAY_MS, STACK_GUIDE_MAX_LANE, stackGuideA
 import { overlayBandSegmentForRegion } from './stack-guides-geometry'
 import { overlaySnapIndexFromPoint, overlaySnapIndexFromSegment, type OverlayBandSegment } from './app-sheet-geometry'
 import { overlayColumnRectForPage } from './sheet-layers-hit-geometry'
-import { auxiliaryLabelRangePx, auxiliaryLabelRangesOverlap, overlayAuxiliaryLabelBandKey, overlayAuxiliaryLabelGeometry, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
+import { VerticalSvgLabel } from './VerticalSvgGlyph'
+import { overlayAuxiliaryLabelBandKey, placeOverlayAuxiliaryLabel, type LabelLaneOccupancy, type OverlayAuxiliaryLabelGeometry } from './auxiliary-label-layout'
 
 export type OverlayPaperTrackDrag = {
   paperTrack: string
@@ -57,7 +58,7 @@ export function OverlayPaperTrackLayer({
               {label.truncated && <title>{label.fullText}</title>}
               <path className="overlayPaperTrackStem" d={`M ${label.stemX} ${column.rect.y} V ${label.labelBottomY} H ${label.labelAttachX}`} />
               <rect className="overlayPaperTrackLabelBox" x={label.labelX} y={label.labelY} width={label.labelWidth} height={label.labelHeight} rx={label.radiusX} ry={label.radiusY} />
-              <SheetSvgText
+              {label.glyphs ? <VerticalSvgLabel className="overlayPaperTrackLabelText" glyphs={label.glyphs} size={label.fontSizePx} pageSize={label.pageSize} weight={label.fontWeight} aria-label={label.fullText} style={{ fontFamily: label.fontFamily, fontWeight: label.fontWeight }} /> : <SheetSvgText
                 className="overlayPaperTrackLabelText"
                 x={label.labelX + label.labelWidth / 2}
                 y={label.labelY + label.labelHeight / 2}
@@ -69,7 +70,7 @@ export function OverlayPaperTrackLayer({
                 style={{ fontFamily: label.fontFamily, fontWeight: label.fontWeight }}
               >
                 {label.displayText}
-              </SheetSvgText>
+              </SheetSvgText>}
             </g>
           </g>
         )
@@ -264,12 +265,6 @@ interface OverlayPaperTrackRenderItem {
   label: OverlayAuxiliaryLabelGeometry
 }
 
-interface LabelLaneOccupancy {
-  leftPx: number
-  rightPx: number
-  lane: number
-}
-
 function overlayPaperTrackRenderItems(
   template: SheetTemplate,
   project: CutProject,
@@ -302,7 +297,8 @@ function overlayPaperTrackRenderItems(
           return {
             leftPx: geometry.labelX * pageSize.widthPx,
             rightPx: (geometry.labelX + geometry.labelWidth) * pageSize.widthPx,
-            lane,
+            top: geometry.labelY,
+            bottom: geometry.labelBottomY,
           }
         })
       })
@@ -324,16 +320,7 @@ function overlayPaperTrackRenderItems(
     if (!layout || layout.columns.length === 0) return []
     const rect = layout.rect
     const occupied = occupiedLanesForRegion(region)
-    let lane = 0
-    let label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
-    while (
-      lane < STACK_GUIDE_MAX_LANE
-      && occupied.some(candidate => candidate.lane === lane && auxiliaryLabelRangesOverlap(auxiliaryLabelRangePx(label, pageSize.widthPx), candidate))
-    ) {
-      lane += 1
-      label = overlayAuxiliaryLabelGeometry(template, rect, pageSize, renderedTrack, column, lane, STACK_GUIDE_MAX_LANE)
-    }
-    occupied.push({ ...auxiliaryLabelRangePx(label, pageSize.widthPx), lane })
+    const label = placeOverlayAuxiliaryLabel(template, rect, pageSize, renderedTrack, column, occupied, STACK_GUIDE_MAX_LANE)
     return [{
       track,
       renderedTrack,

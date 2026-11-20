@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument, setTimingSpecialEvent, unsetClipTarget } from './index'
+import { deletePaperTrack, paperTrackDeletionContents, createDefaultProject, createProjectDocumentFromCutProject, ensureClipDocument, setTimingSpecialEvent, unsetClipTarget } from './index'
 import { activeCutProjectFromDocument, addBlankSharedCutToProjectDocument, applyCutTimelineFrameEdit, buildClipRegistrationPlan, buildProjectArchiveManifest, createClipNode, createOrSetEvent, openClipDocument, parseProjectDocument, processTimingDifferences, selectTimingProcess, setEvent, suggestClipProcessColumns, timingForProcess, updateActiveCutProjectInDocument, updateCorrectionLayers, updatePaperTrack, validateProject, type ClipImportData } from './index'
+
+it('reports and removes the actual process timings while keeping every same-named native folder and cel', () => {
+  const { project, base, correction } = fixture()
+  expect(paperTrackDeletionContents(project, 'A').sort()).toEqual(['LO／作画', 'LO／修正'].sort())
+  const result = deletePaperTrack(selectTimingProcess(project, correction), 'A')
+  for (const id of [base, correction]) expect(timingForProcess(result.logicalSheet, id).events).toHaveLength(0)
+  expect(result.logicalSheet.keys).toHaveLength(0)
+  expect(result.bindings).toHaveLength(0)
+  expect(result.clipDocument!.targets).toHaveLength(0)
+  expect(result.clipDocument!.nodes).toEqual(project.clipDocument!.nodes)
+})
 
 function fixture() {
   const groups = ['LO／作画', 'LO／修正']

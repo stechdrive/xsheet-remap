@@ -21,6 +21,22 @@ it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])('hits the rende
   }
 })
 
+it.each([standardA3SheetTemplate, digitalStandardSheetTemplate])('lets the visible vertical glyphs open the column menu above the column border: $templateId', template => {
+  const names = ['口パク差し替え用ー確認', 'B', 'C']
+  const options = projectSheetLayoutOptions(createDefaultProject(), template)
+  const chrome = buildTemplateChromeRenderModel(template, names, 144)
+  const header = chrome.headers.find(h => h.regionId.endsWith('_cell_grid'))!
+  const column = header.columns[0]
+  const glyph = column.glyphs![0]
+  const point = { x: glyph.xPx / chrome.pageSize.widthPx, y: (glyph.yPx - column.fontSizePx / 2) / chrome.pageSize.heightPx }
+  expect(point.y).toBeLessThan(header.columnHeaderRect.y)
+  if (template.page.isPhysical) expect(point.y).toBeLessThan(header.rect.y)
+  expect(gridColumnHeaderHitFromPoint({ template, point, paperTracks: names, timelineLanes: options.timelineLanes, layoutOverrides: options.layoutOverrides,
+    durationFrames: 144, frameOrigin: 1, roles: ['cell'], includeTitle: true })).toMatchObject({ part: 'column', hit: { paperTrack: names[0] } })
+  expect(column.glyphs!.every(g => g.yPx < (header.columnHeaderRect.y + header.columnHeaderRect.h) * chrome.pageSize.heightPx)).toBe(true)
+  expect(header.columns[1].glyphs).toBeUndefined()
+})
+
 it('honors custom pixel header dimensions at every viewport scale', () => {
   const template = { ...digitalStandardSheetTemplate, regions: digitalStandardSheetTemplate.regions.map(region => region.grid?.role === 'sound'
     ? { ...region, grid: { ...region.grid, header: { ...region.grid.header, topOffsetPx: 90, heightPx: 60, columnHeightPx: 30 } } } : region) }

@@ -22,13 +22,27 @@ export interface ReprojectProjectToTemplateOptions {
 }
 
 export type SheetGeometryInput = {
-  logicalSheet: Pick<LogicalSheet, 'frameOrigin' | 'durationFrames' | 'workRange' | 'paperTracks' | 'timelineSections'>
+  logicalSheet: Pick<LogicalSheet, 'frameOrigin' | 'durationFrames' | 'workRange' | 'paperTracks' | 'vacantPaperColumns' | 'timelineSections'>
   sheetView: Pick<CutProject['sheetView'], 'layoutOverrides'>
 }
 
 export type SheetContentInput = SheetGeometryInput & Pick<CutProject, 'cut' | 'sheetFormData' | 'stackGuideLabels' | 'bindings'> & {
   logicalSheet: Pick<LogicalSheet, 'fps' | 'keys' | 'events' | 'referenceMarks'>
   sheetView: Pick<CutProject['sheetView'], 'metadataDisplay' | 'continuationDisplay'>
+}
+
+/** Project names in print order, including holes only on fixed-width sheets. */
+export function paperTrackNamesForLayout(sheet: Pick<LogicalSheet, 'paperTracks' | 'vacantPaperColumns'>, logicalWidth: boolean): string[] {
+  const ordered = [...sheet.paperTracks].sort((a, b) => a.order - b.order)
+  if (logicalWidth) return ordered.map(track => track.paperTrack)
+  const vacant = new Set(Array.isArray(sheet.vacantPaperColumns) ? sheet.vacantPaperColumns : [])
+  const names: string[] = []
+  for (const track of ordered) {
+    if (track.source === 'overlay') continue
+    while (vacant.has(names.length)) names.push('')
+    names.push(track.paperTrack)
+  }
+  return names
 }
 
 /**
@@ -39,14 +53,10 @@ export type SheetContentInput = SheetGeometryInput & Pick<CutProject, 'cut' | 's
 export function projectSheetLayoutOptions(
   project: SheetGeometryInput,
   template: SheetTemplate,
-): SheetGridLayoutOptions {
+): SheetGridLayoutOptions & { paperTracks: string[] } {
   const viewLayout = getSheetViewLayout(template)
   const showAllLogicalTracks = viewLayout.trackAxis?.type === 'logical-width'
-  const paperTracks = project.logicalSheet.paperTracks
-    .filter(track => showAllLogicalTracks || track.source !== 'overlay')
-    .slice()
-    .sort((left, right) => left.order - right.order)
-    .map(track => track.paperTrack)
+  const paperTracks = paperTrackNamesForLayout(project.logicalSheet, showAllLogicalTracks)
   const continuousFrameAxis = viewLayout.frameAxis?.type === 'continuous' || viewLayout.frameAxis?.type === 'infinite'
   return {
     paperTracks,
@@ -280,7 +290,7 @@ export function updateProjectPaperTracks(project: CutProject, labels: PaperTrack
     .filter(track => track.source === 'overlay')
     .filter(track => !paperTracks.some(base => base.paperTrack === track.paperTrack))
   const nextPaperTracks = normalizePaperTrackOrder([...paperTracks, ...preservedOverlayTracks])
-  return rebuildProjectPaperTrackSlots(project, nextPaperTracks, {
+  return rebuildProjectPaperTrackSlots({ ...project, logicalSheet: { ...project.logicalSheet, vacantPaperColumns: undefined } }, nextPaperTracks, {
     filterRemovedTracks: true,
     normalizeStackGuides: true,
   })
@@ -467,21 +477,58 @@ export function deleteOverlayPaperTrack(project: CutProject, paperTrackName: Pap
   const existing = project.logicalSheet.paperTracks.find(track => track.paperTrack === paperTrackName)
   if (!existing) throw new Error(`paperTrack not found: ${paperTrackName}`)
   if (existing.source !== 'overlay') throw new Error(`paperTrack is not an overlay track: ${paperTrackName}`)
-  const paperTracks = normalizeOverlayPaperTrackOrderInGaps(project.logicalSheet.paperTracks.filter(track => track.paperTrack !== paperTrackName))
-  return rebuildProjectPaperTrackSlots(project, paperTracks, {
+  return deletePaperTrack(project, paperTrackName)
+}
+
+/** Content that will actually be removed, including timings outside the visible process. */
+export function paperTrackDeletionContents(project: CutProject, name: string): string[] {
+  const sheet = project.logicalSheet
+  const keys = sheet.keys.filter(key => key.paperTrack === name)
+  const usedSlots = new Set(project.bindings.map(binding => binding.slotId))
+  const hasTiming = (timing: Pick<LogicalSheet, 'events' | 'referenceMarks'>) =>
+    timing.events.some(event => event.paperTrack === name) || timing.referenceMarks?.some(mark => mark.paperTrack === name)
+  const common = !sheet.processTimings && (hasTiming(sheet) || keys.some(key => !key.processId))
+  const processes = project.correctionLayers.filter(layer =>
+    (sheet.processTimings && hasTiming(timingForProcess(sheet, layer.layerId))) || keys.some(key => key.processId === layer.layerId)
+    || project.cspTrackSlots.some(slot => slot.paperTrack === name && slot.correctionLayerId === layer.layerId && usedSlots.has(slot.slotId)))
+  return [...common ? ['共通タイミング'] : [], ...processes.map(layer => layer.label)]
+}
+
+export function deletePaperTrack(project: CutProject, paperTrackName: PaperTrackName): CutProject {
+  const sheet = project.logicalSheet
+  if (!sheet.paperTracks.some(track => track.paperTrack === paperTrackName)) throw new Error(`paperTrack not found: ${paperTrackName}`)
+  const printOrder = paperTrackNamesForLayout(sheet, false)
+  const index = printOrder.indexOf(paperTrackName)
+  const vacantPaperColumns = index < 0 ? sheet.vacantPaperColumns : [...sheet.vacantPaperColumns ?? [], index].sort((a, b) => a - b)
+  const previous = printOrder.slice(0, Math.max(0, index)).filter(Boolean).at(-1)
+  const surviving = sheet.paperTracks.filter(track => track.paperTrack !== paperTrackName)
+  // Two gaps become one when their common anchor disappears. Keep their existing stacking order.
+  const joined = surviving.filter(track => track.source === 'overlay' && (track.exportPlacement?.insertAfterPaperTrack === previous || track.exportPlacement?.insertAfterPaperTrack === paperTrackName))
+    .sort((a, b) => a.order - b.order)
+  const gapOrder = new Map(joined.map((track, order) => [track.paperTrack, order]))
+  const paperTracks = normalizeOverlayPaperTrackOrderInGaps(surviving.map(track => index >= 0 && gapOrder.has(track.paperTrack)
+    ? { ...track, exportPlacement: { insertAfterPaperTrack: previous, orderInGap: gapOrder.get(track.paperTrack) } }
+    : track))
+  return rebuildProjectPaperTrackSlots({
+    ...project,
+    logicalSheet: { ...sheet, vacantPaperColumns },
+    stackGuideLabels: project.stackGuideLabels.map(label => label.insertAfterPaperTrack === paperTrackName ? { ...label, insertAfterPaperTrack: previous } : label),
+  }, paperTracks, {
     filterRemovedTracks: true,
     normalizeStackGuides: true,
+    removeOnly: true,
   })
 }
 
 function rebuildProjectPaperTrackSlots(
   project: CutProject,
   paperTracks: PaperTrack[],
-  options: { filterRemovedTracks: boolean; normalizeStackGuides: boolean },
+  options: { filterRemovedTracks: boolean; normalizeStackGuides: boolean; removeOnly?: boolean },
 ): CutProject {
   const allowedTracks = new Set(paperTracks.map(track => track.paperTrack))
   const allowedKeyIds = new Set(project.logicalSheet.keys.filter(key => allowedTracks.has(key.paperTrack)).map(key => key.keyId))
-  const cspTrackSlots = reconcileCspTrackSlots(paperTracks, project.productionStages, project.correctionLayers, project.cspTrackSlots)
+  const cspTrackSlots = options.removeOnly ? project.cspTrackSlots.filter(slot => allowedTracks.has(slot.paperTrack))
+    : reconcileCspTrackSlots(paperTracks, project.productionStages, project.correctionLayers, project.cspTrackSlots)
   const allowedSlotIds = new Set(cspTrackSlots.map(slot => slot.slotId))
   return {
     ...project,
@@ -511,7 +558,7 @@ function rebuildProjectPaperTrackSlots(
       : project.stackGuideLabels,
     exportProfiles: project.exportProfiles.map(profile => ({
       ...profile,
-      slotIds: cspTrackSlots.map(slot => slot.slotId),
+      slotIds: options.removeOnly ? profile.slotIds.filter(id => allowedSlotIds.has(id)) : cspTrackSlots.map(slot => slot.slotId),
     })),
   }
 }

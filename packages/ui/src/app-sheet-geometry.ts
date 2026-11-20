@@ -7,6 +7,7 @@ import {
   logicalSheetDisplayDurationFrames,
   logicalSheetDisplayFrameStart,
   paperTrackDisplayRole,
+  paperTrackNamesForLayout,
   resolveSheetTemplateGridLayout,
   timelineLanesForLayout,
   type CutProject,
@@ -31,7 +32,7 @@ export function templatePaperTracks(project: { logicalSheet: Pick<CutProject['lo
 export function overlayPaperTracks(project: Pick<SheetGeometryInput, 'logicalSheet'>, template?: SheetTemplate): PaperTrack[] {
   if (template && getSheetViewLayout(template).trackAxis?.type === 'logical-width') return []
   const ordered = [...project.logicalSheet.paperTracks].sort((a, b) => a.order - b.order)
-  const names = ordered.filter(track => track.source !== 'overlay').map(track => track.paperTrack)
+  const names = paperTrackNamesForLayout(project.logicalSheet, false)
   const hidden = new Map((['action', 'cell'] as const).map(role => [role,
     new Set(template ? getSheetTemplateHiddenPaperTracks(template, role, names) : []),
   ]))
@@ -66,8 +67,7 @@ export function paperTrackOrderForRole(project: CutProject, role: SheetTimingRol
   if (getSheetViewLayout(template).trackAxis?.type === 'logical-width') {
     return templatePaperTracks(project, template).map(track => track.paperTrack)
   }
-  const templateTracks = templatePaperTracks(project)
-  const templateOrder = new Map(templateTracks.map((track, index) => [track.paperTrack, index]))
+  const templateOrder = new Map(paperTrackNamesForLayout(project.logicalSheet, false).map((name, index) => [name, index]))
   return project.logicalSheet.paperTracks
     .filter(track => track.source !== 'overlay' || paperTrackDisplayRole(track) === role)
     .map(track => ({
@@ -107,7 +107,7 @@ export interface OverlayBandSlot {
 }
 
 export function overlayBandSegments(template: SheetTemplate, project: SheetGeometryInput, role: SheetTimingRole): OverlayBandSegment[] {
-  const templateTrackNames = templatePaperTracks(project, template).map(track => track.paperTrack)
+  const templateTrackNames = paperTrackNamesForLayout(project.logicalSheet, getSheetViewLayout(template).trackAxis?.type === 'logical-width')
   const timelineLanes = timelineLanesForLayout(project)
   const displayDurationFrames = logicalSheetDisplayDurationFrames(project.logicalSheet)
   const viewLayout = getSheetViewLayout(template)
@@ -232,7 +232,7 @@ export function overlayVisibleSnapIndex(template: SheetTemplate, project: SheetG
   if (!anchor) return 0
   const anchorSlotIndex = segment.slots.findIndex(slot => slot.regionId === segment.regionId && slot.paperTrack === anchor)
   if (anchorSlotIndex >= 0) return clampNumber(anchorSlotIndex + 1, 0, segment.snapCount)
-  const trackIndex = templatePaperTracks(project, template).findIndex(candidate => candidate.paperTrack === anchor)
+  const trackIndex = paperTrackNamesForLayout(project.logicalSheet, false).indexOf(anchor)
   return clampNumber(trackIndex >= 0 ? trackIndex + 2 : 0, 0, segment.snapCount)
 }
 

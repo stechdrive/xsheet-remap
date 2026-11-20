@@ -43,6 +43,10 @@ for (const role of ['action', 'cell'] as const) test(`right-click selects the im
   const timing = (track: string) => page.locator(`[data-timeline-event-role="${role}"][data-timeline-event-track="${track}"] .eventText`)
   await expect(timing('A_ブランケット')).toHaveText('001')
   await expect(timing('B')).toHaveText('001')
+  const longHeader = await point(0)
+  await page.mouse.move(longHeader.x, longHeader.y)
+  await expect(page.locator('.sheetPage').first()).toHaveAttribute('title', 'A_ブランケット')
+  await page.screenshot({ path: info.outputPath('vertical-column-name.png') })
   const previous = await point(1)
   await page.mouse.click(previous.x, previous.y)
   const status = page.locator('.statusBar > span').first()
@@ -95,4 +99,20 @@ for (const role of ['action', 'cell'] as const) test(`right-click selects the im
   await activateControl(page, page.getByRole('menuitem', { name: 'セル列名を変更', exact: true }))
   await expect(name).toHaveValue('A')
   await name.press('Escape')
+  for (const accept of [false, true]) {
+    await page.mouse.click(restoredTarget.x, restoredTarget.y, { button: 'right' })
+    const confirmation = page.waitForEvent('dialog').then(async dialog => {
+      const message = dialog.message()
+      if (accept) await dialog.accept()
+      else await dialog.dismiss()
+      return message
+    })
+    await activateControl(page, page.getByRole('menuitem', { name: '「A」列をシートから削除', exact: true }))
+    expect(await confirmation).toContain('対象：')
+    if (!accept) await expect(timing('A')).toHaveText('001')
+  }
+  await expect(timing('A')).toHaveCount(0)
+  await expect(timing('B')).toHaveText('001')
+  await activateControl(page, page.getByRole('button', { name: '元に戻す', exact: true }))
+  await expect(timing('A')).toHaveText('001')
 })

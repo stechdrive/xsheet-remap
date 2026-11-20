@@ -752,6 +752,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           >
             {uiText.actions.renamePaperTrack}
           </button>
+          {paperTrackHeaderMenu.hit.paperTrack && <button role="menuitem" className="deletePaperTrackAction" title={uiText.actions.deletePaperTrack(paperTrackHeaderMenu.hit.paperTrack)}
+            onClick={() => runPaperTrackHeaderMenuAction(() => props.onDeletePaperTrack(paperTrackHeaderMenu.hit.paperTrack!))}>
+            {uiText.actions.deletePaperTrack(paperTrackHeaderMenu.hit.paperTrack)}
+          </button>}
           <SheetContextSubmenu label={uiText.actions.copyAeKeyframeDataMenu} disabled={!paperTrackHeaderMenu.hit.paperTrack}>
             <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole))}>{uiText.actions.copyAeKeyframeDataJapanese}</button>
             <button type="button" role="menuitem" onClick={() => runPaperTrackHeaderMenuAction(() => props.onCopyAeKeyframeData(paperTrackHeaderMenu.hit.paperTrack ?? '', paperTrackHeaderMenu.sheetRole, 'en'))}>{uiText.actions.copyAeKeyframeDataEnglish}</button>
@@ -775,9 +779,10 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
           </button>
           <button
             role="menuitem"
-            onClick={() => runOverlayPaperTrackMenuAction(() => props.onDeleteOverlayPaperTrack(overlayPaperTrackMenu.paperTrack))}
+            className="deletePaperTrackAction" title={uiText.actions.deletePaperTrack(overlayPaperTrackMenu.paperTrack)}
+            onClick={() => runOverlayPaperTrackMenuAction(() => props.onDeletePaperTrack(overlayPaperTrackMenu.paperTrack))}
           >
-            {uiText.actions.deleteOverlayPaperTrack}
+            {uiText.actions.deletePaperTrack(overlayPaperTrackMenu.paperTrack)}
           </button>
           {columnAddItems}
         </SheetContextMenu>

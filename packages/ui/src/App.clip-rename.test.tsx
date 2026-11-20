@@ -36,12 +36,13 @@ it.each([
   const sheet = screen.getByLabelText(templateName === 'デジタル標準' ? uiText.sheet.canvasSurfaceLabel : uiText.sheet.canvasLabel)
   setSheetRect(sheet, 0, 0)
   const header = Array.from(document.querySelectorAll('.templateHeaderText')).find(element => element.textContent === (role === 'cell' ? 'CEL' : role.toUpperCase()))!.parentElement!
-  const labels = () => Array.from(header.querySelectorAll('.templateColumnText'), element => element.textContent)
+  const labels = () => Array.from(header.querySelectorAll('.templateColumnText'), element => element.getAttribute('aria-label') ?? element.textContent)
   const originalLabels = labels()
   const point = (index: number) => {
     const nameText = header.querySelectorAll('.templateColumnText')[index]!
     const scale = nameText.getAttribute('transform')!.match(/scale\(([^ ]+) ([^)]+)\)/)!
-    return { clientX: Number(nameText.getAttribute('x')) * Number(scale[1]) * 1000, clientY: Number(nameText.getAttribute('y')) * Number(scale[2]) * 1000 }
+    const glyph = nameText.querySelector('text') ?? nameText
+    return { clientX: Number(glyph.getAttribute('x')) * Number(scale[1]) * 1000, clientY: (Number(glyph.getAttribute('y')) - 1) * Number(scale[2]) * 1000 }
   }
   const previous = point(0)
   clickSheet(sheet, previous.clientX, previous.clientY)

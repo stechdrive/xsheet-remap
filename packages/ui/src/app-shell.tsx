@@ -6,8 +6,8 @@ export function EditorApp() {
   return <App appKind="editor" collapseEditorSheetPanes />
 }
 
-export function RemapApp() {
-  return <App appKind="remap" />
+export function RemapApp({ initialSheetLink }: Pick<AppControllerOptions, 'initialSheetLink'> = {}) {
+  return <App appKind="remap" initialSheetLink={initialSheetLink} />
 }
 
 export function App(options: AppControllerOptions = {}) {

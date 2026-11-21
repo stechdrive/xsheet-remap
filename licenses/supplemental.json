@@ -1,5 +1,6 @@
 {
   "packages": {
+    "npm:qrcode-generator@2.0.4": ["qrcode-generator-mit.txt"],
     "npm:onnxruntime-web@1.30.0": ["onnxruntime-license.txt", "onnxruntime-third-party.txt"],
     "npm:onnxruntime-common@1.30.0": ["onnxruntime-license.txt"],
     "npm:guid-typescript@1.0.9": ["guid-typescript-isc.txt"],
@@ -12,6 +13,7 @@
     "cargo:webview2-com-macros@0.8.1": ["webview2-macros-license.txt"]
   },
   "sources": {
+    "qrcode-generator-mit.txt": "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/master/LICENSE",
     "onnxruntime-license.txt": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
     "onnxruntime-third-party.txt": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/ThirdPartyNotices.txt",
     "guid-typescript-isc.txt": "https://github.com/NicolasDeveloper/guid-typescript/blob/master/package.json",

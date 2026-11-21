@@ -4,7 +4,7 @@ import {
   activeCutProjectFromDocument, baseTimingProject, commitHistory, createProjectDocumentFromCutProject, createProjectHistory, defaultCorrectionLayerId, ensureClipDocument, synchronizeClipBindings, selectTimingProcess,
   type AnnotationText, type CutGroupProjectDocument, type CutProject, type ProjectHistory, type SheetTemplate,
 } from '@xsheet-remap/core'
-import type { DocumentFileSource } from '@xsheet-remap/adapters'
+import type { DocumentFileSource, OpenedSheetLink } from '@xsheet-remap/adapters'
 import { useProjectFileSession } from './useProjectFileSession'
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import { createAudioPlayheadStore } from './audioPlayheadStore'
@@ -44,8 +44,8 @@ interface WorkspaceHistory {
   future: WorkspaceHistorySnapshot[]
 }
 
-export function useAppShellState(appKind: MainAppKind) {
-  const [initialWorkspace] = useState(() => createInitialWorkspace(appKind))
+export function useAppShellState(appKind: MainAppKind, initialSheetLink?: OpenedSheetLink) {
+  const [initialWorkspace] = useState(() => createInitialWorkspace(appKind, initialSheetLink?.workspace))
   const [workspaceHistory, setWorkspaceHistory] = useState<WorkspaceHistory>(() => {
     const projectHistory = createProjectHistory(initialWorkspace.project)
     return {
@@ -164,7 +164,9 @@ export function useAppShellState(appKind: MainAppKind) {
   const [sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen] = useState(false)
   const [appHelpDialogOpen, setAppHelpDialogOpen] = useState(false)
   const [timingExportDialog, setTimingExportDialog] = useState<TimingExportDialogState | null>(null)
-  const [exportOperationNotice, setExportOperationNotice] = useState<ExportOperationNotice | null>(null)
+  const [exportOperationNotice, setExportOperationNotice] = useState<ExportOperationNotice | null>(
+    initialSheetLink ? { message: initialSheetLink.message, error: initialSheetLink.error } : null,
+  )
   const [xdtsImportDialog, setXdtsImportDialog] = useState<XdtsImportDialogState | null>(null)
   const [clipImportFile, setClipImportFile] = useState<DocumentFileSource | null>(null)
   const [frameOperationDialog, setFrameOperationDialog] = useState<FrameOperationDialogState | null>(null)
@@ -206,17 +208,19 @@ export function useAppShellState(appKind: MainAppKind) {
   }
 }
 
-function createInitialWorkspace(appKind: MainAppKind): {
+function createInitialWorkspace(appKind: MainAppKind, restored?: OpenedSheetLink['workspace']): {
   project: CutProject
   template: SheetTemplate
   document: CutGroupProjectDocument
 } {
-  const preferred = createPreferredProject(appKind), preset = preferred.preset
-  const project = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(preferred.project)) : preferred.project
+  const preferred = restored ? undefined : createPreferredProject(appKind)
+  const template = restored?.template ?? preferred!.preset.sheetTemplate
+  const input = restored?.project ?? preferred!.project
+  const project = appKind === 'remap' ? synchronizeClipBindings(ensureClipDocument(input)) : input
   return {
     project,
-    template: preset.sheetTemplate,
-    document: createProjectDocumentFromCutProject(project, { sheetTemplate: preset.sheetTemplate }),
+    template,
+    document: createProjectDocumentFromCutProject(project, { sheetTemplate: template }),
   }
 }
 

@@ -6,6 +6,7 @@ export type SheetTemplateBranding = {
   url: string
   qrRect: NormalizedRect
   qrPath: string
+  warning?: string
   name: { text: string; x: number; y: number; fontSizePx: number; color: string }
 }
 

@@ -41,6 +41,7 @@ import {
   type TemplateGridPathRenderModel,
 } from './templateEditorGeometry'
 import { sheetImageFileName } from './outputFileNames'
+import { withProjectSheetQr } from './projectSheetQr'
 import { annotationTextLines, annotationVerticalLayout, resolveAnnotationTextFontSizePx } from './annotationTextLayout'
 import { drawVerticalGlyph, type VerticalTextGlyph } from './verticalTextLayout'
 import { buildSoundCuePageTextLayouts } from './soundCueGeometry'
@@ -401,7 +402,7 @@ function renderTemplateDrawingLayer(
       if (options.includeStaticChrome) drawTemplateStaticChrome(ctx, context, chrome, offsetY)
       drawTemplateGridHeaderLines(ctx, context, chrome, offsetY)
     } else {
-      drawTemplateGridHeaderLabels(ctx, context, chrome, offsetY)
+      drawTemplateGridHeaderLabels(ctx, context, withProjectSheetQr(chrome, context, context.project, page), offsetY)
     }
     for (const region of context.template.regions.filter(isRenderableSheetTemplateGridRegion)) {
       const viewLayout = getSheetViewLayout(context.template)
@@ -565,10 +566,17 @@ function drawTemplateGridHeaderLabels(
     ctx.fillStyle = '#fff'
     ctx.fillRect(qrRect.x, qrRect.y, qrRect.w, qrRect.h)
     ctx.fillStyle = '#000'
-    ctx.fill(new Path2D(qrPath))
+    if (qrPath) ctx.fill(new Path2D(qrPath))
     ctx.restore()
     ctx.save()
     ctx.fillStyle = name.color
+    if (chrome.branding.warning) {
+      ctx.font = fontDeclaration(11, TEMPLATE_CANVAS_FONT_FAMILY, 400)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(chrome.branding.warning, (qrRect.x + qrRect.w/2) * context.pageSize.widthPx,
+        offsetY + (qrRect.y + qrRect.h/2) * context.pageSize.heightPx)
+    }
     ctx.font = fontDeclaration(name.fontSizePx, TEMPLATE_CANVAS_FONT_FAMILY, 400)
     ctx.textAlign = 'right'
     ctx.textBaseline = 'alphabetic'

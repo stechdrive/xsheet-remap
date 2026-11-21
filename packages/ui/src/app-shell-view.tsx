@@ -734,8 +734,8 @@ export function AppShellView({ controller }: { controller: AppController }) {
       <footer className="statusBar">
         <span className="statusSelection">{statusSelectionText}</span>
         {exportOperationNotice ? (
-          <span className="exportOperationNotice" role="status">
-            <strong>✓ {exportOperationNotice.message}</strong>
+          <span className="exportOperationNotice" role={exportOperationNotice.error ? 'alert' : 'status'}>
+            <strong>{exportOperationNotice.error ? '⚠' : '✓'} {exportOperationNotice.message}</strong>
             {exportOperationNotice.directoryPath && <button type="button" onClick={() => void handleOpenExportDirectory()}>フォルダを開く</button>}
             <button type="button" className="dismiss" aria-label="書き出し通知を閉じる" onClick={() => setExportOperationNotice(null)}>×</button>
           </span>

@@ -284,7 +284,8 @@ export function SheetCanvasView({ controller }: { controller: SheetCanvasControl
                       preview
                     />
                   )}
-                  {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} timelineLanes={timelineLanes} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />}
+                  {(showTemplateLines || showTemplateLabels) && <TemplateChrome template={props.template} paperTracks={templateTrackNames} timelineLanes={timelineLanes} durationFrames={displayDurationFrames} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels}
+                    project={props.project} page={page} context={sheetRenderModelContext} />}
                   {(showTemplateLines || showTemplateLabels) && props.template.regions.filter(isRenderableSheetTemplateGridRegion).map(region => (
                     <GridOverlay key={region.regionId} template={props.template} region={region} paperTracks={templateTrackNames} timelineLanes={timelineLanes} durationFrames={page.frameEnd - page.frameStart + 1} frameOrigin={isContinuousCanvas ? page.frameStart : props.template.defaults.frameOrigin} pageFrameStart={page.frameStart} layoutOverrides={props.project.sheetView.layoutOverrides} showLines={showTemplateLines} showLabels={showTemplateLabels} />
                   ))}

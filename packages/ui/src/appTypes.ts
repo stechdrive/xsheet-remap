@@ -12,6 +12,7 @@ export interface TimingExportDialogState {
 }
 export interface ExportOperationNotice {
   message: string
+  error?: boolean
   directoryPath?: string
 }
 export interface XdtsImportDialogState {

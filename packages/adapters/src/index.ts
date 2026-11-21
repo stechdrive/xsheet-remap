@@ -4,6 +4,7 @@ import { decodeProjectFileBytes, encodeProjectArchive, isXsrProjectFileName, XSR
 import { browserAssetDataUrl, retainBrowserFiles } from './browserFiles'
 
 export { isTauriHost, isTauriLikeWindow } from './environment'
+export * from './sheet-link'
 export { documentFileKind, openNativeDocumentFile, readNativeDocumentFile, type DocumentFileSource, type DocumentFileKind } from './documentFiles'
 export { generateClipFile, inspectClipFile, readClipFile } from './clip/runtime'
 export type { ClipWriteOptions, ClipWriteResult } from './clip/writer'

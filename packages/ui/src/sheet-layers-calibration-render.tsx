@@ -12,6 +12,7 @@ import { GridOverlayLayer, TemplateChromeLayer } from './SheetTemplateLayers'
 import { AutoCalibrationOverlayState, CalibrationGuideMetrics, CalibrationPointKind } from './app-foundation'
 import { SvgMultilineTspans } from './SvgMultilineTspans'
 import { useSheetTextMetricsRevision } from './useSheetTextMetricsRevision'
+import { withProjectSheetQr } from './projectSheetQr'
 
 export function AutoCalibrationGuideOverlay({
   overlay,
@@ -112,6 +113,7 @@ function calibrationHandlePath(point: NormalizedPoint, metrics: CalibrationGuide
 }
 
 export const TemplateChrome = memo(function TemplateChrome({
+  project, page, context,
   template,
   paperTracks = template.defaults.paperTracks,
   timelineLanes,
@@ -120,6 +122,9 @@ export const TemplateChrome = memo(function TemplateChrome({
   showLines = true,
   showLabels = true,
 }: {
+  project: CutProject
+  page: SheetPage
+  context: SheetRenderModelContext
   template: SheetTemplate
   paperTracks?: string[]
   timelineLanes?: SheetTemplateLayoutResolveOptions['timelineLanes']
@@ -132,7 +137,13 @@ export const TemplateChrome = memo(function TemplateChrome({
     () => buildTemplateChromeRenderModel(template, paperTracks, durationFrames, { timelineLanes, layoutOverrides }),
     [durationFrames, layoutOverrides, paperTracks, template, timelineLanes],
   )
-  return <TemplateChromeLayer model={model} showLines={showLines} showLabels={showLabels} />
+  const metricsRevision = useSheetTextMetricsRevision()
+  const projected = useMemo(() => {
+    // Font readiness changes the occupied extent of existing memo text.
+    void metricsRevision
+    return showLabels ? withProjectSheetQr(model,context,project,page) : model
+  }, [model,context,project,page,showLabels,metricsRevision])
+  return <TemplateChromeLayer model={projected} showLines={showLines} showLabels={showLabels} />
 })
 
 export const GridOverlay = memo(function GridOverlay({

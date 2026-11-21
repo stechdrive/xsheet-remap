@@ -2,7 +2,7 @@ import { useNativeFileDropEvents } from './useNativeFileDropEvents'
 import { useBrowserFileOwnership } from './useBrowserFileOwnership'
 import { useProjectFileCommands } from './useProjectFileCommands'
 import { emptyProjectFileLocation } from './projectFileLocation'
-import { documentFileKind, type DocumentFileKind, type DocumentFileSource } from '@xsheet-remap/adapters'
+import { documentFileKind, readBrowserSheetLink, type DocumentFileKind, type DocumentFileSource } from '@xsheet-remap/adapters'
 import { planPaperTranscriptionImport, type PaperTranscriptionImportOptions, type PaperTranscriptionRequest, type PaperTranscriptionResult } from '@xsheet-remap/core'
 import { isCompositionKey } from './compositionKeyboard'
 import { baseTimingProcessId, baseTimingProject, setBaseTimingProcess, remapClipTracks, type ClipTrackCorrespondence } from '@xsheet-remap/core'
@@ -11,7 +11,7 @@ import type { CutGroupProjectDocument } from '@xsheet-remap/core'
 import { nextProjectTimingHit } from './sheetTimingNavigation'
 import { projectTimingHitForFrame } from './sheet-layers-hit-geometry'
 import { addTimingCirclesToEntries, setTimingReferenceAt, setTimingReferenceRange, buildActionCellTransferPlan, applyActionCellTransferPlan, type ActionCellTransferPlan, type TimingEnclosure } from '@xsheet-remap/core'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import type { RemapWorkMode } from './RemapWorkspaceBar'
 import type { PendingClipImageDrop } from './ClipImageDropDialog'
 import { addTimelineMemo, appendTimelineMemoStroke, clearTimelineMemoStrokes, deleteTimelineMemo, eraseTimelineMemoStrokes, nextTimelineMemoStrokeId, updateTimelineMemoAppearance, updateTimelineMemoPlacement, upsertTimelineMemoText, type MemoAppearance, type TimelineMemoPlacement, type TimelineMemoPoint, type TimelineMemoStroke, type TimelineMemoText } from '@xsheet-remap/core';
@@ -76,9 +76,13 @@ import { useSheetRenderModelGeometryProject } from './useSheetRenderModelProject
 import { IMPORTED_SHEET_IMAGE_INITIAL_OPACITY, importPaperSheetSourceRefs, paperSheetImportPlan, type ImportedSheetSourceCalibrationResult, type ImportedSheetSourceCalibrationTarget } from './paperSheetImport'
 import { applyDetectedPaperSheetCalibration, paperSheetCalibrationSourceIdentity } from './paperSheetAutoCalibration'
 import { createAppDialogueAudioExportAction } from './app-dialogue-audio-export-actions'
-export interface AppControllerOptions { appKind?: MainAppKind; collapseEditorSheetPanes?: boolean }
+export interface AppControllerOptions {
+  appKind?: MainAppKind
+  collapseEditorSheetPanes?: boolean
+  initialSheetLink?: import('@xsheet-remap/adapters').OpenedSheetLink
+}
 type PaperSheetEditContext = { document: object; cutId: string; revisionId: string; template: SheetTemplate }
-export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false }: AppControllerOptions = {}) {
+export function useAppController({ appKind = 'editor', collapseEditorSheetPanes = false, initialSheetLink }: AppControllerOptions = {}) {
   const appProfile = APP_PROFILES[appKind]
   const {
     history, setHistory, selectWorkspaceProcess, commitWorkspace, commitProjectDocument, replaceProjectDocument, projectDocument, setProjectDocument, savedProjectDocumentSnapshot, setSavedProjectDocumentSnapshot, fileSession, paperSheetInputRef, project, projectRef, template, setTemplate,
@@ -100,7 +104,7 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
     sheetLevelCorrectionDialogOpen, setSheetLevelCorrectionDialogOpen, appHelpDialogOpen, setAppHelpDialogOpen,
     timingExportDialog, setTimingExportDialog, exportOperationNotice, setExportOperationNotice, xdtsImportDialog, setXdtsImportDialog, clipImportFile, setClipImportFile, frameOperationDialog, setFrameOperationDialog, assetDropMenu, setAssetDropMenu,
     releaseBrowserFilesAfterCommit, workMode, setWorkMode, activeCorrectionLayerIdState, setActiveCorrectionLayerIdState, nativeFileDropHandlerRef,
-  } = useAppShellState(appKind)
+  } = useAppShellState(appKind, initialSheetLink)
   const [pendingClipImageDrop, setPendingClipImageDrop] = useState<PendingClipImageDrop | null>(null)
   const nextCueTextSizes = useRef<NextCueTextSizes>({})
   const [timingInputCircles, setTimingInputCircles] = useState(loadTimingInputCircles)
@@ -144,6 +148,37 @@ export function useAppController({ appKind = 'editor', collapseEditorSheetPanes 
   )
   const unsavedProjectChangesRef = useRef(hasUnsavedProjectChanges)
   unsavedProjectChangesRef.current = hasUnsavedProjectChanges
+  const applyScannedPage = useEffectEvent(async (event: HashChangeEvent) => {
+    const hash = new URL(event.newURL).hash
+    if (!hash.startsWith('#s=') || hash !== window.location.hash) return
+    if (panel === 'template') { window.location.reload(); return } // The template editor owns its draft guard.
+    const result = readBrowserSheetLink(hash)
+    if (result.workspace) {
+      if (unsavedProjectChangesRef.current && !await confirmUserAction('保存していない変更があります。現在のプロジェクトを閉じてQRのシートを開きますか？',
+        { title: 'シートQRを開く', okLabel: '開く' })) {
+        if (hash === window.location.hash) window.history.replaceState(window.history.state, '', event.oldURL)
+        return
+      }
+      if (hash !== window.location.hash) return
+      const loaded = synchronizeClipBindings(ensureClipDocument(result.workspace.project))
+      const document = createProjectDocumentFromCutProject(loaded, { sheetTemplate: result.workspace.template })
+      projectRef.current = replaceProjectDocument(document)
+      setSavedProjectDocumentSnapshot(document)
+      setFileLocation(emptyProjectFileLocation)
+      setRuntimeSourceImageUrls({})
+      setTimingEditSession(null)
+      clearSelectionState()
+      setActiveCorrectionLayerIdState(baseTimingProcessId(loaded))
+      resetClipWorkspaceView('sheet')
+    }
+    setExportOperationNotice({ message: result.message, error: result.error })
+  })
+  useEffect(() => {
+    if (appKind !== 'remap') return
+    const scan = (event: HashChangeEvent) => { void applyScannedPage(event) }
+    window.addEventListener('hashchange', scan)
+    return () => window.removeEventListener('hashchange', scan)
+  }, [appKind])
   const projectCuts = projectDocumentSnapshot.cuts
   const {
     activeSheetRevision, sheetRevisions, referenceProject,

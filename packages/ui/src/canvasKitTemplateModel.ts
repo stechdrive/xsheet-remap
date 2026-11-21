@@ -38,7 +38,9 @@ export function templateChromePaperModel(model: TemplateChromeRenderModel, showL
     styles.brandingName = { tag: 'text', className: 'sheetBrandingName', style: { fill: name.color } }
     primitives.push(
       { style: 'brandingWhite', shape: rect(qrRect) },
-      { style: 'brandingBlack', shape: { kind: 'path', d: qrPath } },
+      model.branding.warning ? { style: 'brandingName', text: { value: model.branding.warning, x: qrRect.x + qrRect.w/2,
+        y: qrRect.y + qrRect.h/2, size: 11, anchor: 'middle', baseline: 'central' } } :
+        { style: 'brandingBlack', shape: { kind: 'path', d: qrPath } },
       { style: 'brandingName', text: { value: name.text, x: name.x, y: name.y, size: name.fontSizePx,
         weight: 400, anchor: 'end', baseline: 'alphabetic' } },
     )

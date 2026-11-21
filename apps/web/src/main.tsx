@@ -49,6 +49,10 @@ async function resolveApplication() {
     return <TemplateEditorApp />
   }
   const { EditorApp, RemapApp } = await import('@xsheet-remap/ui')
+  if (window.location.hash.startsWith('#s=')) {
+    const { readBrowserSheetLink } = await import('@xsheet-remap/adapters')
+    return <RemapApp initialSheetLink={readBrowserSheetLink(window.location.hash)} />
+  }
   return appKind === 'editor' ? <EditorApp /> : <RemapApp />
 }
 

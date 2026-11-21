@@ -7,7 +7,7 @@ import { encodeProjectArchive, decodeProjectFileBytes } from '../../../packages/
 import { createSheetRenderModelContext, inputTextRenderItemsForPage } from '../../../packages/ui/src/sheetRenderModel'
 import { waitForPaperPaint } from '../paper-paint-contract'
 
-for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) test(`reference triangle editing and circular pixels in screen/PNG (${template.templateId})`, async ({ page }, info) => {
+for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) test(`reference triangle editing and enclosure pixels in screen/PNG (${template.templateId})`, async ({ page }, info) => {
   let project = createProjectFromTemplate(template)
   for (const [track, label] of [['A', '1'], ['B', '12'], ['C', '123']]) {
     const created = createKey(project, track, label, 'manual', undefined, 'cell')
@@ -40,16 +40,22 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   }
   let ordinaryC = 0
   for (const track of ['A', 'B', 'C']) {
-    const ordinarySize = Number(await event(track).locator('.eventText').getAttribute('font-size'))
+    const text = event(track).locator('.eventText')
+    const glyphBounds = () => text.evaluate(element => {
+      const { x, y, width, height } = (element as SVGGraphicsElement).getBBox()
+      return { x, y, width, height }
+    })
+    const ordinaryBounds = await glyphBounds()
+    const ordinarySize = Number(await text.getAttribute('font-size'))
     if (track === 'C') ordinaryC = ordinarySize
     await contextMenu(track)
     await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
     await activateControl(page, page.getByRole('menuitem', { name: '参考記号を付加（△）', exact: true }))
     await expect(event(track).locator('polygon.eventReferenceSymbol')).toHaveCount(1)
-    const text = event(track).locator('.eventText')
-    expect(Number(await text.getAttribute('font-size'))).toBeGreaterThanOrEqual(Math.min(ordinarySize, Math.max(12, Math.round(ordinarySize * .8))))
+    expect(Number(await text.getAttribute('font-size'))).toBe(ordinarySize)
+    expect(await glyphBounds()).toEqual(ordinaryBounds)
     await expect(text).toHaveCSS('paint-order', 'stroke')
-    await expect(text).toHaveCSS('dominant-baseline', 'alphabetic')
+    await expect(text).toHaveCSS('dominant-baseline', 'central')
   }
   await contextMenu('C')
   await activateControl(page, page.getByRole('menuitem', { name: '囲み', exact: true }))
@@ -122,16 +128,16 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
   expect(Math.abs(screenEnclosure.width - screenEnclosure.height)).toBeLessThanOrEqual(2)
   expect(screenEnclosure.width).toBeGreaterThan(Math.min(bBox.width, bBox.height) * .7 * await page.evaluate(() => devicePixelRatio))
 
-  for (const track of ['B', 'C']) {
+  for (const track of ['A', 'B', 'C']) {
     const box = await event(track).locator('.eventRect').evaluate(element => element.getBoundingClientRect().toJSON())
-    const oval = await event(track).locator('ellipse.eventReferenceSymbol').evaluate(element => element.getBoundingClientRect().toJSON())
+    const outline = await event(track).locator('.eventReferenceSymbol').evaluate(element => element.getBoundingClientRect().toJSON())
     const scale = await page.evaluate(() => devicePixelRatio)
     const ink = await measureInk(direct.toString('base64'), { x: box.x, y: box.y, w: box.width, h: box.height }, scale, .01)
     // At the paper template's initial zoom these outlines are only ~14 pixels
-    // wide. Compare both extents with the ellipse; edge quantization and the
+    // wide. Compare both extents with the outline; edge quantization and the
     // ink threshold can lose one pixel at each edge, distorting a ratio test.
-    expect(Math.abs(ink.width - oval.width * scale)).toBeLessThanOrEqual(2)
-    expect(Math.abs(ink.height - oval.height * scale)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.width - outline.width * scale)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.height - outline.height * scale)).toBeLessThanOrEqual(2)
     expect(ink.width).toBeGreaterThan(ink.height)
     expect(ink.width).toBeLessThanOrEqual(box.width * scale)
   }
@@ -154,14 +160,17 @@ for (const template of [digitalStandardSheetTemplate, standardA3SheetTemplate]) 
     y: enclosureRect.y * context.pageSize.heightPx, w: enclosureRect.w * context.pageSize.widthPx, h: enclosureRect.h * context.pageSize.heightPx }, 1, .02)
   expect(Math.abs(pngEnclosure.width - pngEnclosure.height)).toBeLessThanOrEqual(1)
   expect(pngEnclosure.width).toBeGreaterThan(Math.min(enclosureRect.w * context.pageSize.widthPx, enclosureRect.h * context.pageSize.heightPx) * .7)
-  for (const track of ['B', 'C']) {
+  for (const track of ['A', 'B', 'C']) {
     const rect = inputTextRenderItemsForPage(context, context.pages[0]).find(item => item.paperTrack === track)!.rect
     const ink = await measureInk(readFileSync(saved).toString('base64'), { x: rect.x * context.pageSize.widthPx, y: rect.y * context.pageSize.heightPx, w: rect.w * context.pageSize.widthPx, h: rect.h * context.pageSize.heightPx }, 1, .01)
-    const oval = event(track).locator('ellipse.eventReferenceSymbol')
+    const outline = await event(track).locator('.eventReferenceSymbol').evaluate(element => {
+      const { width, height } = (element as SVGGraphicsElement).getBBox()
+      return { width, height }
+    })
     // Export uses the same page-pixel geometry, with the same raster edge
     // quantization as the screen. Both dimensions must still match that shape.
-    expect(Math.abs(ink.width - Number(await oval.getAttribute('rx')) * 2)).toBeLessThanOrEqual(2)
-    expect(Math.abs(ink.height - Number(await oval.getAttribute('ry')) * 2)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.width - outline.width)).toBeLessThanOrEqual(2)
+    expect(Math.abs(ink.height - outline.height)).toBeLessThanOrEqual(2)
     expect(ink.width).toBeGreaterThan(ink.height)
     expect(ink.width).toBeLessThanOrEqual(rect.w * context.pageSize.widthPx)
   }

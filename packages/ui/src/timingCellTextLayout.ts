@@ -1,10 +1,10 @@
 import type { NormalizedRect, TimingEnclosure } from '@xsheet-remap/core'
 import { clampTextFontSizePx } from './sheetTextLayout'
 import { SHEET_TEXT_FONT_FAMILY, sharedTextMeasurementProvider, splitTextGraphemes, type TextMeasurementProvider } from './textMetrics'
-import { layoutTimingReference, layoutTimingCircle, type TimingReferenceGeometry } from './timingReferenceLayout'
+import { layoutTimingEnclosure, type TimingReferenceGeometry } from './timingReferenceLayout'
 
 export type TimingCellTextLayout = { text: string; fullText: string; fontSizePx: number; overflow: boolean; clipRect: NormalizedRect
-  reference?: TimingReferenceGeometry; textPosition?: { x: number; y: number }; baseline?: 'alphabetic'; outlineWidthPx?: number }
+  reference?: TimingReferenceGeometry; outlineWidthPx?: number }
 
 /** Display-only layout shared by SVG, CanvasKit and image/PSD export. */
 export function layoutTimingCellText(
@@ -39,6 +39,5 @@ export function layoutTimingCellText(
   // A column-width clip guarantees horizontal containment even with fallback fonts.
   const layout = { text: visible, fullText: text, fontSizePx, overflow,
     clipRect: { x: rect.x, y: 0, w: rect.w, h: 1 } }
-  return reference === 'circle' ? layoutTimingCircle(layout, rect, pageSize, measurement)
-    : reference ? layoutTimingReference(layout, fit ? minimum : fontSizePx, rect, pageSize, measurement) : layout
+  return reference ? layoutTimingEnclosure(layout, reference === true ? 'triangle' : reference, rect, pageSize, measurement) : layout
 }

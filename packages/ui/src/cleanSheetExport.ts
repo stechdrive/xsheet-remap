@@ -752,9 +752,7 @@ function renderTimingInputLayer(context: SheetExportLayerContext): ImageData {
         }
         ctx.fillStyle = '#113c2d'
         ctx.font = fontDeclaration(layout.fontSizePx, SHEET_CANVAS_FONT_FAMILY, SHEET_EVENT_FONT_WEIGHT)
-        ctx.textBaseline = layout.baseline ?? 'middle'
-        const textX = layout.textPosition ? layout.textPosition.x * context.pageSize.widthPx : x + w / 2
-        const textY = layout.textPosition ? offsetY + layout.textPosition.y * context.pageSize.heightPx : y + h / 2
+        const textX = x + w / 2, textY = y + h / 2
         if (layout.outlineWidthPx) {
           ctx.strokeStyle = '#fff'
           ctx.lineWidth = layout.outlineWidthPx

@@ -52,7 +52,7 @@ function TimingEventChunk({ items, pageSize, surface, dragging, pending, ready, 
         if (textLayout.reference) primitives.push(timingReferencePrimitive(textLayout.reference, style('eventSymbol eventReferenceSymbol', 'path')))
         if (displayLabel.trim()) primitives.push({ style: style('eventText', 'text'), clipRect: textLayout.clipRect,
           paint: textLayout.outlineWidthPx ? { stroke: '#fff', strokeWidth: textLayout.outlineWidthPx, order: 'stroke fill', join: 'round' } : undefined, text: {
-          value: textLayout.text, x: textLayout.textPosition?.x ?? rect.x + rect.w / 2, y: textLayout.textPosition?.y ?? rect.y + rect.h / 2, size: textLayout.fontSizePx, anchor: 'middle', baseline: textLayout.baseline ?? 'central',
+          value: textLayout.text, x: rect.x + rect.w / 2, y: rect.y + rect.h / 2, size: textLayout.fontSizePx, anchor: 'middle', baseline: 'central',
         } })
       } else {
         const geometry = timingEventSymbolGeometry(eventKind, rect, pageSize)
